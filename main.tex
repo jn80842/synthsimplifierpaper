@@ -65,7 +65,7 @@
 \begin{document}
 
 %% Title information
-\title[Short Title]{Full Title}         %% [Short Title] is optional;
+\title{Automatically improving Halide’s simplifier with synthesis}         %% [Short Title] is optional;
                                         %% when present, will be used in
                                         %% header instead of Full Title.
 \titlenote{with title note}             %% \titlenote is optional;
@@ -177,7 +177,15 @@ Text of abstract \ldots.
 
 \section{Introduction}
 
-First expressions, then terms, then rewrites
+\subsection{Motivation}
+
+The Halide compiler contains a term rewriting system, currently comprised of several hundred rules, that operates over the space of Halide expressions\footnote{See Appendix ~\ref{ss:appendixA} for the full Halide expression grammar}. This TRS often serves as a proof engine to determine if some equality or inequality holds; for example, in order to parallelize a reduction variable, the compiler must prove that there are no hazards. The compiler also frequently needs to \emph{simplify} Halide expressions. For example, canceling correlated subexpressions aids in proving monotonicity in sliding window optimizations; finding a tight bound on loops or memory allocations is often made possible when expressions have been simplified. \jln{this is handwave-y, fix later} For this reason, we often refer to the Halide term rewriting system as a simplifier.
+
+The design of the term rewriting algorithm has two important requirements. The first is performance: although the simplifier is called at compile time, it may be invoked hundreds of times in compiling a single pipeline \jln{is this true?}. Thus, unlike many term rewriting algorithms, the Halide TRS never backtracks. The second requirement is determinisim: the compiler must always return the same schedule every time it encounters a particular pipeline. This precludes any non-deterministic search strategy for the best sequence of rules to apply, or directly invoking a solver such as Z3, since even with a fixed random seed machines with different computational power may return different results within a given timeout.
+
+\subsection{The Halide TRS algorithm}
+
+The Halide term rewriting algorithm simplifies an input expression in a depth-first, bottom-up traversal of the expression DAG. At each node, it looks up the list of rewrite rules that correspond to the node's function symbol, then attempts to match the subtree expression with the rule LHSs in order. When a match is found, it rewrites the subtree expression using the RHS of that rule, and then attempts to simplify the subtree expression again. If no rule matches the subtree, the traversal continues; when the entire expression cannot be simplified further, the rewritten expression is returned. \jln{use example from slides here; also confirm big O performance of this algo}
 
 \subsection{Term rewriting systems background}
 
@@ -207,30 +215,19 @@ We then apply this substitution to the righthand side (RHS) of the rule to obtai
 (y_1 \oplus y_1) \oplus (y_2 \otimes y_3)
 \]
 
-\subsection{Halide TRS}
-In Halide terms are ....
+\subsection{Limitations}
 
-(denote overloaded operators with subscripts)
-
-Define TRS
-
-Distinguish terms and expressions
-
-
-\subsection{The Halide term rewriting algorithm}
-
-
-
+We limit ourselves to expressions over the set of infinite precision integers in this work, although Halide expressions can contain floats and fixed-width integers.
 
 \section{Soundness}
 
-Semantic vs syntactic 
-Provide semantics of rules 
-Rules must typecheck
+\subsection{Rule verification}
 
-\section{Termination}
+First, we assure soundness by verifying the current set of handwritten rules. We do this by modeling Halide expressions in SMT2 and sending them to the SMT solver Z3~\cite{de2008z3}.
 
-\subsection{Reduction orders}
+\subsection{Termination}
+
+\subsubsection{Reduction orders}
 
 Term rewriting systems are not guaranteed to terminate. Consider a term rewriting system containing only one rule: $x + y \rightarrow y + x$. The term $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again be matched to the rule and rewritten to $3 + 5$, and so on. To guarantee termination irrespective of the rule application algorithm, every application of a rule needs to strictly (monotonically) decrease in some measure. In other words, if $s \rightarrow_R t$, $s > t$ for some strict order $>$. However, since the set of terms is infinite, we cannot check that $s > t$ for all pairs of terms $s, t$. Instead, we show that for every rule $l \rightarrow r$ in our term rewriting system, $l > r$. This will suffice if $>$ is a \emph{reduction order}, given:
 
@@ -238,7 +235,7 @@ Term rewriting systems are not guaranteed to terminate. Consider a term rewritin
 A term rewriting system $R$ terminates iff there exists a reduction order $>$ that satisfies $l > r$ for all $l \rightarrow r \in R$.
 \end{theorem}
 
-State that > on terms means something about > on expressions.
+Per Baader and Nipkow~\cite{baader1999term}, a reduction order is defined as follows.
 
 \begin{definition}
 A strict order on terms $T(\Sigma, V)$ is a reduction order iff: 
@@ -311,7 +308,7 @@ Note that while variable elimination is desirable, we cannot use a measure funct
 
 However, we frequently want to normalize terms without changing the number of occurrences of function symbols within them. To permit such rules, we take the lexicographic order of $>_H$ with one more order. The measure function for our last tie-breaking order takes the root symbol of the AST of a term and translate it to a number based on the function count priority as given above. Since we prefer ``stronger'' symbols to be higher in the tree, here the order is reversed. For example, the root symbol of $select(x, y, z) - y$ is $-$ and the root symbol of $select(x, 0, z - y))$; since $-$ is ``weaker'' than $select$, we say $select(x, y, z) - y >_{root} select(x, 0, z - y))$.
 
-Include examples of rules that cannot be ordered.
+\jln{Here we need to either talk about existimg rules that don't conform to our reduction order, or figure out how to deal with those rules}
 
 
 
@@ -323,6 +320,7 @@ Program synthesis has been applied to term rewriting systems in Swapper~\cite{si
 
 Butler et al.~\cite{butler2017synthesizing} uses synthesis to learn human-interpretable strategies for puzzle games such as Sudoku or Nonograms. Strategies consist of a pattern (LHS term with variables), condition (predicate), and action (RHS term expressing rewrite), and so comprise a term rewriting system. Strategies are synthesizing Rosette, using a CEGIS loop similar to our synthesis process. Progress in these puzzle games is always monotonic, which gives a natural reduction order. Their goal is to model human strategies, which are greedy and non-deterministic, so they do not consider rule priority or any particular term rewriting algorithm. 
 
+\section{Conclusion}
 
 
 %% Acknowledgments
@@ -352,6 +350,7 @@ Butler et al.~\cite{butler2017synthesizing} uses synthesis to learn human-interp
 \section{Appendix}
 
 \subsection{Halide expression grammar}
+\label{ss:appendixA}
 
 \begin{grammar}
 <Expr> ::= <BoolExpr> 
