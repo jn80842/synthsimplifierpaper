@@ -187,6 +187,8 @@ The design of the term rewriting algorithm has two important requirements. The f
 
 The Halide term rewriting algorithm simplifies an input expression in a depth-first, bottom-up traversal of the expression DAG. At each node, it looks up the list of rewrite rules that correspond to the node's function symbol, then attempts to match the subtree expression with the rule LHSs in order. When a match is found, it rewrites the subtree expression using the RHS of that rule, and then attempts to simplify the subtree expression again. If no rule matches the subtree, the traversal continues; when the entire expression cannot be simplified further, the rewritten expression is returned. \jln{use example from slides here; also confirm big O performance of this algo}
 
+Halide rewrite rules optionally contain a predicate that must hold for a rule to be applied. Halide expressions may contain constants whose values are known at compile time. Predicate expressions may contain only such constants; when the LHS of a rule matches an expression, its predicate is evaluated and only if it is true will the rewrite be applied. \jln{maybe cite a common case where we know a constant, like a loop bound?}
+
 \subsection{Term rewriting systems background}
 
 Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
@@ -223,8 +225,11 @@ We limit ourselves to expressions over the set of infinite precision integers in
 
 \subsection{Rule verification}
 
-First, we assure soundness by verifying the current set of handwritten rules. We do this by modeling Halide expressions in SMT2 and sending them to the SMT solver Z3~\cite{de2008z3}.
+First, we assure soundness by verifying the current set of handwritten rules. We do this by modeling Halide expressions in SMT2 and sending them to the SMT solver Z3~\cite{de2008z3}. Most of the Halide expression semantics maps cleanly onto SMT2 formulas. The functions \texttt{max} and \texttt{min} are defined in the usual way, and \texttt{select} has the same meaning as the SMT2 operator \texttt{ite}. Division and modulo are given the Euclidean definitions in both Halide and SMT2. If a variable appears in the LHS of a rule as a divisor in a division or modulo operation, it is assumed to be non-zero. The Halide expressions do not have a true boolean type (true and false are represented by unsigned integers of 1 bitwidth), so expressions must be typed as either \texttt{Int} or \texttt{Bool} when translated into SMT2. The Halide expression grammar contains two vector operators, \texttt{broadcast} and \texttt{ramp}; all other integer operators can be coerced to vector operators. The operation \texttt{broadcast} projects some value $x$ to a vector of length $l$; because of the type coercion, we can simply represent \texttt{broadcast(x)} as the variable \texttt{x} in SMT2. The \texttt{ramp} operator creates a vector of length $l$ whose initial entry has the value $x$ and all subsequent entries increase with stride $s$. In SMT2, we represent this term as the symbolic expression $x + l * s$, where $l$ must be zero or positive.
 
+Given this modeling, for each rule, we assert any assumptions are true, then assert that the rule's LHS is not equivalent to its RHS and ask Z3 to find a counterexample. If no counterexample can be found, the LHS must be equivalent to the RHS and the rule must be correct. We implemented a SMT2 printer for the Halide rewrite rules and ran them through Z3; out of \jln{TK} rules, we were able to verify \jln{TK} as correct and discover \jln{TK} incorrect rules.
+
+However, nonlinear integer arithmetic is generally undecidable, and for \jln{TK} rules, Z3 either timed out or returned unknown. Nearly all of these rules used either division or modulo. We used the proof assistant Coq to manually prove or disprove the correctness of these remaining rules. 
 \subsection{Termination}
 
 \subsubsection{Reduction orders}
@@ -314,6 +319,8 @@ However, we frequently want to normalize terms without changing the number of oc
 
 \section{Completeness}
 
+The Halide term rewriting system is not complete, by which we mean that there exist expressions checked by the compiler running on real-world pipelines that the simplifier cannot resolve, but which are known to be true. \jln{there should be more discussion of TRS properties here (confluence etc) and whether they are decidable for the Halide lang} We propose a workflow to augment the simplifier using synthesis.
+
 \section{Related Work}
 
 Program synthesis has been applied to term rewriting systems in Swapper~\cite{singh2016swapper}, a tool that learns a set of rewrite formulas to transform SMT formulas into forms that can be more easily solved by theory solvers. Swapper takes a training set of formulas drawn from a target domain, does probabilistic sampling to choose LHS candidates, synthesizes predicates and RHS, and finally autotunes the resulting ruleset to choose a rule subset and rule order that gives the best solver performance. Unlike our work, Swapper is an optimizer rather than a prover. Because our rewrite algorithm scales well in terms of the number of rules, we simply use all candidate LHS terms for synthesis rather than sampling. Swapper synthesizes RHS terms that have fewer AST nodes than their corresponding LHS terms; this is not a reduction order and does not guarantee termination, although the autotuning step should reject rulesets with cycles. Finally, Swapper creates a fresh term rewriting system with each invocation, whereas our work augments and maintains an existing term rewriting system.
@@ -351,6 +358,8 @@ Butler et al.~\cite{butler2017synthesizing} uses synthesis to learn human-interp
 
 \subsection{Halide expression grammar}
 \label{ss:appendixA}
+
+\jln{this is incomplete!}
 
 \begin{grammar}
 <Expr> ::= <BoolExpr> 
