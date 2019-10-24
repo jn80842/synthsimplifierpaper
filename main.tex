@@ -359,7 +359,7 @@ Butler et al.~\cite{butler2017synthesizing} uses synthesis to learn human-interp
 \subsection{Halide expression grammar}
 \label{ss:appendixA}
 
-\jln{this is incomplete!}
+\jln{vector ops are missing}
 
 \begin{grammar}
 <Expr> ::= <BoolExpr> 
@@ -368,12 +368,24 @@ Butler et al.~\cite{butler2017synthesizing} uses synthesis to learn human-interp
 
 <BoolExpr> ::= `true'
 \alt `false'
+\alt <IntExpr> `<' <IntExpr>
+\alt <IntExpr> `>' <IntExpr>
+\alt <IntExpr> `<=' <IntExpr>
+\alt <IntExpr> `>=' <IntExpr>
+\alt <IntExpr> `=' <IntExpr>
+\alt <IntExpr> `!=' <IntExpr>
+\alt <BoolExpr> `&&' <BoolExpr>
+\alt <BoolExpr> `||' <BoolExpr>
+\alt `!' <BoolExpr>
 
 <IntExpr> ::= <IntExpr> `+' <IntExpr>
 \alt <IntExpr> `-' <IntExpr>
 \alt <IntExpr> `*' <IntExpr>
 \alt <IntExpr> `/' <IntExpr>
 \alt <IntExpr> `\%' <IntExpr>
+\alt `max' <IntExpr> <IntExpr>
+\alt `min' <IntExpr> <IntExpr>
+\alt `select' <BoolExpr> <IntExpr> <IntExpr>
 \alt integers
 
 <VectorExpr> ::= vectors
