@@ -9,8 +9,10 @@
 %% For final camera-ready submission, w/ required CCS and ACM Reference
 %\documentclass[sigplan]{acmart}\settopmatter{}
 \usepackage{amsmath}
+\usepackage{xspace}
 \definecolor{uwpurple}{RGB}{128,0,128}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
+\newcommand{\sak}[1]{\textcolor{green}{\textit{[{#1} --SK]}}}
 \usepackage{syntax}
 %% Conference information
 %% Supplied to authors by publisher for camera-ready submission;
@@ -20,6 +22,15 @@
 \acmISBN{} % \acmISBN{978-x-xxxx-xxxx-x/YY/MM}
 \acmDOI{} % \acmDOI{10.1145/nnnnnnn.nnnnnnn}
 \startPage{1}
+
+%% Macros for quantities
+\newcommand{\NumApps}{{\color{red} XX}\xspace}
+\newcommand{\NumRulesFixed}{{\color{red} XX}\xspace}
+\newcommand{\NumOrderingFixed}{{\color{red} XX}\xspace}
+\newcommand{\NumRulesSynthesized}{{\color{red} XX}\xspace}
+\newcommand{\NumFailureExamples}{{\color{red} XX}\xspace}
+
+
 
 %% Copyright information
 %% Supplied to authors (based on authors' rights management selection;
@@ -176,8 +187,67 @@ Text of abstract \ldots.
 
 
 \section{Introduction}
+Tensor and image processing pipelines power a large number of applications,
+including computational photography, medical imaging, machine learning,
+and computer vision, which run on a large variety of platforms, from
+mobile phones to large-scale servers in the cloud.  For many of these
+applications, high performance is an essential requirement due to real-time
+requirements, compute cost, and battery life.
 
-\subsection{Motivation}
+Halide~\cite{siggraph2012jrk, pldi2013jrk} has proven to be an effective
+domain-specific language (DSL) for writing such code and obtaining cross-platform
+high performance, with multiple industrial vendors relying on Halide to power
+applications used by millions of users on mobile phones, tablets, desktops, and
+servers.  Halide separates what is computed (the \textit{algorithm}) from how
+the computation executes (the \textit{schedule}); the compiler ensures that
+different schedules for different platforms correctly compute the algorithm.
+Schedules often require the compiler to prove specific properties in order
+to guarantee correctness or to ensure the resulting code performs as well
+as possible.  For example, to fully unroll a loop, the compiler must prove
+the loop has a constant extent.
+
+Many of these properties relate regions of computation with one another,
+which, within Halide, are represented as intervals over the integers.
+Reasoning about these regions uses a \textit{term rewriting system}
+(TRS) on interval arithmetic: the compiler applies simplification rules to an expression relating
+the regions until no more rewrites apply.  The final expression can be
+true, false, or indeterminate.  Indeterminate values may prevent optimizations
+from being applied, resulting in errors during compilation, or may result
+in the compiler producing suboptimal code.
+
+The Halide TRS must balance compilation speed and applicability.  For the widest applicability,
+a TRS must be \textit{convergent}, meaning that if two expressions are equal, then the TRS
+will always produce the same final canonical form.  However, constructing a TRS of this form
+is \sak{impossible? inefficient?}.  In Halide's compiler, the TRS consists of a series of
+hand-written rules and efficient matchers to match rules bottom-up.  These rules were constructed
+by developers based on observed compilation failures over many years, and ordered in ad-hoc ways
+to avoid non-termination.  Extensive fuzz-testing has been able to find bugs in rewrite rules,
+but there is no guarantee bugs do not continue to persist.  Furthermore, adding additional
+rules requires expert programmers to meticulously analyze compilation failures and hand-craft
+rules that mitigate the problems without causing new errors.
+
+In this work, we improve the Halide term rewriting system by  formally checking the existing
+set of rules to ensure correctness, and then further constructing a rule ordering that 
+ensures termination.  We then automate the task of writing new rules by building a program
+synthesis system that automatically checks compilation failures for expressions that are
+correct but not provable, produces new rules, predicates to guard their application, and
+a placement within the rule ordering to prevent non-termination.
+
+The verification and synthesis
+of these rules poses significant challenges: the underlying theory of non-linear integer arithmetic (NLIA)
+is known to be undecidable.  We verify existing rules using a combination of the Z3~\cite{z3} satisfiability
+modulo theory (SMT) solver, the Coq~\cite{coq} interactive theorem prover, and a hand-written solver
+that uses beam search with a learned cost model.  New rules are constructed with Z3 (for linear rules)
+and the new solver.  To search for cases where the Halide compiler fails to prove properties, we run
+\NumApps existing Halide pipelines with randomized schedules, and augment this set with a random pipeline
+generator designed to produce plausible image processing and machine learning pipelines.
+
+Overall, we discover \NumRulesFixed bugs in hand-written Halide simplifier rules, and fix \NumOrderingFixed
+issues in rule ordering.  We then synthesize \NumRulesSynthesized new rules from \NumFailureExamples and
+demonstrate that our approach reduces compilation failures, does not slow down the compiler, and improves
+the performance of generated code.
+
+\section{Background}
 
 The Halide compiler contains a term rewriting system, currently comprised of several hundred rules, that operates over the space of Halide expressions\footnote{See Appendix ~\ref{ss:appendixA} for the full Halide expression grammar}. This TRS often serves as a proof engine to determine if some equality or inequality holds; for example, in order to parallelize a reduction variable, the compiler must prove that there are no hazards. The compiler also frequently needs to \emph{simplify} Halide expressions. For example, canceling correlated subexpressions aids in proving monotonicity in sliding window optimizations; finding a tight bound on loops or memory allocations is often made possible when expressions have been simplified. \jln{this is handwave-y, fix later} For this reason, we often refer to the Halide term rewriting system as a simplifier.
 
