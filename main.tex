@@ -221,6 +221,8 @@ We then apply this substitution to the righthand side (RHS) of the rule to obtai
 
 We limit ourselves to expressions over the set of infinite precision integers in this work, although Halide expressions can contain floats and fixed-width integers.
 
+\jln{We haven't synthesized any vector op rules; not sure if that's a conscious decision or we haven't really had any in input expressions.}
+
 \section{Soundness}
 
 \subsection{Rule verification}
@@ -232,7 +234,7 @@ Given this modeling, for each rule, we assert any assumptions are true, then ass
 However, nonlinear integer arithmetic is generally undecidable, and for \jln{TK} rules, Z3 either timed out or returned unknown. Nearly all of these rules used either division or modulo. We used the proof assistant Coq to manually prove or disprove the correctness of these remaining rules. 
 
 \begin{table*}
-\label{tab:incorrectrules}
+
 \caption{Incorrect rules found during verification.}
 \begin{tabular}{|l|l|}
 \hline
@@ -244,6 +246,7 @@ $min(x, c0) < min(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2)$ &
 $max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & Z3 \\
 \hline
 \end{tabular}
+\label{tab:incorrectrules}
 \end{table*}
 
 \subsection{Termination}
