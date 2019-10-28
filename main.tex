@@ -234,8 +234,8 @@ correct but not provable, produces new rules, predicates to guard their applicat
 a placement within the rule ordering to prevent non-termination.
 
 The verification and synthesis
-of these rules poses significant challenges: the underlying theory, of non-linear integer arithmetic,
-is known to be undecidable.  We verify existing rules using a combination of the Z3~\cite{z3} satsisfiability
+of these rules poses significant challenges: the underlying theory of non-linear integer arithmetic (NLIA)
+is known to be undecidable.  We verify existing rules using a combination of the Z3~\cite{z3} satisfiability
 modulo theory (SMT) solver, the Coq~\cite{coq} interactive theorem prover, and a hand-written solver
 that uses beam search with a learned cost model.  New rules are constructed with Z3 (for linear rules)
 and the new solver.  To search for cases where the Halide compiler fails to prove properties, we run
