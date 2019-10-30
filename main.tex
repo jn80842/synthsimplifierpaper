@@ -248,18 +248,7 @@ demonstrate that our approach reduces compilation failures, does not slow down t
 the performance of generated code.
 
 \section{Background}
-
-The Halide compiler contains a term rewriting system, currently comprised of several hundred rules, that operates over the space of Halide expressions\footnote{See Appendix ~\ref{ss:appendixA} for the full Halide expression grammar}. This TRS often serves as a proof engine to determine if some equality or inequality holds; for example, in order to parallelize a reduction variable, the compiler must prove that there are no hazards. The compiler also frequently needs to \emph{simplify} Halide expressions. For example, canceling correlated subexpressions aids in proving monotonicity in sliding window optimizations; finding a tight bound on loops or memory allocations is often made possible when expressions have been simplified. \jln{this is handwave-y, fix later} For this reason, we often refer to the Halide term rewriting system as a simplifier.
-
-The design of the term rewriting algorithm has two important requirements. The first is performance: although the simplifier is called at compile time, it may be invoked hundreds of times in compiling a single pipeline \jln{is this true?}. Thus, unlike many term rewriting algorithms, the Halide TRS never backtracks. The second requirement is determinisim: the compiler must always return the same schedule every time it encounters a particular pipeline. This precludes any non-deterministic search strategy for the best sequence of rules to apply, or directly invoking a solver such as Z3, since even with a fixed random seed machines with different computational power may return different results within a given timeout.
-
-\subsection{The Halide TRS algorithm}
-
-The Halide term rewriting algorithm simplifies an input expression in a depth-first, bottom-up traversal of the expression DAG. At each node, it looks up the list of rewrite rules that correspond to the node's function symbol, then attempts to match the subtree expression with the rule LHSs in order. When a match is found, it rewrites the subtree expression using the RHS of that rule, and then attempts to simplify the subtree expression again. If no rule matches the subtree, the traversal continues; when the entire expression cannot be simplified further, the rewritten expression is returned. \jln{use example from slides here; also confirm big O performance of this algo}
-
-Halide rewrite rules optionally contain a predicate that must hold for a rule to be applied. Halide expressions may contain constants whose values are known at compile time. Predicate expressions may contain only such constants; when the LHS of a rule matches an expression, its predicate is evaluated and only if it is true will the rewrite be applied. \jln{maybe cite a common case where we know a constant, like a loop bound?}
-
-\subsection{Term rewriting systems background}
+\subsection{Term Rewriting Systems}
 
 Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
 
@@ -287,9 +276,40 @@ We then apply this substitution to the righthand side (RHS) of the rule to obtai
 (y_1 \oplus y_1) \oplus (y_2 \otimes y_3)
 \]
 
+\subsection{Term Rewriting in Halide}
+
+The Halide compiler contains a term rewriting system, currently comprised of
+several hundred rules, that operates over the space of Halide
+expressions\footnote{See Appendix ~\ref{ss:appendixA} for the full Halide
+  expression grammar}. While the term rewriting system is used for multiple
+purposes within the compiler, for the purposes of this work the most important
+usage is when this TRS serves proof engine to determine if
+some equality or inequality holds, or when the rewriter attempts to find tight
+bounds on regions. For example, in order to parallelize a
+reduction variable, the compiler must prove that there are no hazards, which is
+done by using the TRS as proof engine.  Another example is that Halide uses
+the TRS to decide how much memory to allocate for intermediates; tighter, more
+simplified bounds result in more efficient execution since they eliminate over-allocation.
+
+%% The compiler also frequently needs to \emph{simplify} Halide expressions.
+%% For example, canceling correlated subexpressions aids in proving monotonicity in
+%% sliding window optimizations; finding a tight bound on loops or memory
+%% allocations is often made possible when expressions have been simplified.
+%% \jln{this is handwave-y, fix later} For this reason, we often refer to the
+%% Halide term rewriting system as a simplifier.
+
+The design of the term rewriting algorithm has two important requirements. The first is performance: although the simplifier is called at compile time, it may be invoked hundreds of times in compiling a single pipeline \jln{is this true?}. Thus, unlike many term rewriting algorithms, the Halide TRS never backtracks. The second requirement is determinisim: the compiler must always return the same schedule every time it encounters a particular pipeline. This precludes any non-deterministic search strategy for the best sequence of rules to apply, or directly invoking a solver such as Z3, since even with a fixed random seed machines with different computational power may return different results within a given timeout.
+
+The Halide term rewriting algorithm simplifies an input expression in a depth-first, bottom-up traversal of the expression DAG. At each node, it looks up the list of rewrite rules that correspond to the node's function symbol, then attempts to match the subtree expression with the rule LHSs in order. When a match is found, it rewrites the subtree expression using the RHS of that rule, and then attempts to simplify the subtree expression again. If no rule matches the subtree, the traversal continues; when the entire expression cannot be simplified further, the rewritten expression is returned. \jln{use example from slides here; also confirm big O performance of this algo}
+
+Halide rewrite rules optionally contain a predicate that must hold for a rule to be applied. Halide expressions may contain constants whose values are known at compile time. Predicate expressions may contain only such constants; when the LHS of a rule matches an expression, its predicate is evaluated and only if it is true will the rewrite be applied. \jln{maybe cite a common case where we know a constant, like a loop bound?}
+
 \subsection{Limitations}
 
-We limit ourselves to expressions over the set of infinite precision integers in this work, although Halide expressions can contain floats and fixed-width integers.
+We limit ourselves to expressions over the set of infinite precision integers in
+this work, although Halide expressions can contain floats and fixed-width
+integers. However, the uses of the TRS we consider in this work all operate
+on infinite integers.
 
 \section{Soundness}
 
@@ -403,9 +423,31 @@ However, we frequently want to normalize terms without changing the number of oc
 
 
 
-\section{Completeness}
+\section{Synthesizing Rewrites}
 
 The Halide term rewriting system is not complete, by which we mean that there exist expressions checked by the compiler running on real-world pipelines that the simplifier cannot resolve, but which are known to be true. \jln{there should be more discussion of TRS properties here (confluence etc) and whether they are decidable for the Halide lang} We propose a workflow to augment the simplifier using synthesis.
+
+
+\section{Evaluation}
+In this section, we describe experiments to evaluate the improvements made to the Halide term rewriting system.  Specifically, we
+test the following hypotheses:
+\begin{enumerate}
+\item Our improvements to the Halide TRS increases the robustness of the compiler and reduces compilation failures.
+\item The improved TRS is more correct.
+\item This improved robustness and correctness does not come at the cost of vastly slower compilation speed.
+\item Improving the TRS increases performance of generated code.
+\end{enumerate}
+
+We perform all experiments on \sak{Andrew's machine?}, an Intel Xeon XXX etc.
+
+\subsection{Robustness}
+
+\subsection{Correctness}
+
+\subsection{Compilation Speed}
+
+\subsection{Generated Code Performance}
+
 
 \section{Related Work}
 
