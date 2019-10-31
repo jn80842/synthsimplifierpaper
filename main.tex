@@ -209,7 +209,7 @@ the loop has a constant extent.
 Many of these properties relate regions of computation with one another,
 which, within Halide, are represented as intervals over the integers.
 Reasoning about these regions uses a \textit{term rewriting system}
-(TRS) on interval arithmetic: the compiler applies simplification rules to an expression relating
+(TRS) on integers: the compiler applies simplification rules to an expression relating
 the regions until no more rewrites apply.  The final expression can be
 true, false, or indeterminate.  Indeterminate values may prevent optimizations
 from being applied, resulting in errors during compilation, or may result
@@ -235,7 +235,7 @@ a placement within the rule ordering to prevent non-termination.
 
 The verification and synthesis
 of these rules poses significant challenges: the underlying theory of non-linear integer arithmetic (NLIA)
-is known to be undecidable.  We verify existing rules using a combination of the Z3~\cite{z3} satisfiability
+is known to be undecidable~\cite{}.  We verify existing rules using a combination of the Z3~\cite{z3} satisfiability
 modulo theory (SMT) solver, the Coq~\cite{coq} interactive theorem prover, and a hand-written solver
 that uses beam search with a learned cost model.  New rules are constructed with Z3 (for linear rules)
 and the new solver.  To search for cases where the Halide compiler fails to prove properties, we run
@@ -249,10 +249,13 @@ the performance of generated code.
 
 \section{Background}
 \subsection{Term Rewriting Systems}
+Term rewriting systems~\cite{gorn1967} successively apply \textit{rewrite rules} to transform a given
+expression into a simpler form, until no further simplifications are possible.  Such systems are widely
+used in theorem proving~\cite{} and abstract interpretation~\cite{}.
 
 Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
 
-A \emph{rule} is a directed binary relation $l \rightarrow r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
+A \emph{rewrite rule} is a directed binary relation $l \rightarrow r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
 
 Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\otimes, \oplus\}$ and $V$ be an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
 
@@ -304,14 +307,12 @@ The Halide term rewriting algorithm simplifies an input expression in a depth-fi
 
 Halide rewrite rules optionally contain a predicate that must hold for a rule to be applied. Halide expressions may contain constants whose values are known at compile time. Predicate expressions may contain only such constants; when the LHS of a rule matches an expression, its predicate is evaluated and only if it is true will the rewrite be applied. \jln{maybe cite a common case where we know a constant, like a loop bound?}
 
-\subsection{Limitations}
-
 We limit ourselves to expressions over the set of infinite precision integers in
 this work, although Halide expressions can contain floats and fixed-width
 integers. However, the uses of the TRS we consider in this work all operate
 on infinite integers.
 
-\section{Soundness}
+\section{Improving Soundness}
 
 \subsection{Rule verification}
 
@@ -423,7 +424,7 @@ However, we frequently want to normalize terms without changing the number of oc
 
 
 
-\section{Synthesizing Rewrites}
+\section{Increasing Completeness: Synthesizing Rewrite Rules}
 
 The Halide term rewriting system is not complete, by which we mean that there exist expressions checked by the compiler running on real-world pipelines that the simplifier cannot resolve, but which are known to be true. \jln{there should be more discussion of TRS properties here (confluence etc) and whether they are decidable for the Halide lang} We propose a workflow to augment the simplifier using synthesis.
 
@@ -454,6 +455,8 @@ We perform all experiments on \sak{Andrew's machine?}, an Intel Xeon XXX etc.
 Program synthesis has been applied to term rewriting systems in Swapper~\cite{singh2016swapper}, a tool that learns a set of rewrite formulas to transform SMT formulas into forms that can be more easily solved by theory solvers. Swapper takes a training set of formulas drawn from a target domain, does probabilistic sampling to choose LHS candidates, synthesizes predicates and RHS, and finally autotunes the resulting ruleset to choose a rule subset and rule order that gives the best solver performance. Unlike our work, Swapper is an optimizer rather than a prover. Because our rewrite algorithm scales well in terms of the number of rules, we simply use all candidate LHS terms for synthesis rather than sampling. Swapper synthesizes RHS terms that have fewer AST nodes than their corresponding LHS terms; this is not a reduction order and does not guarantee termination, although the autotuning step should reject rulesets with cycles. Finally, Swapper creates a fresh term rewriting system with each invocation, whereas our work augments and maintains an existing term rewriting system.
 
 Butler et al.~\cite{butler2017synthesizing} uses synthesis to learn human-interpretable strategies for puzzle games such as Sudoku or Nonograms. Strategies consist of a pattern (LHS term with variables), condition (predicate), and action (RHS term expressing rewrite), and so comprise a term rewriting system. Strategies are synthesizing Rosette, using a CEGIS loop similar to our synthesis process. Progress in these puzzle games is always monotonic, which gives a natural reduction order. Their goal is to model human strategies, which are greedy and non-deterministic, so they do not consider rule priority or any particular term rewriting algorithm. 
+
+Herbie, superoptimization, abstract interpretation
 
 \section{Conclusion}
 
