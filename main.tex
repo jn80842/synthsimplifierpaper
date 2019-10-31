@@ -26,7 +26,7 @@
 %% Macros for quantities
 \newcommand{\NumApps}{{\color{red} XX}\xspace}
 \newcommand{\NumRulesFixed}{{\color{red} XX}\xspace}
-\newcommand{\NumOrderingFixed}{{\color{red} XX}\xspace}
+\newcommand{\NumOrderingProblems}{{\color{red} XX}\xspace}
 \newcommand{\NumRulesSynthesized}{{\color{red} XX}\xspace}
 \newcommand{\NumFailureExamples}{{\color{red} XX}\xspace}
 
@@ -187,6 +187,7 @@ Text of abstract \ldots.
 
 
 \section{Introduction}
+\sak{Will add the rewrite of the simplifier to this}
 Tensor and image processing pipelines power a large number of applications,
 including computational photography, medical imaging, machine learning,
 and computer vision, which run on a large variety of platforms, from
@@ -242,8 +243,8 @@ and the new solver.  To search for cases where the Halide compiler fails to prov
 \NumApps existing Halide pipelines with randomized schedules, and augment this set with a random pipeline
 generator designed to produce plausible image processing and machine learning pipelines.
 
-Overall, we discover \NumRulesFixed bugs in hand-written Halide simplifier rules, and fix \NumOrderingFixed
-issues in rule ordering.  We then synthesize \NumRulesSynthesized new rules from \NumFailureExamples and
+Overall, we discover \NumRulesFixed bugs in hand-written Halide simplifier rules, and discover \NumOrderingProblems
+potential issues in rule ordering.  We then synthesize \NumRulesSynthesized new rules from \NumFailureExamples and
 demonstrate that our approach reduces compilation failures, does not slow down the compiler, and improves
 the performance of generated code.
 
@@ -293,6 +294,22 @@ reduction variable, the compiler must prove that there are no hazards, which is
 done by using the TRS as proof engine.  Another example is that Halide uses
 the TRS to decide how much memory to allocate for intermediates; tighter, more
 simplified bounds result in more efficient execution since they eliminate over-allocation.
+More generally, proof engine failures can lead to:
+\begin{itemize}
+\item Insufficiently tight bounds on loops and allocations, which may result in
+  runtime failures (e.g. due to memory overallocation) or performance issues;
+
+\item Failure of the compiler to apply optimizations, also resulting in slow performance;
+
+\item Dynamic checks in the generated code, for properties that could have been proven
+  at compile time, leading to slower code;
+
+\item Compilation failures, when the compiler is unable to correctly produce code
+  even though the properties required hold, or when the proof engine itself crashes
+  or loops infinitely.
+\end{itemize}
+Thus, correctness and generality are essential to make the compiler robust and
+able to generate fast code.
 
 %% The compiler also frequently needs to \emph{simplify} Halide expressions.
 %% For example, canceling correlated subexpressions aids in proving monotonicity in
@@ -301,7 +318,16 @@ simplified bounds result in more efficient execution since they eliminate over-a
 %% \jln{this is handwave-y, fix later} For this reason, we often refer to the
 %% Halide term rewriting system as a simplifier.
 
-The design of the term rewriting algorithm has two important requirements. The first is performance: although the simplifier is called at compile time, it may be invoked hundreds of times in compiling a single pipeline \jln{is this true?}. Thus, unlike many term rewriting algorithms, the Halide TRS never backtracks. The second requirement is determinisim: the compiler must always return the same schedule every time it encounters a particular pipeline. This precludes any non-deterministic search strategy for the best sequence of rules to apply, or directly invoking a solver such as Z3, since even with a fixed random seed machines with different computational power may return different results within a given timeout.
+The design of the term rewriting algorithm has two additional important
+requirements. The first is performance: although the simplifier is called at
+compile time, it may be invoked hundreds of times in compiling a single pipeline
+\jln{is this true?}. Thus, unlike many term rewriting algorithms, the Halide TRS
+never backtracks. The second requirement is determinisim: the compiler must
+always return the same schedule every time it encounters a particular pipeline.
+This precludes any non-deterministic search strategy for the best sequence of
+rules to apply, or directly invoking a solver such as Z3, since even with a
+fixed random seed machines with different computational power may return
+different results within a given timeout.
 
 The Halide term rewriting algorithm simplifies an input expression in a depth-first, bottom-up traversal of the expression DAG. At each node, it looks up the list of rewrite rules that correspond to the node's function symbol, then attempts to match the subtree expression with the rule LHSs in order. When a match is found, it rewrites the subtree expression using the RHS of that rule, and then attempts to simplify the subtree expression again. If no rule matches the subtree, the traversal continues; when the entire expression cannot be simplified further, the rewritten expression is returned. \jln{use example from slides here; also confirm big O performance of this algo}
 
