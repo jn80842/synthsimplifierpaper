@@ -435,6 +435,24 @@ We begin synthesis with a Halide expression we would like to simplify further, b
 
 We choose one of our potential LHS expressions and attempt to synthesize a RHS expression. To be a viable candidate rule, we need the RHS to be equivalent to the LHS, and for our reduction order to hold over the expressions such that $LHS <_R RHS$. We synthesize these expressions using a CEGIS loop.
 
+CEGIS superoptimize
+
+ordering for synthesized rules is overapproximation of reduction order
+
+replace constants with constant wildcards
+
+try to eliminate non-constant wildcards with beam search to get predicate
+
+isolate variable to eliminate it
+
+replace var with symbolic upper and lower bound - replaces equality with inequality (symbolic range analysis)
+
+If a = b * c, infer sign of any of those terms based on sign of the other, can give equation of form a > 0.
+
+filter list of rules by generality wrt to each other
+
+discard predicate wildcards
+
 \section{Evaluation}
 In this section, we describe experiments to evaluate the improvements made to the Halide term rewriting system.  Specifically, we
 test the following hypotheses:
