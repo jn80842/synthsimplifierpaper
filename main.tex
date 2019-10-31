@@ -148,7 +148,20 @@
 %% Note: \begin{abstract}...\end{abstract} environment must come
 %% before \maketitle command
 \begin{abstract}
-Text of abstract \ldots.
+  The wide adoption of Halide as an efficient domain-specific language
+  for image processing and tensor computation shows the language is
+  useful and effective for compiling high performance code across platforms.
+  In Halide, reasoning about the code relies on a term rewriting system to
+  prove properties required for efficient and correct compilation.  This rewrite
+  system is written as a large collection of tree visitors expressed in imperative
+  code.  In this work, we describe a new term rewriting system consisting of
+  declarative, provably-correct rewrite rules.  We identify and fix \NumRulesFixed
+  incorrect rules and \NumOrderingProblems rules with ordering that may result
+  in infinite looping. We augment existing rules with a system that
+  automatically synthesizes provably-correct new rules from failed proof
+  examples, adding \NumRulesSynthesize new rules.  We show the new
+  term rewriting system is more correct, more robust, and more general,
+  and enables faster performance for generated code.
 \end{abstract}
 
 
