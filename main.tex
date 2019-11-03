@@ -366,8 +366,8 @@ a specification.
 The CEGIS process proceeds in a loop. Given a specification $S$ and arbitrary
 settings for $C = {c_0,..c_i}$, constructing a query to the SMT engine that searches for
 a counterexample to equivalence:
-$$\forall B, f(C, B) \neq S(B)$$
-The solver either returns unsatisfiable, meaning the the choices encoded in $S$
+$$\forall B, \neg (f(C, B) = S(B))$$
+The solver either returns unsatisfiable, meaning the the choices encoded in $C$
 indeed result in a program equivalent to $S$, or returns a counter example input $e_0$
 for which the two programs give different results.  Then, the CEGIS system constructs a new query,
 asking the SMT solver for choices $C'$ such that the two programs are equivalent.
