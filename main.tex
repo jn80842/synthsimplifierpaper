@@ -153,13 +153,16 @@
   useful and effective for compiling high performance code across platforms.
   In Halide, reasoning about the code relies on a term rewriting system to
   prove properties required for efficient and correct compilation.  This rewrite
-  system is written as a large collection of tree visitors expressed in imperative
-  code.  In this work, we describe a new term rewriting system consisting of
-  declarative, provably-correct rewrite rules.  We identify and fix \NumRulesFixed
-  incorrect rules and \NumOrderingProblems rules with ordering that may result
-  in infinite looping. We augment existing rules with a system that
-  automatically synthesizes provably-correct new rules from failed proof
-  examples, adding \NumRulesSynthesized new rules.  We show the new
+  system is written as a large collection of ad hoc hand-written transformation rules 
+  that incrementally rewrite expressions into simpler forms.
+  In this work, we apply formal techniques to prove the correctness of existing
+  rewrite rules and formalize an ordering that ensures termination.  Then,
+  we build an automatic program synthesis system that creates new, provably
+  correct rules from failure cases where the compiler was unable to prove properties. We
+  identify and fix \NumRulesFixed incorrect rules and \NumOrderingProblems rules
+  with ordering that may result in infinite looping. We augment existing rules
+  with a system that automatically synthesizes provably-correct new rules from
+  failed proof examples, adding \NumRulesSynthesized new rules. We show the new
   term rewriting system is more correct, more robust, and more general,
   and enables faster performance for generated code.
 \end{abstract}
@@ -200,7 +203,6 @@
 
 
 \section{Introduction}
-\sak{Will add the rewrite of the simplifier to this}
 Tensor and image processing pipelines power a large number of applications,
 including computational photography, medical imaging, machine learning,
 and computer vision, which run on a large variety of platforms, from
@@ -350,6 +352,32 @@ We limit ourselves to expressions over the set of infinite precision integers in
 this work, although Halide expressions can contain floats and fixed-width
 integers. However, the uses of the TRS we consider in this work all operate
 on infinite integers.
+
+\subsection{Program Synthesis}
+Over the past decade, syntax-guided synthesis (SyGuS)~\cite{sygus} has been used
+to search over a space of possible programs in order to find one that meets
+a semantic specification.  One of the most popular techniques is counterexample-guided
+inductive synthesis (CEGIS), which leverages the power of satisfiability modulo theories
+(SMT) and SAT solvers to make search over a large space of programs more intelligent.
+In CEGIS, the task is to find some program in the search space such that for all possible
+inputs, the found program fulfills some semantic criteria, usually equivalence with
+a specification.
+
+The CEGIS process proceeds in a loop. Given a specification $S$ and arbitrary
+settings for $C = {c_0,..c_i}$, constructing a query to the SMT engine that searches for
+a counterexample to equivalence:
+$$\forall B, f(C, B) \neq S(B)$$
+The solver either returns unsatisfiable, meaning the the choices encoded in $S$
+indeed result in a program equivalent to $S$, or returns a counter example input $e_0$
+for which the two programs give different results.  Then, the CEGIS system constructs a new query,
+asking the SMT solver for choices $C'$ such that the two programs are equivalent.
+Given the $C'$ returned by the solver, CEGIS then attempts the original query once again.
+If a counterexample $e_1$ is found, another iteration of the CEGIS loop begins, this time querying
+the solver for $C'$ that results in equivalent behavior to $S$ for both counterexample inputs.
+In this manner, the CEGIS loop iterates between querying the solver for new $C'$ valid
+for all found counterexamples so far, then queries the SMT solver to prove the new $C'$ is
+correct for all inputs.  The loop terminates when the final $C'$ is proven correct for
+possible inputs.
 
 \section{Improving Soundness}
 \jln{We haven't synthesized any vector op rules; not sure if that's a conscious decision or we haven't really had any in input expressions.}
