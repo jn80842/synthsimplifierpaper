@@ -495,6 +495,12 @@ However, we frequently want to normalize terms without changing the number of oc
 
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
+\begin{figure}
+\includegraphics[width=\columnwidth]{figures/synthesis-flow.pdf}
+\caption{Overall flow of the synthesis pipeline.}
+\label{fig:synthesis-flow}
+\end{figure}
+
 
 The Halide term rewriting system is not complete, by which we mean that there exist expressions checked by the compiler running on real-world pipelines that the simplifier cannot resolve, but which are known to be true. \jln{there should be more discussion of TRS properties here (confluence etc) and whether they are decidable for the Halide lang} We propose a workflow to augment the simplifier using synthesis.
 
