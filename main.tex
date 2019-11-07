@@ -26,6 +26,7 @@
 %% Macros for quantities
 \newcommand{\NumApps}{{\color{red} XX}\xspace}
 \newcommand{\NumRulesFixed}{{\color{red} XX}\xspace}
+\newcommand{\NumPredicatesRelaxed}{{\color{red} XX}\xspace}
 \newcommand{\NumOrderingProblems}{{\color{red} XX}\xspace}
 \newcommand{\NumRulesSynthesized}{{\color{red} XX}\xspace}
 \newcommand{\NumFailureExamples}{{\color{red} XX}\xspace}
@@ -490,7 +491,7 @@ Note that while variable elimination is desirable, we cannot use a measure funct
 
 However, we frequently want to normalize terms without changing the number of occurrences of function symbols within them. To permit such rules, we take the lexicographic order of $>_H$ with one more order. The measure function for our last tie-breaking order takes the root symbol of the AST of a term and translate it to a number based on the function count priority as given above. Since we prefer ``stronger'' symbols to be higher in the tree, here the order is reversed. For example, the root symbol of $select(x, y, z) - y$ is $-$ and the root symbol of $select(x, 0, z - y))$; since $-$ is ``weaker'' than $select$, we say $select(x, y, z) - y >_{root} select(x, 0, z - y))$.
 
-\jln{Here we need to either talk about existimg rules that don't conform to our reduction order, or figure out how to deal with those rules}
+\jln{Here we need to either talk about existing rules that don't conform to our reduction order, or figure out how to deal with those rules}
 
 
 
@@ -533,11 +534,31 @@ We perform all experiments on \sak{Andrew's machine?}, an Intel Xeon XXX etc.
 
 \subsection{Robustness}
 
+Our hypothesis is that adding the newly synthesized rules to the Halide simplifier has increased the set of expressions it can simplify. Since the simplifier is non-confluent both before and after the new rules were added, we have no theoretical guarantee that this is the case (in fact, it is possible that the augmented simplifier might fail to simplify an expression that would previously have succeeded if the new rules move the expression into a local minimum). We test the robustness of the enhanced simplifier empirically by compiling randomly generated schedules with the original and enhanced simplifier and reporting the number of compilation failures.
+
+% could also report calls to can_prove and successful calls to can_prove; this is more meaningful as a ratio
+
 \subsection{Correctness}
+
+As described above, we improved the correctness of the simplifier by verifying the existing rules using a combination of Z3 and Coq. We found \NumRulesFixed incorrect rules and submitted patches to the Halide developers. We also found \NumPredicatesRelaxed rules whose predicates could be relaxed while retaining correctness.
+
+\jln{Is it possible that the incorrect rules ever led to unsound compilation output? Not sure how to determine this.}
+
+We also ensure the termination of the simplifier by devising a reduction order over its rewrite rules. We identify \NumOrderingProblems rewrite rules that do not conform to this ordering. 
 
 \subsection{Compilation Speed}
 
+We hypothesize that the Halide simplifier scales well in terms of the number of rewrite rules it uses, and thus adding synthesized rules will not greatly affect compilation times. We need empirical results to confirm this hypothesis, since adding rewrite rules could potentially improve simplification time for one expression and degrade it for another. If no rules match a given expression, the simplifier must try to match every applicable rule, so adding rules would increase simplification time; if a new rule allows the simplifier to make progress on a previously unsimplifiable rule, the simplifier will be able to continue working on the expression and thus take more steps. On the other hand, a new rule might allow an expression to simplify to a small expression quickly, thus reducing the number of rewrite steps the simplifier must take; furthermore, if the simplifier can now successfully prove a term when it could not before, it may be able to use some optimization, thus shortening (non-simplifier) compilation time overall.
+
+We recorded the compilation times for the random schedules used in the robustness experiment above.
+
+\jln{Ras suggests we record can\_prove expressions and get timing on simplifying them so we can separate simplifier timing from the full compliation times.}
+
 \subsection{Generated Code Performance}
+
+By increasing the robustness of the simplifier, we hypothesize that we increase the likelihood that the compiler will return more performant code. Halide ships with X sample applications; we compiled these applications with and without the newly synthesized rules and measured their runtime performance.
+
+% metrics, discussion of results here
 
 
 \section{Related Work}
