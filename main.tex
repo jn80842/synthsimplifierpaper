@@ -1,5 +1,5 @@
 %% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
-\documentclass[sigplan,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+\documentclass[sigplan,10pt,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For double-blind review submission, w/ CCS and ACM Reference
 %\documentclass[sigplan,review,anonymous]{acmart}\settopmatter{printfolios=true}
 %% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
@@ -10,6 +10,7 @@
 %\documentclass[sigplan]{acmart}\settopmatter{}
 \usepackage{amsmath}
 \usepackage{xspace}
+\usepackage{natbib}
 \definecolor{uwpurple}{RGB}{128,0,128}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
 \newcommand{\sak}[1]{\textcolor{green}{\textit{[{#1} --SK]}}}
@@ -17,8 +18,8 @@
 %% Conference information
 %% Supplied to authors by publisher for camera-ready submission;
 %% use defaults for review submission.
-\acmConference[PL'18]{ACM SIGPLAN Conference on Programming Languages}{January 01--03, 2018}{New York, NY, USA}
-\acmYear{2018}
+\acmConference[PLDI'20]{ACM SIGPLAN Conference on Programming Language Design and Implementation}{June 2020}{London, UK}
+\acmYear{2020}
 \acmISBN{} % \acmISBN{978-x-xxxx-xxxx-x/YY/MM}
 \acmDOI{} % \acmDOI{10.1145/nnnnnnn.nnnnnnn}
 \startPage{1}
@@ -525,32 +526,180 @@ However, we frequently want to normalize terms without changing the number of oc
 
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
-\begin{figure}
-\includegraphics[width=\columnwidth]{figures/synthesis-flow.pdf}
+\begin{figure*}
+\includegraphics[width=1.9\columnwidth]{figures/synthesis-flow.pdf}
 \caption{Overall flow of the synthesis pipeline.}
 \label{fig:synthesis-flow}
-\end{figure}
+\end{figure*}
 
 
-The Halide term rewriting system is not complete, by which we mean that there exist expressions checked by the compiler running on real-world pipelines that the simplifier cannot resolve, but which are known to be true. \jln{there should be more discussion of TRS properties here (confluence etc) and whether they are decidable for the Halide lang} We propose a workflow to augment the simplifier using synthesis.
+The Halide term rewriting system is not complete: there
+exist expressions checked by the compiler running on real-world pipelines that
+the simplifier cannot resolve, but which are known to be true. \jln{there should
+  be more discussion of TRS properties here (confluence etc) and whether they
+  are decidable for the Halide lang}
+In this section, we describe a workflow for automatically augmenting the Halide
+TRS using program synthesis.
+A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
+Overall, we begin by synthesizing candidate rules that contain concrete constants,
+then generalize those rules by replacing concrete constants with wildcards that
+match any compile-time constants, along with predicates checkable at compile-time
+that encode constraints on those constants.
 
-\subsection{Synthesizing candidate rules}
+\subsection{Synthesizing Candidate Rules With Constants}
+The synthesis pipeline begins with a collection of failed proofs, which are printed
+by the compiler when debugging output is enabled.  For this work, we obtained a set
+of failed proofs from the authors of \citeauthor{Adams2019} which were recorded
+while building random but realistic Halide pipelines with random schedules for
+training the Halide autoscheduler.  For each failed proof, we attempt to generate
+one or more rules capable of transforming the expression.
 
-We begin synthesis with a Halide expression we would like to simplify further, but on which the existing simplifier can make no further progress. First, we build a set of potential LHS expressions. We parse the expression as an AST, and find all possible substitutions over the expression by choosing a fresh variable for each subtree. For every possible combination of these substitutions, we perform the substitutions on the original expression, take every subtree of the resulting expression, rename the variables for consistency, and add them to our set of potential LHS patterns. When this is done, we have every possible LHS pattern that could match the original expression. This is exponential in the size of the original expression, but because many of the resulting expressions are redundant, because many combinations of substitutions are incompatible with each other, and because the size of the original expressions tends to be not too large, the resulting set is tractable. We limit the LHS patterns to contain no more than six unique variables. We also remove patterns that contain no repeated variables, since these are unlikely to yield any new rules.
 
-We choose one of our potential LHS expressions and attempt to synthesize a RHS expression. To be a viable candidate rule, we need the RHS to be equivalent to the LHS, and for our reduction order to hold over the expressions such that $LHS <_R RHS$. We synthesize these expressions using a CEGIS loop.
+\paragraph{Generating LHS Patterns} For a given failed expression, the first step
+is to construct all left-hand-side patterns that match some portion of the expression.
+We constrain the maximum length of a pattern to be six operations, to ensure fast matching
+during term rewriting. At this stage, patterns preserve any constant values, and subtrees
+that excactly match syntactically are assigned the same wildcard. For
+example, given the expression $(a*b + c/b)$, where all nodes are non-constant,
+we extract the following LHS patterns: $x + y$, $x * y$, $x / y$, $x * y + z$,
+$x + y/z$, and $x*y + z/y$.  We then filter out any patterns that do not contain
+a repeated wildcard, as such patterns are unlikely to result in a useful general
+rewrite.  Thus, of the set above, we would only consider the last pattern, since
+it contains a repeated $y$.  Although the set of candidate LHS patterns is exponential
+in the size of the original expression, our filtering reduces the set to a tractable
+size.
 
-We synthesize a RHS pattern by creating a program sketch and asking the solver Z3 to complete it. The program sketch is made up a list of registers; each register holds an op code, representing an operation from the Halide grammar, and two integers representing arguments to that operation. Those integers may represent indexes to previous registers, or to integer constants. We initialize with a sketch completed by all zeroes to give us a first candidate program. We then enter the CEGIS loop; we posit that the LHS pattern and the candidate RHS are equivalent and ask for a counterexample assignment to their variables that would disprove this assertion. We first try random inputs for reasons of efficiency; if this does not yield any counterexamples, we call out to the solver, and if it cannot find any counterexamples, we know the two expressions must be equivalent and we have a candidate rule. If we do find a counterexample, we add it to our list of counterexamples and ask the solver for a new completion of the sketch such that the completed sketch is equivalent to the LHS pattern for all counterexample variable assignments. We begin with a program sketch of 1 instruction; if no equivalent program of that size is found, we increase the program length by one and start the CEGIS loop again. We stop our search after failing to synthesize a RHS of equivalent length to the original LHS expression.
+\paragraph{Synthesizing Right-Hand Sides} Given a candidate left-hand side, we 
+synthesize a right-hand side that is semantically equivalent and respects the reduction
+order such that $\mathit{LHS} > \mathit{RHS}$.  We utilize two strategies for synthesizing
+right-hand sides: reassociating and applying a known rewrite, or counter-example guided
+inductive synthesis (CEGIS).
 
-Once we have produced a candidate rule, we check that it obeys our reduction order ($LHS <_R RHS$) and that all divisor terms in the RHS appear as divisors on the LHS. If either of these properties is violated, we discard the rule. For performance reasons we do not encode these properties into the CEGIS synthesis queries. Our choice to synthesize RHS terms that contain as few operations as possible serves as an approximation of the histogram counts that make up the first of the composed reduction orders. In practice, few synthesized rules are found that violate the reduction order.
+The first strategy comes from the sinsight that in many cases, rewrite rules would apply
+if the expression were in a different form.  Therefore, we generate all possible
+reassociations and commutations of the LHS expression, by unpacking the expression
+into a flattened list of leaves, and then enumerating every valid binary
+tree over permutations of the leaves that is semantically equivalent to the original
+expression.  We then check whether an existing rule rewrites any enumerated reassociation.
+When enumerating trees, we consider every reassociation and commutation
+of associative and commutative node types, including addition and subtraction, max, and
+min.  For non-associative/non-commutative nodes, we use the outer product of all reassociations
+and commutations of their input arguments.  For example, the expression $(x/2 + y) - (x + 11)/2$
+does not match an existing rewrite rule, but a reassociated version does: $y + (x/2 - (x + 11)/2)$
+would be rewritten to $(-10 - (x \% 2)/2) + y)$.  Thus, we construct the candidate rewrite:
+$$(x/2 + y) - (x + 11)/2 \equiv (-10 - (x \% 2)/2) + y)$$
 
-The Halide expressions we use as inputs frequently contain integer constants. These constants often occur as coefficients or divisors, and leaving them in place, rather than replacing them with fresh variables, greatly accelerates synthesis of RHS expressions (in many cases replacing constants with variables would leave Z3 able to make no progress in synthesis at all). However, if our candidate rule contains constants, it is unlikely to frequently match to other expressions and thus is overfitted to the input expression. To combat this problem, we generalize constants to fresh variables and where necessary, synthesize predicates to ensure the rule's validity.
+If the first method fails, we apply CEGIS to superoptimize the left-hand side pattern.
+We build a CEGIS loop on top of Z3~\cite{z3}, encoding the LHS as a set of op codes
+and searching for a semantically-equivalent shorter sequence of operations, similar
+to prior work in superoptimization~\cite{}.  We first search for a single-op sequence,
+than iteratively increase the number of operations, in order to find shorter sequences
+first.  If CEGIS returns a shorter sequence, it becomes the candidate right-hand side.
 
-\subsection{Synthesizing rule predicates}
+While Z3 is a powerful tool for powering synthesis, we must take care to avoid
+undecidable theories, in which case Z3 nearly always fails during the CEGIS process.
+Therefore we limit the use of division and modulo in our op codes to be division
+or modulo by 2 only, and rely on the generalization step described next to
+widen the set of denominators for which a rule applies.
 
-Given a candidate rule whose LHS and RHS contain constants, we replace each constant with a fresh \emph{constant variable}. A constant variable can only match against a constant; in other words, against a term whose value is known at compile time. We first query Z3 again to see if the equivalence still holds; if it does, the rule is valid without a predicate. If it is not, we will need to find a predicate to guard applications of the rule in the simplifier. We attempt to synthesize a predicate such that $pred \rightarrow LHS = RHS$ and all the variables that appear in the predicate are constant variables.
+%% We begin synthesis with a Halide expression we would like to simplify further,
+%% but on which the existing simplifier can make no further progress. First, we
+%% build a set of potential LHS expressions. We parse the expression as an AST, and
+%% find all possible substitutions over the expression by choosing a fresh variable
+%% for each subtree. For every possible combination of these substitutions, we
+%% perform the substitutions on the original expression, take every subtree of the
+%% resulting expression, rename the variables for consistency, and add them to our
+%% set of potential LHS patterns. When this is done, we have every possible LHS
+%% pattern that could match the original expression. This is exponential in the
+%% size of the original expression, but because many of the resulting expressions
+%% are redundant, because many combinations of substitutions are incompatible with
+%% each other, and because the size of the original expressions tends to be not too
+%% large, the resulting set is tractable. We limit the LHS patterns to contain no
+%% more than six unique variables. We also remove patterns that contain no repeated
+%% variables, since these are unlikely to yield any new rules.
 
-Consider the synthesized rule $c0 \cdot x > c1 \cdot x = x > c2$, where $c0, c1, c2$ are constant variables. We want to find some term $t_p$ such that $t_p \rightarrow c0 \cdot x > c1 \cdot x = x > c2$ and $\mathcal{V}ar(t_p) \subseteq \{c0, c1, c2\}$. For some rule $R$, we begin by negating $R$ and deriving as many facts from it as possible that refer only to the constant variables. Once we have found $\not R \rightarrow \not P$, we know that $P \rightarrow R$.
+%% We choose one of our potential LHS expressions and attempt to synthesize a RHS
+%% expression. To be a viable candidate rule, we need the RHS to be equivalent to
+%% the LHS, and for our reduction order to hold over the expressions such that $LHS
+%% <_R RHS$. We synthesize these expressions using a CEGIS loop.
+
+%% We synthesize a RHS pattern by creating a program sketch and asking the solver
+%% Z3 to complete it. The program sketch is made up a list of registers; each
+%% register holds an op code, representing an operation from the Halide grammar,
+%% and two integers representing arguments to that operation. Those integers may
+%% represent indexes to previous registers, or to integer constants. We initialize
+%% with a sketch completed by all zeroes to give us a first candidate program. We
+%% then enter the CEGIS loop; we posit that the LHS pattern and the candidate RHS
+%% are equivalent and ask for a counterexample assignment to their variables that
+%% would disprove this assertion. We first try random inputs for reasons of
+%% efficiency; if this does not yield any counterexamples, we call out to the
+%% solver, and if it cannot find any counterexamples, we know the two expressions
+%% must be equivalent and we have a candidate rule. If we do find a counterexample,
+%% we add it to our list of counterexamples and ask the solver for a new completion
+%% of the sketch such that the completed sketch is equivalent to the LHS pattern
+%% for all counterexample variable assignments. We begin with a program sketch of 1
+%% instruction; if no equivalent program of that size is found, we increase the
+%% program length by one and start the CEGIS loop again. We stop our search after
+%% failing to synthesize a RHS of equivalent length to the original LHS expression.
+
+%% Once we have produced a candidate rule, we check that it obeys our reduction
+%% order ($LHS <_R RHS$) and that all divisor terms in the RHS appear as divisors
+%% on the LHS. If either of these properties is violated, we discard the rule. For
+%% performance reasons we do not encode these properties into the CEGIS synthesis
+%% queries. Our choice to synthesize RHS terms that contain as few operations as
+%% possible serves as an approximation of the histogram counts that make up the
+%% first of the composed reduction orders. In practice, few synthesized rules are
+%% found that violate the reduction order.
+
+%% The Halide expressions we use as inputs frequently contain integer constants.
+%% These constants often occur as coefficients or divisors, and leaving them in
+%% place, rather than replacing them with fresh variables, greatly accelerates
+%% synthesis of RHS expressions (in many cases replacing constants with variables
+%% would leave Z3 able to make no progress in synthesis at all). However, if our
+%% candidate rule contains constants, it is unlikely to frequently match to other
+%% expressions and thus is overfitted to the input expression. To combat this
+%% problem, we generalize constants to fresh variables and where necessary,
+%% synthesize predicates to ensure the rule's validity.
+
+\subsection{Generalizing Constants}
+
+At this point in the synthesis pipeline, we have constructed a candidate rewrite
+rule that contains concrete constants.  To make the rule as general as possible,
+we replace each constant with a fresh \emph{constant variable}. A constant
+variable matches only terms with values known at compile time. We first query Z3
+again to see if the equivalence still holds; if it does, the rule is valid. If
+it is not, we will need to find a \textit{predicate} to guard
+applications of the rule in the simplifier. We attempt to synthesize a predicate
+such that $pred \rightarrow LHS = RHS$ and all variables appearing in the
+predicate are constant variables.
+
+Consider the synthesized rule $c0 \cdot x > c1 \cdot x \equiv x > c2$, where $c0$, $c1$,
+$c2$ are constant variables. We want to find some term $P$ such that
+$P \rightarrow c0 \cdot x > c1 \cdot x \equiv x > c2$ and
+$\mathcal{V}ar(P) \subseteq \{c0, c1, c2\}$. More generally, for a rule $R$, we begin by
+negating $R$ and deriving as many facts from it as possible that refer only to
+the constant variables. Once we have found $\neg R \rightarrow \neg P$, with $P$ containing
+no non-constant variables, we know that $P \rightarrow R$, so $P$ serves as a
+valid predicate for the rule.  For example, for the rule above, we derive implications
+from $c0 \cdot x > c1 \cdot x \neq x > c2$, and then negate those implications to
+construct the predicate.
+
+Deriving facts that only contain constant variables requires applying variable
+elimination to get rid of non-constant variables.  Our approach breaks up $\neg P$ into
+a large number of simpler cases, then applies variable elimination to each case.
+
+\paragraph{Dividing into Subclauses} We begin by subdividing a rewrite $l \neq r$ into
+the cases $l \wedge \neg r$ and $\neg l \wedge r$.  We then further subdivide each case based
+on the sign of any variables used in multiplication, division, or modulus, constructing
+a case for negative, zero, or positive values of the variable (we skip the zero case for
+division and modulo, because we assume no undefined behavior exists in the original expression).
+For our example, we subdivide into three cases each for each of $c0$, $c1$, and $x$, yielding
+54 cases.  We then further subdivide using any explicit conditionals in the expression (max,
+min, and select), considering each branch separately.
+
+Next, we 
+
+\subsection{Final Filtering}
 
 
 \section{Evaluation}
