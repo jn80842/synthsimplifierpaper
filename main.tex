@@ -602,65 +602,6 @@ Therefore we limit the use of division and modulo in our op codes to be division
 or modulo by 2 only, and rely on the generalization step described next to
 widen the set of denominators for which a rule applies.
 
-%% We begin synthesis with a Halide expression we would like to simplify further,
-%% but on which the existing simplifier can make no further progress. First, we
-%% build a set of potential LHS expressions. We parse the expression as an AST, and
-%% find all possible substitutions over the expression by choosing a fresh variable
-%% for each subtree. For every possible combination of these substitutions, we
-%% perform the substitutions on the original expression, take every subtree of the
-%% resulting expression, rename the variables for consistency, and add them to our
-%% set of potential LHS patterns. When this is done, we have every possible LHS
-%% pattern that could match the original expression. This is exponential in the
-%% size of the original expression, but because many of the resulting expressions
-%% are redundant, because many combinations of substitutions are incompatible with
-%% each other, and because the size of the original expressions tends to be not too
-%% large, the resulting set is tractable. We limit the LHS patterns to contain no
-%% more than six unique variables. We also remove patterns that contain no repeated
-%% variables, since these are unlikely to yield any new rules.
-
-%% We choose one of our potential LHS expressions and attempt to synthesize a RHS
-%% expression. To be a viable candidate rule, we need the RHS to be equivalent to
-%% the LHS, and for our reduction order to hold over the expressions such that $LHS
-%% <_R RHS$. We synthesize these expressions using a CEGIS loop.
-
-%% We synthesize a RHS pattern by creating a program sketch and asking the solver
-%% Z3 to complete it. The program sketch is made up a list of registers; each
-%% register holds an op code, representing an operation from the Halide grammar,
-%% and two integers representing arguments to that operation. Those integers may
-%% represent indexes to previous registers, or to integer constants. We initialize
-%% with a sketch completed by all zeroes to give us a first candidate program. We
-%% then enter the CEGIS loop; we posit that the LHS pattern and the candidate RHS
-%% are equivalent and ask for a counterexample assignment to their variables that
-%% would disprove this assertion. We first try random inputs for reasons of
-%% efficiency; if this does not yield any counterexamples, we call out to the
-%% solver, and if it cannot find any counterexamples, we know the two expressions
-%% must be equivalent and we have a candidate rule. If we do find a counterexample,
-%% we add it to our list of counterexamples and ask the solver for a new completion
-%% of the sketch such that the completed sketch is equivalent to the LHS pattern
-%% for all counterexample variable assignments. We begin with a program sketch of 1
-%% instruction; if no equivalent program of that size is found, we increase the
-%% program length by one and start the CEGIS loop again. We stop our search after
-%% failing to synthesize a RHS of equivalent length to the original LHS expression.
-
-%% Once we have produced a candidate rule, we check that it obeys our reduction
-%% order ($LHS <_R RHS$) and that all divisor terms in the RHS appear as divisors
-%% on the LHS. If either of these properties is violated, we discard the rule. For
-%% performance reasons we do not encode these properties into the CEGIS synthesis
-%% queries. Our choice to synthesize RHS terms that contain as few operations as
-%% possible serves as an approximation of the histogram counts that make up the
-%% first of the composed reduction orders. In practice, few synthesized rules are
-%% found that violate the reduction order.
-
-%% The Halide expressions we use as inputs frequently contain integer constants.
-%% These constants often occur as coefficients or divisors, and leaving them in
-%% place, rather than replacing them with fresh variables, greatly accelerates
-%% synthesis of RHS expressions (in many cases replacing constants with variables
-%% would leave Z3 able to make no progress in synthesis at all). However, if our
-%% candidate rule contains constants, it is unlikely to frequently match to other
-%% expressions and thus is overfitted to the input expression. To combat this
-%% problem, we generalize constants to fresh variables and where necessary,
-%% synthesize predicates to ensure the rule's validity.
-
 \subsection{Generalizing Constants}
 
 At this point in the synthesis pipeline, we have constructed a candidate rewrite
@@ -697,9 +638,69 @@ For our example, we subdivide into three cases each for each of $c0$, $c1$, and 
 54 cases.  We then further subdivide using any explicit conditionals in the expression (max,
 min, and select), considering each branch separately.
 
-Next, we 
+Next, we introduce positive auxillary variables ($k0..kn$ in our notation) to convert
+inequalities into equalities, and remove all division and modulo operations using
+variable substitutions.  After all these steps, we end up with a large number of simple
+clauses in a conjuction.  For our example, one set of resulting clauses is:
+\begin{align*}
+c0 \cdot x = c1 \cdot x + k0  \wedge x + k1 = c2 & & \wedge \\
+x > 0 \wedge
+c0 > 0 \wedge 
+c1 < 0 & & \wedge  \\
+k0 \geq 1 \wedge k1 \geq 0 & &
+\end{align*}
 
-\subsection{Final Filtering}
+\paragraph{Variable Elimination} We employ three main strategies for eliminating
+variables: traditional variable elimination, in which one equation is rewritten and
+used to eliminate a variable in another equation; using reasoning over the signs in products;
+and using Halide's bounds analysis machinery to find facts about the clauses.  The possible
+set of manipulations is very large, and the non-linear nature of the systems prevent most
+tools from robustly reasoning about the expressions.  To tractably eliminate variables and discover
+facts about the systems, we use beam search~\cite{beamsearch} in order to avoid applying
+all possible actions at each step.  Beam search uses a cost model to prune states, exploring
+only the top $k$ scoring steps, and we hash states to avoid exploring the same state multiple
+times.
+
+We learn a cost model by featurizing systems of equations using a number of hand-crafted
+features\footnote{The full set of features is: the number of constraints, number of variables,
+  number of constant variables, the number of variables with known constant upper or lower bounds,
+  the number of variables with known constant upper \textit{and} lower bounds, and the number of
+  variables with known but non-constant upper or lower bounds.\sak{Check this list}},
+and assigning a cost based on a linear combination of weights for each feature.  Initially,
+we assign weights by hand, and then run on random systems of equations while keeping track
+of which states led to eliminating a non-constant variable.  Then, we retrain the weights
+as a logistic regressor that predicts which states will lead to successful elimination
+by minimizing cross-entropy loss.  Interestingly, the regressor learned that the most
+important feature is the one counting the number of constant variables, as our goal
+is to eliminate only non-constant variables.  Perhaps unsurprisingly, the feature
+with the largest negative coefficient was the number of unconstrained variables, as
+these must be eliminated in order to make progress on the system overall.
+
+The tree search logs all constraints found that only use constant variables.  Combining
+these constraints and negating gives us the predicate $P$ we're searching for.
+
+\subsection{Final Simplification \& Filtering} At this stage, we now have a candidate
+rule and predicate over its constant variables.  However, the predicate is often quite
+large and full of redundant clauses, which could make compile-time checks too slow.
+We simplify the predicate by converting to conjunctive normal form (CNF) and applying
+ad-hoc simplification rules that remove redundant terms.
+
+After simplification, the predicate may still contain constraints on constant variables
+that appear \textit{only on the right hand side}, since we never restricted which constant
+variables can appear.  Thus, we must further transform the predicate to eliminate
+constraints of this form.  Our strategy is to first try to transform a constant variable
+$c$ into a form $c > Q$, $c < Q$, or $c = Q$ where $Q$ contains only constant variables
+that appear on the LHS of the rule.  If this fails, we attempt further rewrites by
+searching for any clause where $c$ is compared with any expression not containing RHS
+constant variables.  If such a clause is found, we can rewrite $c$, but if not, the rule
+cannot be checked at compile time and must be discarded.
+
+Finally, we perform two other forms of filtering.  First, we query Z3 to ensure the
+predicate is satisfiable; if not, we discard the rule.  About 10\% of all rules fail
+this filter.  Secondly, we check that the rule is not redundant.  For every pair of
+rules $R_1$ and $R_2$, if $R_1$ matches every left hand side that $R_2$ matches,
+and the predicate for $R_1$ implies the predicate for $R_2$, then we can discard $R_2$
+as $R_1$ is at least as general.
 
 
 \section{Evaluation}
