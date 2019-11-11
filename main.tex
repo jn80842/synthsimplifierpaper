@@ -816,30 +816,67 @@ Herbie, superoptimization, abstract interpretation, MCSAT (Jovanovic)
 <VectorExpr> ::= vectors
 \end{grammar}
 
-\subsection{Halide reduction orders}
+\subsection{The fully Halide reduction order}
 
-For some term $s \in T(\Sigma, V)$ and some variable $x \in V$, let $|s|_x$ be the number occurrences of the variable $x$ in the term $s$. For each function symbol $f$ in the set of Halide operators:
+\begin{equation}
+\begin{split}
+s >_{\texttt{ramp}} t \iff |s|_{\texttt{ramp}} > |t|_{\texttt{ramp}}
+\end{split}
+\end{equation}
+
+For some term $s \in T(\Sigma, V)$ and some variable $x \in V$, let $|s|_x$ be the number occurrences of the variable $x$ in the term $s$.
+
+\begin{equation}
+\begin{split}
+s >_{nonlinear} t \iff \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
+\sum_{op \in \{*,/,\%\}} |s|_{op} > \sum_{op \in \{*,/,\%\}} |t|_{op}
+\end{split}
+\end{equation}
+
+\begin{equation}
+\begin{split}
+s >_{op} t \iff \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
+\sum_{op \in \Sigma} |s|_{op} > \sum_{op \in \Sigma} |t|_{op}
+\end{split}
+\end{equation}
+
+\begin{equation}
+s >_{var} t \iff \forall x \in \mathcal{V}ar(t), |s|_x > |t|_x
+\end{equation}
+
+\begin{equation}
+\begin{split}
+s >_{histo} t \iff \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
+histo(s) > histo(t)
+\end{split}
+\end{equation}
 
 \[
-\phi_f(s) = \textrm{count of occurrences of } f \textrm{ in the term } s
-\] 
-\[
-s_1 >_f s_2 \iff \phi_f(s_1) > \phi_f(s_2) \wedge \forall x \in V, |s_1|_x \geq |s_2|_x
+f_{root_{\texttt{+}}}(term) = \begin{cases}
+                          1 & root(term) \neq \texttt{+} \wedge root(term) \neq \texttt{-} \\
+                          0 & otherwise
+                          \end{cases}
 \]
 
-Let $>_\Sigma$ be the lexicographic product of each order $>_f$, in the order given in the symbol strength list in Appendix~\ref{symbolstrength}. Thus,
+\begin{equation}
+s >_{root_{\texttt{+}}} t \iff f_{root_{\texttt{+}}}(s) > f_{root_{\texttt{+}}}(t)
+\end{equation}
 
 \[
-\begin{aligned}
-s_1 >_\Sigma s_2 \iff \forall x \in V, |s_1|_x \geq |s_2|_x \wedge \\ (\phi_{\texttt{ramp}}(s_1) > \phi_{\texttt{ramp}}(s_2)) \vee \\ (\phi_{\texttt{ramp}}(s_1) = \phi_{\texttt{ramp}}(s_2) \wedge \\ \phi_{\texttt{broadcast}}(s_1) > \phi_{\texttt{broadcast}}(s_1) \vee \ldots
-\end{aligned}
+f_{rightconst}(term) = \begin{cases}
+                          1 & \textrm{right child is a constant} \\
+                          0 & otherwise
+                        \end{cases}
 \]
 
-Let $\phi_{root}(s)$ be a function that returns the strength of the root symbol of the term $s$, in the reverse order given below. For example, $\phi_{root}(\texttt{x * y}) > \phi_{root}(\texttt{x / y})$. Then,
+\begin{equation}
+s >_{rightconst} t \iff f_{rightconst}(s) > f_{rightconst}(t)
+\end{equation}
 
-\[
-s_1 <_{root} s_2 \iff \phi_{root}(s_1) < \phi_{root}(s_2)
-\]
+\begin{equation}
+s >_{root\_strength} t \iff \textrm{the root strength of s is weaker than the root strength of t}
+\end{equation}
+
 
 \subsection{Halide symbol strength} \label{symbolstrength}
 
@@ -852,8 +889,7 @@ The function symbols in the Halide expression signature, in order by strength, g
   \item \texttt{/}
   \item \texttt{*}
   \item \texttt{$\%$}
-  \item \texttt{-}
-  \item \texttt{+}
+  \item \texttt{+, -} (equal strength)
   \item \texttt{max, min} (equal strength)
   \item \texttt{!}
   \item \texttt{||}
