@@ -1,0 +1,10 @@
+﻿%metric,harris,harris-old,local_laplacian,local_laplacian-old,unsharp,unsharp-old,bilateral_grid,bilateral_grid-old,camera_pipe,camera_pipe-old,nl_means,nl_means-old,stencil_chain,stencil_chain-old
+\begin{tabular}{l|cc|cc|cc|cc|cc|cc|cc|}
+& \multicolumn{2}{c|}{harris}  & \multicolumn{2}{c|}{local laplacian}  & \multicolumn{2}{c|}{unsharp}  & \multicolumn{2}{c|}{bilateral grid}  & \multicolumn{2}{c|}{camera pipe}  & \multicolumn{2}{c|}{nl means}  & \multicolumn{2}{c|}{stencil chain}  \\
+& new & old & new & old & new & old & new & old & new & old & new & old & new & old\\
+Proof failures & 2 & 5 & 654 & 6538 & 13 & 9 & 37 & 27 & 588 & 646 & 67 & 70 & 3 & 4\\
+Non-monotonic expr & 125 & 847 & 3976 & 8782 & 519 & 1083 & 1256 & 1888 & 4635 & 5324 & 88 & 1762 & 361 & 8820\\\hline
+Compile time (ms) & 2703 & 2637 & 136840 & 143032 & 2421 & 2386 & 2388 & 2327 & 14202 & 14097 & 20275 & 20607 & 90101 & 86976\\
+\% In Halide & 13\% & 	9\% & 	5\% & 	4\% & 	10\% & 	8\% & 	8\% & 	7\% & 	10\% & 	8\% & 	4\% & 	3\% & 	4\% & 	4\%\\
+\% In LLVM & 87\% & 	91\% & 	95\% & 	96\% & 	90\% & 	92\% & 	92\% & 	93\% & 	90\% & 	92\% & 	96\% & 	97\% & 	96\% & 	96\%\\
+\end{tabular}

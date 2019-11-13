@@ -11,6 +11,7 @@
 \usepackage{amsmath}
 \usepackage{xspace}
 \usepackage{natbib}
+\usepackage{csvsimple}
 \definecolor{uwpurple}{RGB}{128,0,128}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
 \newcommand{\sak}[1]{\textcolor{green}{\textit{[{#1} --SK]}}}
@@ -758,24 +759,50 @@ test the following hypotheses:
 \item Our improvements to the Halide TRS increases the robustness of the compiler and reduces compilation failures.
 \item The improved TRS is more correct.
 \item This improved robustness and correctness does not come at the cost of vastly slower compilation speed.
-\item Improving the TRS increases performance of generated code.
+%\item Improving the TRS increases performance of generated code.
 \end{enumerate}
 
 We perform all experiments on (Andrew's machine: i9-9960X CPU @ 3.10GHz, Ubuntu 18.04, 16 threads using avx-512, LLVM 8.0.1).
 
 \subsection{Robustness}
+\begin{table*}[!ht]
+  \small
+  \input{data/simplifierfailures.tex}
+  \caption{Proof failures before and after our improvements to the Halide term rewriting system.}
+  \label{tab:simplifierfailures}
+\end{table*}
 
-Our hypothesis is that adding the newly synthesized rules to the Halide simplifier has increased the set of expressions it can simplify. Since the simplifier is non-confluent both before and after the new rules were added, we have no theoretical guarantee that this is the case (in fact, it is possible that the augmented simplifier might fail to simplify an expression that would previously have succeeded if the new rules move the expression into a local minimum). We test the robustness of the enhanced simplifier empirically by compiling randomly generated schedules with the original and enhanced simplifier and reporting the number of compilation failures.
+Our hypothesis is that adding the newly synthesized rules to the Halide
+simplifier has increased the set of expressions it can simplify. Since the
+simplifier is non-confluent both before and after the new rules were added, we
+have no theoretical guarantee that this is the case (in fact, it is possible
+that the augmented simplifier might fail to simplify an expression that would
+previously have succeeded if the new rules move the expression into a local
+minimum). We test the robustness of the enhanced simplifier empirically by
+compiling randomly generated schedules with the original and enhanced simplifier
+and reporting the number of compilation failures.
+
+Table~\ref{tab:simplifierfailures} summarizes the results.  Overall, the new rules
+reduce the number of proof failures by 82\% and the number of non-monotonic expressions
+by 44\%.  Interestingly, two of the test applications, unsharp and bilateral grid,
+exhibit increases in simplifier failures of 44\% and 37\% respectively.  \sak{WHY?}
+
 
 % could also report calls to can_prove and successful calls to can_prove; this is more meaningful as a ratio
 
 \subsection{Correctness}
 
-As described above, we improved the correctness of the simplifier by verifying the existing rules using a combination of Z3 and Coq. We found \NumRulesFixed incorrect rules and submitted patches to the Halide developers. We also found \NumPredicatesRelaxed rules whose predicates could be relaxed while retaining correctness.
+As described above, we improved the correctness of the simplifier by verifying
+the existing rules using a combination of Z3 and Coq. We found \NumRulesFixed
+incorrect rules and submitted patches to the Halide developers. We also found
+\NumPredicatesRelaxed rules whose predicates could be relaxed while retaining
+correctness.
 
 \jln{Is it possible that the incorrect rules ever led to unsound compilation output? Not sure how to determine this.}
 
-We also ensure the termination of the simplifier by devising a reduction order over its rewrite rules. We identify \NumOrderingProblems rewrite rules that do not conform to this ordering. 
+We also ensure the termination of the simplifier by devising a reduction order
+over its rewrite rules. We identify \NumOrderingProblems rewrite rules that do
+not conform to this ordering.
 
 \subsection{Compilation Speed}
 
