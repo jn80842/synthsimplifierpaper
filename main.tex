@@ -479,9 +479,9 @@ s >_{a \times b} t \iff s >_a t \vee (s \geq_a t \wedge s >_b t)
 
 In other words, given an order $>_{a \times b}$, our rewrite system is allowed to move the expression monotonically in the direction of $>_a$, and monotonically in the direction of $>_b$ only as long as the $>_a$ order is not violated.
 
-Our component reduction orders have three main types: orders over variable occurrence counts, orders over operation occurrence counts, and orders over properties of the root of the expression's AST. All of these orders are defined with respect to measure functions that map terms to the natural numbers, so they are well-founded. We sketch the proof that the orders have the other required properties in the remainder of this section; a full definition of the reduction order is given in Appendix ~\ref{a:reductionorder}.
+Our component reduction orders have three main types: orders over variable occurrence counts, orders over operation occurrence counts, and lexicographic orders over terms considered as strings. We sketch the proof that the orders have the required properties for reduction orders in the remainder of this section; a full definition of the reduction order is given in Appendix ~\ref{a:reductionorder}.
 
-Let the function $|s|_x$ represent the number of occurrences of the variable $x$ in the term $s$. Similarly, let $|s|_f$ represent the number of occurrences of some symbol $f \in \Sigma$ in the term $s$.
+First, orders over variable or operation occurrence count are well-founded because they are defined using a measure function that maps terms to the natural numbers. Let the function $|s|_x$ represent the number of occurrences of the variable $x$ in the term $s$. Similarly, let $|s|_f$ represent the number of occurrences of some symbol $f \in \Sigma$ in the term $s$.
 
 For the first order in our reduction order composition, we say that a rewrite rule cannot increase the number of vector operations:
 
@@ -499,76 +499,32 @@ Any order constructed out of a measure function that counts operations will be c
 
 plus $1$ if $f = f_1$ and $0$ otherwise. 
 
-Thus, if $|s|_f > |t|_f$, we have $|s|_f + n > |t|_f + n$, so the implication must hold.
+Thus, if $|s|_f > |t|_f$, we have some $n$ such that $|s|_f + n > |t|_f + n$, so the implication must hold.
 
-The order is closed under substitution due to the fact that the Halide simplifier matching algorithm only matches variables with scalars. Thus, we cannot define any substitution $\sigma$ that will increase the number of vector operations in a term.
+The order is closed under substitution due to the fact that the Halide simplifier matching algorithm only matches variables with scalars. Thus, we cannot define any substitution $\sigma$ that will increase the number of vector operations in a term. 
 
 We define an order based on the number of variance occurrences in some term as:
 
 \begin{equation}
-s >_{var} t \iff \forall x \in V, |s|_x >= |t|_x
+s >_{var} t \iff \forall x \in V, |s|_x > |t|_x
 \end{equation}
 
-The order is compatible with $\Sigma$-operations for similar reasoning as the order above. To show that the order is closed under substitution, as a proof by contradiction, assume that $s >_{var} t$ and there is some substitution $\sigma$ such that $\sigma(s) \ngtr_{var} \sigma(t)$. The substitution $\sigma$ consists of mappings between variables and terms $\{v_1 \mapsto u_1, v_2 \mapsto u_2, \dots \}$. Consider one of these mappings $v_1 \mapsto u_1$ and some variable $v_i$ present in $s$. Let $n = |u_i|_{v_i}$ minus 1 if $v_1 = v_i$.  The effect of applying the substitution on $|s[v_1 \backslash u_1]|_{v_i}$ is adding $n$ to $|s|_{v_i}$ for every occurrence of $v_i$ in $s$. But, since we know $|s|_{v_i} >= |t|_{v_i}$, the substitution must add $n$ to $|t|_{v_i}$ an equal or fewer of number times. This relation must hold for all variables in $s$ and $t$, and thus $\sigma(s) >_{var} \sigma(t)$ must be true if $s >_{var} t$.
+The order is compatible with $\Sigma$-operations for similar reasoning as the order above. It is also closed under substitution; for any variable substitution $v \mapsto u$, the number of occurrences of any variable $x$ will be increased by some $n = |u|_x$ for every occurrence of $v$ in $s$. Since we know $v$ occurs fewer times in $t$ than $s$, the relation must hold.
 
-The final type of reduction order we make use of concerns properties of the root of the term's AST.
+We define a family of orders based on the number of occurrences of operations in terms; for example, we prefer simplified expressions to be linear if possible, so we define a reduction order that removes occurrences of division, modulo, and multiplication.
 
-%We demonstrate our reduction order over a simpler set of terms defined by the function symbol set $\Sigma = \{\oplus, \otimes\}$ and %the unbounded set of variables $V = \{x_1, x_2, \ldots \}$. This easily generalizes to the full set of Halide terms.
-%
-%First, we need to define an order that is well-founded. We do this by defining a measure function that embeds terms into the natural %numbers. We define a function $\phi_\otimes$:
-%
-%\[
-%\phi_\otimes(s) = \textrm{count of occurrences of } \otimes \textrm{ in the term } s
-%\]
-%
-%We can use this measure function to define a strict order $>_\otimes$:
-%
-%\[
-%s_1 >_\otimes s_2 \iff \phi_\otimes(s_1) > \phi_\otimes(s_2)
-%\]
+\begin{equation}
+\begin{split}
+s >_{nonlinear} t \iff \forall x \in \mathcal{V}, |s|_x \geq |t|_x \wedge \\
+\sum_{op \in \{*,/,\%\}} |s|_{op} > \sum_{op \in \{*,/,\%\}} |t|_{op}
+\end{split}
+\end{equation}
 
-%Since $\phi_\otimes$ provides a mapping from terms to the natural numbers, $<_\otimes$ must be well-founded. We can also easily see %that $>_\otimes$ is compatible with $\Sigma$-operations.
-%
-%\[
-%\begin{aligned}
-%\phi_\otimes(f(t_1, \ldots, t_{i-1}, s_1, t_{i+1}, \ldots, t_n)) = \\
-%\phi_\otimes(s_1) + \sum^{t_i} \phi_\otimes(t_i) + \begin{cases} 1 & f = \otimes \\
-%0 & \textrm{otherwise} \end{cases}
-%\end{aligned}
-%\]
-%
-%Since the summation of the $\phi_\otimes(t_i)$ terms and the piecewise functions are the same for both terms, the property holds.
-%
-%However, the order is not closed under substitution. Consider:
-%
-%\[
-%x_1 \otimes x_2 >_\otimes x_2 \oplus x_2
-%\]
-%\[
-%\sigma(x_2) = x_3 \otimes x_3
-%\]
-%
-%Applying the substitution produces more $\otimes$ operations in the righthand term than on the left.
-%
-%\[
-%x_1 \otimes (x_3 \otimes x_3) \ngtr_\otimes (x_3 \otimes x_3) \oplus (x_3 \otimes x_3)
-%\]
-% 
-%We must refine the definition of our order. We define a new function $|s|_x$ to denote the number of occurrences of the variable $x$ in% the term $s$. Thus, $|x_1 \otimes x_2|_{x_1} = 1$ and $|x_1 \oplus x_1|_{x_1} = 2$. We redefine the order $>_\otimes$ to add the %condition that for all variables $x \in V$, the number of occurrences of the variable $x$ in $s_1$ must be equal or greater than the %number of occurrences in $s_2$.
-%\[
-%s_1 >_\otimes s_2 \iff \phi_\otimes(s_1) > \phi_\otimes(s_2) \wedge \forall x \in V, |s_1|_x \geq |s_2|_x
-%\]
+The proof of this order is very similar to the above; however, note that it only holds when the occurrences of all variables in $s$ is equal or greater than those in $t$. If some variable $v$ matches against an expression $e$ that contained many multiplications, and $v$ occurred more often in $t$ than in $s$, than the rewritten expression $e'$ could contain more nonlinear operations than $e$, violating the intended order and possibly resulting in a cycle.
 
-%The redefined order is still well-founded and compatible with $\Sigma$-operations. To show that our redefined order is closed under substitutions via proof by contradiction, let us assume that for some $s, t$, $s >_\otimes t$ and for some substitution $\sigma$, $\sigma(s) \ngtr_\otimes \sigma(t)$. Substitutions can only cause the value of $\phi_\otimes$ to increase. Let $\sigma = \{x_1 \mapsto t_1\}$, and let $s$ be a term that contains the variable $x_1$. If $\phi_\otimes(t_1) = 0$, then $\phi_\otimes(\sigma(s)) = \phi_\otimes(s)$. If $\phi_\otimes(t_1) > 0$, then $\phi_\otimes(\sigma(s)) > \phi_\otimes(s)$. Thus, in order to find some $\sigma$ such that $s >_\otimes t \wedge \sigma(s) \ngtr_\otimes \sigma(t)$, we need to find some $x$ in the term $t$ that increases the count of $\otimes$ operations. But, any such $x$ must occur in $t$ an equal or greater number of times in $s$ and thus must increase the $\phi_\otimes(\sigma(s))$ by an equal or greater value than the increase from $\phi_\otimes(t)$ to $\phi_\otimes(\sigma(t))$. Thus, a contradiction is found and the assertion is proved.
+The final type of reduction order we make use of is defined by functions that transform terms into strings which can then be compared lexicographically. Since the set of LHS and RHS terms in any rewrite ruleset $R$ is finite, the set of strings $\{f(s) | s \in \{LHS \cup RHS \}\}$ must also be finite. An irreflexive relation on a finite set is well-founded, so these orders must be well-ordered as well.
 
-
-
-
-%Thus, we define an order using a measure function for every $f \in \Sigma$, and then take the lexicographic product of these orders to define a reduction order. Since we evaluate this order by calculating a histogram of operators in each term, we refer to this order as $<_H$. The order in which the function counts are considered lexicographically is given in Appendix~\ref{symbolstrength}. 
-
-%Note that while variable elimination is desirable, we cannot use a measure function that counts the number of variable occurrences in a term when composed with the other orders. For example, let $\Sigma = \{\oplus, \otimes\}$ and $V = \{x, y\}$, and let $>_H$ be the lexicographic product of the orders $>_{\oplus}, >_{\otimes}, >_v$. Here $x \otimes x >_H x$, but the order is not closed under substitution. For a substitution $\sigma(x) = y \oplus y$, we have $(y \oplus y) \otimes (y \oplus y) \ngtr y \oplus y$. 
-
-%However, we frequently want to normalize terms without changing the number of occurrences of function symbols within them. To permit such rules, we take the lexicographic order of $>_H$ with one more order. The measure function for our last tie-breaking order takes the root symbol of the AST of a term and translate it to a number based on the function count priority as given above. Since we prefer ``stronger'' symbols to be higher in the tree, here the order is reversed. For example, the root symbol of $select(x, y, z) - y$ is $-$ and the root symbol of $select(x, 0, z - y))$; since $-$ is ``weaker'' than $select$, we say $select(x, y, z) - y >_{root} select(x, 0, z - y))$.
+For example, leaving functions distributed over additions often enables optimizations, so we fix an ordering that prefers rules that move additions higher in the expression's AST. 
 
 \jln{Here we need to either talk about existing rules that don't conform to our reduction order, or figure out how to deal with those rules}
 
