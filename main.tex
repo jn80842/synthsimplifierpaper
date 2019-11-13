@@ -442,10 +442,10 @@ $max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & 
 
 \jln{note that the ``strength'' of operators is arbitrary for the purposes of proving termination, but meaningful in terms of simplifying (rather than proving) expressions.}
 
-Term rewriting systems are not guaranteed to terminate. Consider a term rewriting system containing only one rule: $x + y \rightarrow y + x$. The term $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again be matched to the rule and rewritten to $3 + 5$, and so on. To guarantee termination irrespective of the rule application algorithm, every application of a rule needs to strictly (monotonically) decrease in some measure. In other words, if $s \rightarrow_R t$, $s > t$ for some strict order $>$. However, since the set of terms is infinite, we cannot check that $s > t$ for all pairs of terms $s, t$. Instead, we show that for every rule $l \rightarrow r$ in our term rewriting system, $l > r$. This will suffice if $>$ is a \emph{reduction order}, given:
+Term rewriting systems are not guaranteed to terminate. Consider a term rewriting system containing only one rule: $x + y \rightarrow y + x$. The term $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again be matched to the rule and rewritten to $3 + 5$, and so on. To guarantee termination irrespective of the rule application algorithm, every application of a rule needs to strictly (monotonically) decrease in some measure. In other words, if $s \rightarrow_R t$, $s > t$ for some strict order $>$. However, since the set of terms is infinite, we cannot check that $s > t$ for all pairs of terms $s, t$. Instead, we show that for every rule $l \rightarrow_R r$ in our term rewriting system, $l > r$. This will suffice if $>$ is a \emph{reduction order}, given:
 
 \begin{theorem}\label{theorem:terminates}
-A term rewriting system $R$ terminates iff there exists a reduction order $>$ that satisfies $l > r$ for all $l \rightarrow r \in R$.
+A term rewriting system $R$ terminates iff there exists a reduction order $>$ that satisfies $l > r$ for all $l \rightarrow_R r \in R$.
 \end{theorem}
 
 Per Baader and Nipkow~\cite{baader1999term}, a reduction order is defined as follows.
@@ -462,15 +462,21 @@ A strict order on terms $T(\Sigma, V)$ is a reduction order iff:
 \end{enumerate}
 \end{definition}
 
-In order to guarantee that the Halide TRS will always terminate, we devise a reduction order over the existing ruleset. Here again we need to consider the two purposes of the Halide TRS. When we use the Halide simplifier as a prover to determine if two expressions are equivalent, we want the output expressions to be as close to some normal form as possible, but it doesn't particularly matter what that form is. When we use the Halide simplifier to reduce the size of an expression, the form of the output expression can have strong performance implications. \jln{example of a form of expression that has some nice downstream effect} Simplifying an expression could mean cancelling correlated subexpressions, using fewer expensive operations such as vector operations, or clustering constants that can be folded.
+We provide a guarantee that the Halide TRS will always terminate by fixing a reduction order over the existing ruleset. To choose our reduction order, we need to consider the two purposes of the Halide TRS. When we use the Halide simplifier as a prover, to determine if two expressions are equivalent, we want the output expressions to be as close to some normal form as possible, but it doesn't particularly matter what that form is. When we use the Halide simplifier to reduce the size of an expression, however, the form of the output expression can have strong performance implications. \jln{example of a form of expression that has some nice downstream effect} Simplifying an expression in a way that improves performance could mean cancelling correlated subexpressions, using fewer expensive operations such as vector operations, or clustering constants that can be folded.
 
-Consider the space of all possible Halide expressions, in which our starting expression is a point. If all rewrite rules obey a reduction order, applying any rewrite rule will move the expression through the expression space monotonically in some direction, preventing cycles and ensuring termination. We also want to guide the expression to some desirable part of the expression space; in order to do this, we use of the following fact:
+Consider the space of all possible Halide expressions, in which our starting expression is a point. If all rewrite rules obey a reduction order, applying any rewrite rule will move the expression through the expression space monotonically in some direction, preventing cycles and ensuring termination. Our reduction order show guide the rewritten expression to some desirable part of the expression space, but defining that desirable space is quite complex. In order to do this, we use of the following fact:
 
 \begin{theorem}
 The lexicographic product of two terminating relations is again terminating.
 \end{theorem}
 
-Our reduction order is thus a composition of several reduction orders, each of which moves the expression in some desirable direction. If we have some order $>_r$ defined as the lexicographic product of the orders $>_a$ and $>_b$, our rewrite system is allowed to move the expression monotonically in the direction of $>_a$, and monotonically in the direction of $>_b$ only as long as the $>_a$ order is not violated.
+Our reduction order is thus a composition of several reduction orders, each of which moves the expression in some desirable direction. Let $>_a$ and $>_b$ be two reduction orders, the lexicographic product of those orders $>_{a \times b}$ is:
+
+\[
+s >_{a \times b} t \iff s >_a t \vee (s \geq_a t \wedge s >_b t)
+\] 
+
+In other words, given an order $>_{a \times b}$, our rewrite system is allowed to move the expression monotonically in the direction of $>_a$, and monotonically in the direction of $>_b$ only as long as the $>_a$ order is not violated.
 
 Our component reduction orders have three main types: orders over variable occurrence counts, orders over operation occurrence counts, and orders over properties of the root of the expression's AST. All of these orders are defined with respect to measure functions that map terms to the natural numbers, so they are well-founded. We sketch the proof that the orders have the other required properties in the remainder of this section; a full definition of the reduction order is given in Appendix ~\ref{a:reductionorder}.
 
