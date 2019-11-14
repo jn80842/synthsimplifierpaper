@@ -26,12 +26,13 @@
 \startPage{1}
 
 %% Macros for quantities
-\newcommand{\NumApps}{{\color{red} XX}\xspace}
-\newcommand{\NumRulesFixed}{{\color{red} XX}\xspace}
+\newcommand{\NumApps}{{\color{red} 7}\xspace}
+\newcommand{\NumRulesFixed}{{\color{red} 4}\xspace}
 \newcommand{\NumPredicatesRelaxed}{{\color{red} XX}\xspace}
-\newcommand{\NumOrderingProblems}{{\color{red} XX}\xspace}
+\newcommand{\NumOrderingProblems}{{\color{red} 46}\xspace}
 \newcommand{\NumRulesSynthesized}{{\color{red} XX}\xspace}
 \newcommand{\NumFailureExamples}{{\color{red} XX}\xspace}
+\newcommand{\NumBugsAutomated}{{\color{red} 5}\xspace}
 
 
 
@@ -79,14 +80,14 @@
 \begin{document}
 
 %% Title information
-\title{Automatically improving Halide’s simplifier with synthesis}         %% [Short Title] is optional;
+\title{Verifying and Improving Halide’s Term Rewriting System with Program Synthesis}         %% [Short Title] is optional;
                                         %% when present, will be used in
                                         %% header instead of Full Title.
-\titlenote{with title note}             %% \titlenote is optional;
+%\titlenote{with title note}             %% \titlenote is optional;
                                         %% can be repeated if necessary;
                                         %% contents suppressed with 'anonymous'
-\subtitle{Subtitle}                     %% \subtitle is optional
-\subtitlenote{with subtitle note}       %% \subtitlenote is optional;
+%\subtitle{Subtitle}                     %% \subtitle is optional
+%\subtitlenote{with subtitle note}       %% \subtitlenote is optional;
                                         %% can be repeated if necessary;
                                         %% contents suppressed with 'anonymous'
 
@@ -152,7 +153,7 @@
 %% before \maketitle command
 \begin{abstract}
   The wide adoption of Halide as an efficient domain-specific language
-  for image processing and tensor computation shows the language is
+  for image processing and tensor computations shows the language is
   useful and effective for compiling high performance code across platforms.
   In Halide, reasoning about the code relies on a term rewriting system to
   prove properties required for efficient and correct compilation.  This rewrite
@@ -163,11 +164,13 @@
   we build an automatic program synthesis system that creates new, provably
   correct rules from failure cases where the compiler was unable to prove properties. We
   identify and fix \NumRulesFixed incorrect rules and \NumOrderingProblems rules
-  with ordering that may result in infinite looping. We augment existing rules
+  with ordering that may result in infinite rewriting loops. We augment existing rules
   with a system that automatically synthesizes provably-correct new rules from
-  failed proof examples, adding \NumRulesSynthesized new rules. We show the new
-  term rewriting system is more correct, more robust, and more general,
-  and enables faster performance for generated code.
+  failed proof examples, adding \NumRulesSynthesized new rules. 
+  The automated system can replace tedious human effort required to craft new rules
+  in response to user-reported bugs.  We demonstrate that the new
+  term rewriting system is more correct, more robust, and more general, without
+  making compilation time slower.
 \end{abstract}
 
 
@@ -213,7 +216,7 @@ mobile phones to large-scale servers in the cloud.  For many of these
 applications, high performance is an essential requirement due to real-time
 requirements, compute cost, and battery life.
 
-Halide~\cite{siggraph2012jrk, pldi2013jrk} has proven to be an effective
+Halide~\cite{ragankelley2012halide, ragankelley2013halide} has proven to be an effective
 domain-specific language (DSL) for writing such code and obtaining cross-platform
 high performance, with multiple industrial vendors relying on Halide to power
 applications used by millions of users on mobile phones, tablets, desktops, and
@@ -237,7 +240,8 @@ in the compiler producing suboptimal code.
 The Halide TRS must balance compilation speed and applicability.  For the widest applicability,
 a TRS must be \textit{convergent}, meaning that if two expressions are equal, then the TRS
 will always produce the same final canonical form.  However, constructing a TRS of this form
-is \sak{impossible? inefficient?}.  In Halide's compiler, the TRS consists of a series of
+is \sak{impossible? inefficient? Julie, please add some text to explain why we don't just
+use Z3 or egraphs}.  In Halide's compiler, the TRS consists of a series of
 hand-written rules and efficient matchers to match rules bottom-up.  These rules were constructed
 by developers based on observed compilation failures over many years, and ordered in ad-hoc ways
 to avoid non-termination.  Extensive fuzz-testing has been able to find bugs in rewrite rules,
@@ -254,17 +258,26 @@ a placement within the rule ordering to prevent non-termination.
 
 The verification and synthesis
 of these rules poses significant challenges: the underlying theory of non-linear integer arithmetic (NLIA)
-is known to be undecidable.  We verify existing rules using a combination of the Z3~\cite{de2008z3} satisfiability
-modulo theory (SMT) solver, the Coq~\cite{coq19} interactive theorem prover, and a hand-written solver
-that uses beam search with a learned cost model.  New rules are constructed with Z3 (for linear rules)
-and the new solver.  To search for cases where the Halide compiler fails to prove properties, we run
-\NumApps existing Halide pipelines with randomized schedules, and augment this set with a random pipeline
-generator designed to produce plausible image processing and machine learning pipelines.
+is known to be undecidable~\cite{matiyasevich1993hilberts10th}. We verify
+existing rules using a combination of the Z3~\cite{de2008z3} satisfiability
+modulo theory (SMT) solver and the Coq~\cite{coq19} interactive theorem prover. 
+New rules are constructed by combining Z3 and a hand-written solver that uses beam
+search with a learned cost model. To search for cases where the Halide compiler
+fails to prove properties, we run \NumApps existing Halide pipelines with
+randomized schedules, and augment this set with a random pipeline generator
+designed to produce plausible image processing and machine learning pipelines.
+\sak{Revise previous sentence if we can gety by with just random pipelines}
 
 Overall, we discover \NumRulesFixed bugs in hand-written Halide simplifier rules, and discover \NumOrderingProblems
-potential issues in rule ordering.  We then synthesize \NumRulesSynthesized new rules from \NumFailureExamples and
-demonstrate that our approach reduces compilation failures, does not slow down the compiler, and improves
-the performance of generated code.
+potential issues in rule ordering.  We then synthesize \NumRulesSynthesized new rules from \NumFailureExamples
+failure examples and further demonstrate the utility of our synthesizer by attempting to
+automatically produce the \NumBugsAutomated latest code changes that add new
+rules based on compiler misbehavior. We additionally craft a strategy for grouping
+new rules that prevents compile times from increasing linearly with the number
+of rules.  Overall, we demonstrate that our approach
+reduces compilation failures, does not slow down the compiler, and replaces the
+tedious human effort required to craft bug fixes due to missing rules in the
+term rewriting system.
 
 \subsection{Why this and not some other thing?}
 \jln{These are just notes}
@@ -303,7 +316,7 @@ Terms are defined inductively over a set of variables $V$ and a set of function 
 
 A \emph{rewrite rule} is a directed binary relation $l \rightarrow r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
 
-Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\otimes, \oplus\}$ and $V$ be an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
+Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\otimes, \oplus\}$ and $V$ is an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
 
 \[ R = \{ x_1 \otimes x_2 \rightarrow x_1 \oplus x_2 \} \]
 
@@ -331,12 +344,12 @@ The Halide compiler contains a term rewriting system, currently comprised of
 several hundred rules, that operates over the space of Halide
 expressions\footnote{See Appendix ~\ref{ss:appendixA} for the full Halide
   expression grammar}. While the term rewriting system is used for multiple
-purposes within the compiler, for the purposes of this work the most important
-usage is when this TRS serves proof engine to determine if
+purposes within the compiler, the most important
+usage occurs when the TRS serves proof engine to determine if
 some equality or inequality holds, or when the rewriter attempts to find tight
 bounds on regions. For example, in order to parallelize a
 reduction variable, the compiler must prove that there are no hazards, which is
-done by using the TRS as proof engine.  Another example is that Halide uses
+done using the TRS as proof engine.  Another example is that Halide uses
 the TRS to decide how much memory to allocate for intermediates; tighter, more
 simplified bounds result in more efficient execution since they eliminate over-allocation.
 More generally, proof engine failures can lead to:
@@ -364,19 +377,31 @@ able to generate fast code.
 %% Halide term rewriting system as a simplifier.
 
 The design of the term rewriting algorithm has two additional important
-requirements. The first is performance: although the simplifier is called at
+requirements. The first is performance: although the TRS is called at
 compile time, it may be invoked hundreds of times in compiling a single pipeline
-\jln{is this true?}. Thus, unlike many term rewriting algorithms, the Halide TRS
-never backtracks. The second requirement is determinisim: the compiler must
+Thus, unlike many term rewriting algorithms, the Halide TRS
+never backtracks and must be careful about memory usage. The second requirement is determinisim: the compiler must
 always return the same schedule every time it encounters a particular pipeline.
 This precludes any non-deterministic search strategy for the best sequence of
 rules to apply, or directly invoking a solver such as Z3, since even with a
 fixed random seed machines with different computational power may return
 different results within a given timeout.
 
-The Halide term rewriting algorithm simplifies an input expression in a depth-first, bottom-up traversal of the expression DAG. At each node, it looks up the list of rewrite rules that correspond to the node's function symbol, then attempts to match the subtree expression with the rule LHSs in order. When a match is found, it rewrites the subtree expression using the RHS of that rule, and then attempts to simplify the subtree expression again. If no rule matches the subtree, the traversal continues; when the entire expression cannot be simplified further, the rewritten expression is returned. \jln{use example from slides here; also confirm big O performance of this algo}
+The Halide term rewriting algorithm simplifies an input expression in a
+depth-first, bottom-up traversal of the expression DAG. At each node, it looks
+up the list of rewrite rules that correspond to the node's function symbol, then
+attempts to match the subtree expression with the rule LHSs in order. When a
+match is found, it rewrites the subtree expression using the RHS of that rule,
+and then attempts to simplify the subtree expression again. If no rule matches
+the subtree, the traversal continues; when the entire expression cannot be
+simplified further, the rewritten expression is returned. \jln{use example from
+ slides here; also confirm big O performance of this algo}
 
-Halide rewrite rules optionally contain a predicate that must hold for a rule to be applied. Halide expressions may contain constants whose values are known at compile time. Predicate expressions may contain only such constants; when the LHS of a rule matches an expression, its predicate is evaluated and only if it is true will the rewrite be applied. \jln{maybe cite a common case where we know a constant, like a loop bound?}
+Halide rewrite rules optionally contain a compile-time predicate that must hold for a rule to
+be applied. Halide expressions may contain constants whose values are known at
+compile time. Predicate expressions contain only such constants; when the
+LHS of a rule matches an expression, its predicate is evaluated and only if it
+is true will the rewrite be applied.
 
 We limit ourselves to expressions over the set of infinite precision integers in
 this work, although Halide expressions can contain floats and fixed-width
@@ -384,7 +409,7 @@ integers. However, the uses of the TRS we consider in this work all operate
 on infinite integers.
 
 \subsection{Program Synthesis}
-Over the past decade, syntax-guided synthesis (SyGuS)~\cite{sygus} has been used
+Syntax-guided synthesis (SyGuS)~\cite{sygus} has been used
 to search over a space of possible programs in order to find one that meets
 a semantic specification.  One of the most popular techniques is counterexample-guided
 inductive synthesis (CEGIS), which leverages the power of satisfiability modulo theories
@@ -398,16 +423,18 @@ settings for $C = {c_0,..c_i}$, constructing a query to the SMT engine that sear
 a counterexample to equivalence:
 $$\forall B, \neg (f(C, B) = S(B))$$
 The solver either returns unsatisfiable, meaning the the choices encoded in $C$
-indeed result in a program equivalent to $S$, or returns a counter example input $e_0$
+indeed result in a program equivalent to $S$, or returns a counterexample input $e_0$
 for which the two programs give different results.  Then, the CEGIS system constructs a new query,
-asking the SMT solver for choices $C'$ such that the two programs are equivalent.
-Given the $C'$ returned by the solver, CEGIS then attempts the original query once again.
-If a counterexample $e_1$ is found, another iteration of the CEGIS loop begins, this time querying
+asking the SMT solver for choices $C'$ such that the two programs are equivalent for just the
+counterexample input.
+Given the $C'$ returned by the solver, CEGIS then attempts the original query once again, to
+determine whether the returned program generalizes to all inputs.
+If another counterexample $e_1$ is found, another iteration of the CEGIS loop begins, this time querying
 the solver for $C'$ that results in equivalent behavior to $S$ for both counterexample inputs.
 In this manner, the CEGIS loop iterates between querying the solver for new $C'$ valid
 for all found counterexamples so far, then queries the SMT solver to prove the new $C'$ is
 correct for all inputs.  The loop terminates when the final $C'$ is proven correct for
-possible inputs.
+possible inputs or if no setting of $C$ can make the programs equivalent.
 
 \section{Improving Soundness}
 \jln{We haven't synthesized any vector op rules; not sure if that's a conscious decision or we haven't really had any in input expressions.}
