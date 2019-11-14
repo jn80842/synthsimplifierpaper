@@ -715,6 +715,7 @@ test the following hypotheses:
 \item Our improvements to the Halide TRS increases the robustness of the compiler and reduces compilation failures.
 \item The improved TRS is more correct.
 \item This improved robustness and correctness does not come at the cost of vastly slower compilation speed.
+\item Our rule synthesis can be used to automate the effort of crafting new rules in response to bugs.
 %\item Improving the TRS increases performance of generated code.
 \end{enumerate}
 
@@ -768,11 +769,46 @@ We recorded the compilation times for the random schedules used in the robustnes
 
 \jln{Ras suggests we record can\_prove expressions and get timing on simplifying them so we can separate simplifier timing from the full compliation times.}
 
-\subsection{Generated Code Performance}
+%% \subsection{Generated Code Performance}
 
-By increasing the robustness of the simplifier, we hypothesize that we increase the likelihood that the compiler will return more performant code. Halide ships with X sample applications; we compiled these applications with and without the newly synthesized rules and measured their runtime performance.
+%% By increasing the robustness of the simplifier, we hypothesize that we increase the likelihood that the compiler will return more performant code. Halide ships with X sample applications; we compiled these applications with and without the newly synthesized rules and measured their runtime performance.
 
-% metrics, discussion of results here
+\subsection{Synthesizing Rules for Bugfixes}
+\begin{table}
+  \begin{tabular}{lccc}
+    PR ID & Rules Added & Synth. & Synth. Weaker\\
+          & By Orig.    & Rules  & Rules\\\hline
+    3780 & 2 & 0 & 2\\
+    3770 & 5 & 3 & 1\\
+    3765 & 10 & 9 & 0\\
+    3761 & 8 & 8 & 0\\
+    3719 & 1 & 0 & 0\\
+  \end{tabular}
+  \caption{Synthesizing rules for previous bugfixes.}
+  \label{tab:prbugfixes}
+\end{table}
+Many modifications to the term rewriting system occur in response to user-reported
+miscompilations or other bugs.  Crafting rewrite rules for fixing a specific misbehavior
+is tedious and error-prone; comments from commits to the Halide repository include
+``Proving these rules on paper is a pain.''  For this experiment, we explore whether
+our automated rule synthesis can replace the human effort.  We look at the last 5 pull
+requests in the Halide git repository~\cite{halide-git} that add rules.  Then, we remove
+the added rules and use either tests from the PR or hand-crafted failures (in rules
+not exercised by the added tests) and pass them to our system.
+Table~\ref{tab:prbugfixes} summarizes results from the experiment.
+
+Our automated system derives 23 new rules, while humans added 26 rules.  Of the three
+rules the synthesizer failed to create, two were due to being outside the search scope
+of the synthesizer: one (PR 3719) only operated on vectors, and the other (in PR 3770) was $x \% x = 0$, which
+performs modulo without a constant so is not within our grammar.  Of the 23 successful
+rules, two (from PR 3780) were less general because the synthesized rule only allowed division
+or modulo by a constant, while the original bugfix applies to constants or variables.
+In that specific case, a rule that pulls a division out of a select statement
+is synthesized so that the divisor is a non-zero constant, and similarly for modulo.
+
+Overall, the experiment shows that real-world bugfixes can be synthesized by
+our system, replacing much of the tedious human effort required when crafting
+new rules by hand.
 
 
 \section{Related Work}
