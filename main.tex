@@ -12,9 +12,10 @@
 \usepackage{xspace}
 \usepackage{natbib}
 \usepackage{csvsimple}
+\usepackage{microtype}
 \definecolor{uwpurple}{RGB}{128,0,128}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
-\newcommand{\sak}[1]{\textcolor{green}{\textit{[{#1} --SK]}}}
+\newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
 \usepackage{syntax}
 %% Conference information
 %% Supplied to authors by publisher for camera-ready submission;
@@ -727,17 +728,20 @@ would be rewritten to $(-10 - (x \% 2)/2) + y)$.  Thus, we construct the candida
 $$(x/2 + y) - (x + 11)/2 \equiv (-10 - (x \% 2)/2) + y)$$
 
 If the first method fails, we apply CEGIS to superoptimize the left-hand side pattern.
-We build a CEGIS loop on top of Z3~\cite{z3}, encoding the LHS as a set of op codes
+We build a CEGIS loop on top of Z3~\cite{de2008z3}, encoding the LHS as a set of op codes
 and searching for a semantically-equivalent shorter sequence of operations, similar
 to prior work in superoptimization~\cite{}.  We first search for a single-op sequence,
 than iteratively increase the number of operations, in order to find shorter sequences
 first.  If CEGIS returns a shorter sequence, it becomes the candidate right-hand side.
 
-While Z3 is a powerful tool for powering synthesis, we must take care to avoid
+\paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, we must take care to avoid
 undecidable theories, in which case Z3 nearly always fails during the CEGIS process.
 Therefore we limit the use of division and modulo in our op codes to be division
 or modulo by 2 only, and rely on the generalization step described next to
-widen the set of denominators for which a rule applies.
+widen the set of denominators for which a rule applies.  Because of this
+restriction, our synthesized rules cannot contain non-constants in denominators
+or the right hand side of a modulo.  As a result, our synthesis system cannot
+construct all rules a human can.
 
 \subsection{Generalizing Constants}
 
@@ -766,7 +770,7 @@ Deriving facts that only contain constant variables requires applying variable
 elimination to get rid of non-constant variables.  Our approach breaks up $\neg P$ into
 a large number of simpler cases, then applies variable elimination to each case.
 
-\paragraph{Dividing into Subclauses} We begin by subdividing a rewrite $l \neq r$ into
+\paragraph{Dividing into Subclauses} We begin by subdividing a negated rewrite $l \neq r$ into
 the cases $l \wedge \neg r$ and $\neg l \wedge r$.  We then further subdivide each case based
 on the sign of any variables used in multiplication, division, or modulus, constructing
 a case for negative, zero, or positive values of the variable (we skip the zero case for
