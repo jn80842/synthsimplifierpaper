@@ -436,6 +436,7 @@ correct for all inputs.  The loop terminates when the final $C'$ is proven corre
 possible inputs or if no setting of $C$ can make the programs equivalent.
 
 \section{Soundness}
+\label{sec:soundness}
 \jln{We haven't synthesized any vector op rules; not sure if that's a conscious decision or we haven't really had any in input expressions.}
 We improve the Halide term rewriting system by ensuring its soundness in
 two ways: first, we verify that each individual rule is correct, meaning the
@@ -469,9 +470,8 @@ Given this modeling, for each rule, we assert any assumptions are true, then
 ask Z3 to search for a variable assignment such that the LHS and RHS are not
 equivalent.  If Z3 indicates no such assignment exists, the LHS must be equivalent to
 the RHS and the rule must be correct. We implemented a SMT2 printer for the
-Halide rewrite rules and ran them through Z3; out of 999 rules, we were able to
-verify 872 as correct and discover 4 incorrect rules; these rules are listed in
-Table~\ref{tab:incorrectrules}. Rule verification using Z3 is fully-automated
+Halide rewrite rules that constructs a verification problem for each rule
+suitable for passing to Z3 or other SMT system.  Rule verification using Z3 is fully-automated
 and can be run for the current set of rewrite rules via script.
 
 However, nonlinear integer arithmetic is undecidable, and for 123
@@ -493,27 +493,23 @@ factored out, then it is possible that the input expression would have caused a
 divide-by-zero fault but the simplified expression will not. \jln{talk about
   overflow here}
 
-\begin{table*}
-
-\caption{Incorrect rules found during verification.}
-\begin{tabular}{|l|l|}
-\hline
-Incorrect rule & Tool used \\
-\hline
-$((x + c0)/c1)*c1 - x \rightarrow_R x \bmod c1 \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & Z3 \\
-$x - ((x + c0)/c1)*c1 \rightarrow_R -(x \bmod c1) \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & Z3 \\
-$min(x, c0) < min(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2)$ & Z3 \\
-$max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & Z3 \\
-\hline
-\end{tabular}
-\label{tab:incorrectrules}
-\end{table*}
+Overall results of verifying rule correctness are described in Section~\ref{sec:eval-correctness}.
 
 \subsection{Termination}
 
 \jln{note that the ``strength'' of operators is arbitrary for the purposes of proving termination, but meaningful in terms of simplifying (rather than proving) expressions.}
 
-Term rewriting systems are not guaranteed to terminate. Consider a term rewriting system containing only one rule: $x + y \rightarrow y + x$. The term $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again be matched to the rule and rewritten to $3 + 5$, and so on. To guarantee termination irrespective of the rule application algorithm, every application of a rule needs to strictly (monotonically) decrease in some measure. In other words, if $s \rightarrow_R t$, $s > t$ for some strict order $>$. However, since the set of terms is infinite, we cannot check that $s > t$ for all pairs of terms $s, t$. Instead, we show that for every rule $l \rightarrow_R r$ in our term rewriting system, $l > r$. This will suffice if $>$ is a \emph{reduction order}, given:
+Term rewriting systems are not guaranteed to terminate. Consider a term
+rewriting system containing only one rule: $x + y \rightarrow y + x$. The term
+$3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
+be matched to the rule and rewritten to $3 + 5$, and so on. To guarantee
+termination regardless of the rule application algorithm, every application of
+a rule needs to strictly (monotonically) decrease in some measure. In other
+words, we need $s \rightarrow_R t$, $s > t$ for some strict order $>$. However, since
+the set of terms is infinite, we cannot check that $s > t$ for all pairs of
+terms $s, t$. Instead, we show that for every rule $l \rightarrow_R r$ in our
+term rewriting system, $l > r$. This will suffice if $>$ is a \emph{reduction
+  order}, given \sak{need to cite where this theorem comes from}:
 
 \begin{theorem}\label{theorem:terminates}
 A term rewriting system $R$ terminates iff there exists a reduction order $>$ that satisfies $l > r$ for all $l \rightarrow_R r \in R$.
@@ -522,9 +518,9 @@ A term rewriting system $R$ terminates iff there exists a reduction order $>$ th
 Per Baader and Nipkow~\cite{baader1999term}, a reduction order is defined as follows.
 
 \begin{definition}
-A strict order on terms $T(\Sigma, V)$ is a reduction order iff: 
+A strict order on terms $T(\Sigma, V)$ is a reduction order iff it is: 
 \begin{enumerate}
-    \item well-founded, or terminating,
+    \item well-founded, or terminating \sak{does well-founded mean terminating?  we should just use terminating then},
     \item compatible with $\Sigma$-operations: for all $s_1, s_2 \in T(\Sigma,V)$, all $n \geq 0$, and all $f \in \Sigma^{(n)}$, $s_1 > s_2$ implies
     \[ f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n) > f(t_1,...t_{i-1},s_2,t_{i+1},...,t_n)
     \]
@@ -533,27 +529,59 @@ A strict order on terms $T(\Sigma, V)$ is a reduction order iff:
 \end{enumerate}
 \end{definition}
 
-We provide a guarantee that the Halide TRS will always terminate by fixing a reduction order over the existing ruleset. To choose our reduction order, we need to consider the two purposes of the Halide TRS. When we use the Halide simplifier as a prover, to determine if two expressions are equivalent, we want the output expressions to be as close to some normal form as possible, but it doesn't particularly matter what that form is. When we use the Halide simplifier to reduce the size of an expression, however, the form of the output expression can have strong performance implications. \jln{example of a form of expression that has some nice downstream effect} Simplifying an expression in a way that improves performance could mean cancelling correlated subexpressions, using fewer expensive operations such as vector operations, or clustering constants that can be folded.
+We provide a guarantee that the Halide TRS will always terminate by fixing a
+reduction order over the existing ruleset. To choose our reduction order, we
+need to consider the two purposes of the Halide TRS. When using the TRS
+as a prover, to determine if two expressions are equivalent, we want
+the output expressions to be as close to some normal form as possible, but it
+doesn't particularly matter what that form is. When we use the Halide TRS
+to reduce the size of an expression, however, the form of the output expression
+can have strong performance implications. \jln{example of a form of expression that has some nice downstream effect}
+Simplifying an expression in a way that
+improves performance could mean cancelling correlated subexpressions, using
+fewer expensive operations such as vector operations, or clustering constants
+that can pre-computed into a single constant.
 
-Consider the space of all possible Halide expressions, in which our starting expression is a point. If all rewrite rules obey a reduction order, applying any rewrite rule will move the expression through the expression space monotonically in some direction, preventing cycles and ensuring termination. Our reduction order show guide the rewritten expression to some desirable part of the expression space, but defining that desirable space is quite complex. In order to do this, we make use of the following fact:
+Consider the space of all possible Halide expressions, in which our starting
+expression is a point. If all rewrite rules obey a reduction order, applying any
+rewrite rule will move the expression through the expression space monotonically
+in some direction, preventing cycles and ensuring termination. Our reduction
+order guides the rewritten expression to some desirable part of the
+expression space, but defining that desirable space is quite complex. In order
+to do this, we make use of the following fact \sak{cite where this fact comes from}:
 
 \begin{theorem}
 The lexicographic product of two terminating relations is again terminating.
 \end{theorem}
 
-Our reduction order is thus a composition of several reduction orders, each of which moves the expression in some desirable direction. Let $>_a$ and $>_b$ be two reduction orders, the lexicographic product of those orders $>_{a \times b}$ is:
+Our reduction order is thus a composition of several reduction orders, each of
+which moves the expression in some desirable direction. Let $>_a$ and $>_b$ be
+two reduction orders; the lexicographic product of those orders $>_{a \times b}$
+is:
 
 \[
 s >_{a \times b} t \iff s >_a t \vee (s \geq_a t \wedge s >_b t)
 \] 
 
-In other words, given an order $>_{a \times b}$, our rewrite system is allowed to move the expression monotonically in the direction of $>_a$, and monotonically in the direction of $>_b$ only as long as the $>_a$ order is not violated.
+In other words, given an order $>_{a \times b}$, our rewrite system is allowed
+to move the expression monotonically in the direction of $>_a$, and
+monotonically in the direction of $>_b$ only as long as the $>_a$ order is not
+violated.
 
-Our component reduction orders have three main types: orders over variable occurrence counts, orders over operation occurrence counts, and recursive multiset path orders. We sketch the proof that the orders have the required properties for reduction orders in the remainder of this section; a full definition of the reduction order is given in Appendix ~\ref{a:reductionorder}.
+Our component reduction orders have three main types: orders over variable
+occurrence counts, orders over operation occurrence counts, and recursive
+multiset path orders. We sketch the proof that the orders have the required
+properties for reduction orders in the remainder of this section; a full
+definition of the reduction order is given in Appendix ~\ref{a:reductionorder}.
 
-First, orders over variable or operation occurrence count are well-founded because they are defined using a measure function that maps terms to the natural numbers. Let the function $|s|_x$ represent the number of occurrences of the variable $x$ in the term $s$. Similarly, let $|s|_f$ represent the number of occurrences of some symbol $f \in \Sigma$ in the term $s$.
+First, orders over variable or operation occurrence counts are well-founded \sak{terminating?}
+because they are defined using a measure function that maps terms to the natural
+numbers. Let the function $|s|_x$ represent the number of occurrences of the
+variable $x$ in the term $s$. Similarly, let $|s|_f$ represent the number of
+occurrences of some symbol $f \in \Sigma$ in the term $s$.
 
-For the first order in our reduction order composition, we say that a rewrite rule cannot increase the number of vector operations:
+For the first order in our reduction order composition, we say that a rewrite
+rule cannot increase the number of vector operations:
 
 \begin{equation}
 \begin{split}
@@ -567,21 +595,33 @@ Any order constructed out of a measure function that counts operations will be c
 |f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n)|_{f_1} = \sum_i |t_i|_{f_1} + |s_1|_{f_1}
 \]
 
-plus $1$ if $f = f_1$ and $0$ otherwise. 
+plus $1$ if $f = f_1$ and $0$ otherwise. \sak{nitpick: why no $t_i$ on the left part?}
 
 Thus, if $|s|_f > |t|_f$, we have some $n$ such that $|s|_f + n > |t|_f + n$, so the implication must hold.
 
-The order is closed under substitution due to the fact that the Halide simplifier matching algorithm only matches variables with scalars. Thus, we cannot define any substitution $\sigma$ that will increase the number of vector operations in a term. 
+The order is closed under substitution due to the fact that the Halide
+simplifier matching algorithm only matches variables with scalars \sak{this is unclear to me.  so we can't
+  define a rule that matches broadcasts or ramps?  I thought we do match those things but never increase
+the number}. Thus, we
+cannot define any substitution $\sigma$ that will increase the number of vector
+operations in a term.
 
-We define an order based on the number of variance occurrences in some term as:
+We define an order based on the number of variance \sak{variance?  maybe variable?} occurrences in some term as:
 
 \begin{equation}
 s >_{var} t \iff \forall x \in V, |s|_x > |t|_x
 \end{equation}
 
-The order is compatible with $\Sigma$-operations for similar reasoning as the order above. It is also closed under substitution; for any variable substitution $v \mapsto u$, the number of occurrences of any variable $x$ will be increased by some $n = |u|_x$ for every occurrence of $v$ in $s$. Since we know $v$ occurs fewer times in $t$ than $s$, the relation must hold.
+The order is compatible with $\Sigma$-operations for similar reasoning as the
+order above. It is also closed under substitution; for any variable substitution
+$v \mapsto u$, the number of occurrences of any variable $x$ will be increased
+by some $n = |u|_x$ for every occurrence of $v$ in $s$. Since we know $v$ occurs
+fewer times in $t$ than $s$, the relation must hold.
 
-We define a family of orders based on the number of occurrences of operations in terms; for example, we prefer simplified expressions to be linear if possible, so we define a reduction order that removes occurrences of division, modulo, and multiplication.
+We also define a family of orders based on the number of occurrences of operations in
+terms; for example, we prefer simplified expressions to be linear if possible,
+so we define a reduction order that removes occurrences of division, modulo, and
+multiplication.
 
 \begin{equation}
 \begin{split}
@@ -590,9 +630,24 @@ s >_{nonlinear} t \iff \forall x \in \mathcal{V}, |s|_x \geq |t|_x \wedge \\
 \end{split}
 \end{equation}
 
-The proof of this order is very similar to the above; however, note that it only holds when the occurrences of all variables in $s$ is equal or greater than those in $t$. If some variable $v$ matches against an expression $e$ that contained many multiplications, and $v$ occurred more often in $t$ than in $s$, than the rewritten expression $e'$ could contain more nonlinear operations than $e$, violating the intended order and possibly resulting in a cycle.
+The proof of this order is very similar to the above; however, note that it only
+holds when the occurrences of all variables in $s$ is equal to or greater than
+those in $t$. If some variable $v$ matches against an expression $e$ that
+contained many multiplications, and $v$ occurred more often in $t$ than in $s$,
+than the rewritten expression $e'$ could contain more nonlinear operations than
+$e$, violating the intended order and possibly resulting in a cycle.
 
-The final reduction order type is intended to favor rules that bring certain types of operations closer to the root of the expression AST. For example, leaving operations distributed over additions ($a*c + b*c$ rather than $c*(a + b)$) can facilitate some compiler optimizations; moving constants higher in the AST can help cluster and fold them, reducing the overall size of the expression. We define this preference using a \emph{recursive multiset path order}. First we fix an ordering over the function symbols, then compare terms by their root symbol. If the symbols are equal, we recursively order the multiset of the left term's child terms and that of the right term's; we say that for multisets $M, N$, $M >_{mul} N$ if $M \neq N$ and for every element $n$ of $N$ that is not in $M$, there is some element $m$ in $M$ such that $m > n$.
+The final reduction order type is intended to favor rules that bring certain
+types of operations closer to the root of the expression AST. For example,
+leaving operations distributed over additions ($a*c + b*c$ rather than
+$c*(a +b)$) can facilitate some compiler optimizations; moving constants higher in the
+AST can help cluster and fold them, reducing the overall size of the expression.
+We define this preference using a \emph{recursive multiset path order}. First we
+fix an ordering over the function symbols, then compare terms by their root
+symbol. If the symbols are equal, we recursively order the multiset of the left
+term's child terms and that of the right term's; we say that for multisets $M,
+N$, $M >_{mul} N$ if $M \neq N$ and for every element $n$ of $N$ that is not in
+$M$, there is some element $m$ in $M$ such that $m > n$.
 
 \begin{equation}
 \begin{split}
@@ -602,7 +657,8 @@ s >_{mpo} t \iff & t \in \mathcal{V}ar(s) \vee \\
 \end{split}
 \end{equation}
 
-We checked the existing Halide ruleset against our reduction order and found \NumOrderingProblems rules that were not properly ordered. We use the reduction order to ensure that the simplifier will always terminate by using the order to filter newly synthesized rules.
+We describe the results of our ordering experiment in Section~\ref{sec:eval-correctness}.
+
 
 
 
@@ -824,10 +880,31 @@ exhibit increases in simplifier failures of 44\% and 37\% respectively.  \sak{WH
 % could also report calls to can_prove and successful calls to can_prove; this is more meaningful as a ratio
 
 \subsection{Correctness}
+\label{sec:eval-correctness}
+\begin{table*}
 
-As described above, we improved the correctness of the simplifier by verifying
-the existing rules using a combination of Z3 and Coq. We found \NumRulesFixed
-incorrect rules and submitted patches to the Halide developers. We also found
+\caption{Incorrect rules found during verification.\sak{I think we need to state or show why it's incorrect}}
+\begin{tabular}{|l|l|}
+\hline
+Incorrect rule & Tool used \\
+\hline
+$((x + c0)/c1)*c1 - x \rightarrow_R x \bmod c1 \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & Z3 \\
+$x - ((x + c0)/c1)*c1 \rightarrow_R -(x \bmod c1) \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & Z3 \\
+$min(x, c0) < min(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2)$ & Z3 \\
+$max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & Z3 \\
+\hline
+\end{tabular}
+\label{tab:incorrectrules}
+\end{table*}
+
+
+
+As described in Section~\ref{sec:soundness}, we improved the correctness of
+the simplifier by verifying the existing rules using a combination of Z3 and
+Coq. We ran our automated scripts on the 999 existing rewrite rules, using Z3
+to verify 872 of them as correct.  We further verified 123 rules manually using
+Coq.  We found \NumRulesFixed incorrect rules, shown in Table~\ref{tab:incorrectrules},
+and submitted patches to the Halide developers. We also found
 \NumPredicatesRelaxed rules whose predicates could be relaxed while retaining
 correctness.
 
@@ -835,8 +912,10 @@ correctness.
 
 We also ensure the termination of the simplifier by devising a reduction order
 over its rewrite rules. We identify \NumOrderingProblems rewrite rules that do
-not conform to this ordering.
-
+not conform to this ordering, and reported them to the Halide developers.  We also
+use this rule ordering to ensure we never create rules that violate the ordering,
+preventing infinite loops.
+%We checked the existing Halide ruleset against our reduction order and found \NumOrderingProblems rules that were not properly ordered. We use the reduction order to ensure that the simplifier will always terminate by using the order to filter newly synthesized rules.
 \subsection{Compilation Speed}
 
 We hypothesize that the Halide simplifier scales well in terms of the number of rewrite rules it uses, and thus adding synthesized rules will not greatly affect compilation times. We need empirical results to confirm this hypothesis, since adding rewrite rules could potentially improve simplification time for one expression and degrade it for another. If no rules match a given expression, the simplifier must try to match every applicable rule, so adding rules would increase simplification time; if a new rule allows the simplifier to make progress on a previously unsimplifiable rule, the simplifier will be able to continue working on the expression and thus take more steps. On the other hand, a new rule might allow an expression to simplify to a small expression quickly, thus reducing the number of rewrite steps the simplifier must take; furthermore, if the simplifier can now successfully prove a term when it could not before, it may be able to use some optimization, thus shortening (non-simplifier) compilation time overall.
