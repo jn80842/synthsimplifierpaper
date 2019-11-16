@@ -12,9 +12,10 @@
 \usepackage{xspace}
 \usepackage{natbib}
 \usepackage{csvsimple}
+\usepackage{microtype}
 \definecolor{uwpurple}{RGB}{128,0,128}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
-\newcommand{\sak}[1]{\textcolor{green}{\textit{[{#1} --SK]}}}
+\newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
 \usepackage{syntax}
 %% Conference information
 %% Supplied to authors by publisher for camera-ready submission;
@@ -674,7 +675,7 @@ The Halide term rewriting system is not complete: there
 exist expressions checked by the compiler running on real-world pipelines that
 the simplifier cannot resolve, but which are known to be true. \jln{there should
   be more discussion of TRS properties here (confluence etc) and whether they
-  are decidable for the Halide lang}
+  are decidable for the Halide lang} \sak{Julie: Can you add that please?}
 In this section, we describe a workflow for automatically augmenting the Halide
 TRS using program synthesis.
 A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
@@ -686,7 +687,7 @@ that encode constraints on those constants.
 \subsection{Synthesizing Candidate Rules With Constants}
 The synthesis pipeline begins with a collection of failed proofs, which are printed
 by the compiler when debugging output is enabled.  For this work, we obtained a set
-of failed proofs from the authors of \citeauthor{Adams2019} which were recorded
+of failed proofs from the authors of \citeauthor{Adams2019}~\cite{Adams2019} which were recorded
 while building random but realistic Halide pipelines with random schedules for
 training the Halide autoscheduler.  For each failed proof, we attempt to generate
 one or more rules capable of transforming the expression.
@@ -727,24 +728,28 @@ would be rewritten to $(-10 - (x \% 2)/2) + y)$.  Thus, we construct the candida
 $$(x/2 + y) - (x + 11)/2 \equiv (-10 - (x \% 2)/2) + y)$$
 
 If the first method fails, we apply CEGIS to superoptimize the left-hand side pattern.
-We build a CEGIS loop on top of Z3~\cite{z3}, encoding the LHS as a set of op codes
+We build a CEGIS loop on top of Z3~\cite{de2008z3}, encoding the LHS as a set of op codes
 and searching for a semantically-equivalent shorter sequence of operations, similar
-to prior work in superoptimization~\cite{}.  We first search for a single-op sequence,
+to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016superoptimization}.
+We first search for a single-op sequence,
 than iteratively increase the number of operations, in order to find shorter sequences
 first.  If CEGIS returns a shorter sequence, it becomes the candidate right-hand side.
 
-While Z3 is a powerful tool for powering synthesis, we must take care to avoid
+\paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, we must take care to avoid
 undecidable theories, in which case Z3 nearly always fails during the CEGIS process.
 Therefore we limit the use of division and modulo in our op codes to be division
 or modulo by 2 only, and rely on the generalization step described next to
-widen the set of denominators for which a rule applies.
+widen the set of denominators for which a rule applies.  Because of this
+restriction, our synthesized rules cannot contain non-constants in denominators
+or the right hand side of a modulo.  As a result, our synthesis system cannot
+construct all rules a human can.
 
 \subsection{Generalizing Constants}
 
 At this point in the synthesis pipeline, we have constructed a candidate rewrite
 rule that contains concrete constants.  To make the rule as general as possible,
 we replace each constant with a fresh \emph{constant variable}. A constant
-variable matches only terms with values known at compile time. We first query Z3
+variable matches only terms with constant values known at compile time. We first query Z3
 again to see if the equivalence still holds; if it does, the rule is valid. If
 it is not, we will need to find a \textit{predicate} to guard
 applications of the rule in the simplifier. We attempt to synthesize a predicate
@@ -766,7 +771,7 @@ Deriving facts that only contain constant variables requires applying variable
 elimination to get rid of non-constant variables.  Our approach breaks up $\neg P$ into
 a large number of simpler cases, then applies variable elimination to each case.
 
-\paragraph{Dividing into Subclauses} We begin by subdividing a rewrite $l \neq r$ into
+\paragraph{Dividing into Subclauses} We begin by subdividing a negated rewrite $l \neq r$ into
 the cases $l \wedge \neg r$ and $\neg l \wedge r$.  We then further subdivide each case based
 on the sign of any variables used in multiplication, division, or modulus, constructing
 a case for negative, zero, or positive values of the variable (we skip the zero case for
@@ -775,7 +780,7 @@ For our example, we subdivide into three cases each for each of $c0$, $c1$, and 
 54 cases.  We then further subdivide using any explicit conditionals in the expression (max,
 min, and select), considering each branch separately.
 
-Next, we introduce positive auxillary variables ($k0..kn$ in our notation) to convert
+Next, we introduce positive auxiliary variables ($k0..kn$ in our notation) to convert
 inequalities into equalities, and remove all division and modulo operations using
 variable substitutions.  After all these steps, we end up with a large number of simple
 clauses in a conjuction.  For our example, one set of resulting clauses is:
@@ -853,6 +858,17 @@ test the following hypotheses:
 
 We perform all experiments on (Andrew's machine: i9-9960X CPU @ 3.10GHz, Ubuntu 18.04, 16 threads using avx-512, LLVM 8.0.1).
 
+\begin{figure}[htb]
+  \includegraphics[width=\columnwidth]{figures/num-rules-found.pdf}
+  \caption{The number of rules found as a function of unique failed expressions.  Initially, many new rules are discovered,
+    but the rate begins to slow down after a few thousand expressions.}
+  \label{fig:num-rules-found}
+\end{figure}
+
+Figure~\ref{fig:num-rules-found} shows the number of rules found as a function of the number of proof failures
+examined.  At first, failed expressions yield many rules, but as expected, the number of rules found
+begins to saturate after several thousand expressions.
+
 \subsection{Robustness}
 \begin{table*}[!ht]
   \caption{Proof failures before and after our improvements to the Halide term rewriting system.}
@@ -909,6 +925,10 @@ and submitted patches to the Halide developers. We also found
 correctness.
 
 \jln{Is it possible that the incorrect rules ever led to unsound compilation output? Not sure how to determine this.}
+
+\sak{Write up the fact that we did in fact encounter a case where we
+  synthesized a rule that resulted in infinite looping due to an existing
+  ordering-violating rule}
 
 We also ensure the termination of the simplifier by devising a reduction order
 over its rewrite rules. We identify \NumOrderingProblems rewrite rules that do
