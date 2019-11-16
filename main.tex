@@ -926,6 +926,10 @@ correctness.
 
 \jln{Is it possible that the incorrect rules ever led to unsound compilation output? Not sure how to determine this.}
 
+\sak{Write up the fact that we did in fact encounter a case where we
+  synthesized a rule that resulted in infinite looping due to an existing
+  ordering-violating rule}
+
 We also ensure the termination of the simplifier by devising a reduction order
 over its rewrite rules. We identify \NumOrderingProblems rewrite rules that do
 not conform to this ordering, and reported them to the Halide developers.  We also
