@@ -592,10 +592,10 @@ s >_{\texttt{vec}} t \Leftrightarrow |s|_{\texttt{ramp}} + |s|_{\texttt{broadcas
 Any order constructed out of a measure function that counts operations will be compatible with $\Sigma$-operations, since 
 
 \[
-|f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n)|_{f_1} = \sum_i |t_i|_{f_1} + |s_1|_{f_1}
+|f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n)|_{f_1} = \sum_{j=0}^{i-1} |t_i|_{f_1} + |s_1|_{f_1} + \sum_{j=i+1}^{n} |t_i|_{f_1}
 \]
 
-plus $1$ if $f = f_1$ and $0$ otherwise. \sak{nitpick: why no $t_i$ on the left part?}
+plus $1$ if $f = f_1$ and $0$ otherwise.
 
 Thus, if $|s|_f > |t|_f$, we have some $n$ such that $|s|_f + n > |t|_f + n$, so the implication must hold.
 
@@ -606,7 +606,7 @@ the number}. Thus, we
 cannot define any substitution $\sigma$ that will increase the number of vector
 operations in a term.
 
-We define an order based on the number of variance \sak{variance?  maybe variable?} occurrences in some term as:
+We define an order based on the number of variable occurrences in some term as:
 
 \begin{equation}
 s >_{var} t \iff \forall x \in V, |s|_x > |t|_x
@@ -970,6 +970,8 @@ Synthesis oracle (z3) can't reason about expressions with div/mod, so we're limi
 
 \section{Future work}
 Use synthesis to create separate prover TRS and simplifier TRS?
+
+Synthesize rules containing vector ops.
 
 \section{Related Work}
 
