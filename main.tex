@@ -158,10 +158,11 @@
   useful and effective for compiling high performance code across platforms.
   In Halide, reasoning about the code relies on a term rewriting system to
   prove properties required for efficient and correct compilation.  This rewrite
-  system is written as a large collection of ad hoc hand-written transformation rules 
-  that incrementally rewrite expressions into simpler forms.
+  system is written as a collection of handwritten transformation rules 
+  that incrementally rewrite expressions into simpler forms and requires high performance 
+  in both time and memory usage to keep compile times low.
   In this work, we apply formal techniques to prove the correctness of existing
-  rewrite rules and formalize an ordering that ensures termination.  Then,
+  rewrite rules and provide a termination guarantee. Then,
   we build an automatic program synthesis system that creates new, provably
   correct rules from failure cases where the compiler was unable to prove properties. We
   identify and fix \NumRulesFixed incorrect rules and \NumOrderingProblems rules
@@ -234,28 +235,30 @@ which, within Halide, are represented as intervals over the integers.
 Reasoning about these regions uses a \textit{term rewriting system}
 (TRS) on integers: the compiler applies simplification rules to an expression relating
 the regions until no more rewrites apply.  The final expression can be
-true, false, or indeterminate.  Indeterminate values may prevent optimizations
+true, false, or indeterminate.  If the simplifier finds an expression is indeterminate that
+could have been proved true, it may prevent optimizations
 from being applied, resulting in errors during compilation, or may result
 in the compiler producing suboptimal code.
 
-The Halide TRS must balance compilation speed and applicability.  For the widest applicability,
-a TRS must be \textit{convergent}, meaning that if two expressions are equal, then the TRS
-will always produce the same final canonical form.  However, constructing a TRS of this form
+In this work, we improve the Halide term rewriting system by formally checking the existing
+set of rules to ensure correctness, and then constructing a rule ordering that 
+ensures termination.  We then automate the task of writing new rules by building a program
+synthesis system that automatically checks compilation failures for expressions that are
+correct but not provable, and produces new rules with predicates to guard their application.
+These new rules will preserve correctness and termination properties by construction.
+
+The Halide TRS must balance compilation speed and applicability. 
+Ideally, the TRS would be \emph{convergent}, meaning that if two expressions are equivalent,
+the TRS will return the same canonical form for both of them.
+However, constructing a TRS of this form
 is \sak{impossible? inefficient? Julie, please add some text to explain why we don't just
 use Z3 or egraphs}.  In Halide's compiler, the TRS consists of a series of
 hand-written rules and efficient matchers to match rules bottom-up.  These rules were constructed
 by developers based on observed compilation failures over many years, and ordered in ad-hoc ways
 to avoid non-termination.  Extensive fuzz-testing has been able to find bugs in rewrite rules,
-but there is no guarantee bugs do not continue to persist.  Furthermore, adding additional
+but fuzz-testing cannot provide formal guarantees (and in fact we were able to find .  Furthermore, adding additional
 rules requires expert programmers to meticulously analyze compilation failures and hand-craft
 rules that mitigate the problems without causing new errors.
-
-In this work, we improve the Halide term rewriting system by  formally checking the existing
-set of rules to ensure correctness, and then further constructing a rule ordering that 
-ensures termination.  We then automate the task of writing new rules by building a program
-synthesis system that automatically checks compilation failures for expressions that are
-correct but not provable, produces new rules, predicates to guard their application, and
-a placement within the rule ordering to prevent non-termination.
 
 The verification and synthesis
 of these rules poses significant challenges: the underlying theory of non-linear integer arithmetic (NLIA)
@@ -321,12 +324,12 @@ We then apply this substitution to the righthand side (RHS) of the rule to obtai
 
 \subsection{Term Rewriting in Halide}
 
-The Halide compiler contains a term rewriting system, currently comprised of
+The Halide compiler contains a term rewriting system, currently composed of
 several hundred rules, that operates over the space of Halide
 expressions\footnote{See Appendix ~\ref{ss:appendixA} for the full Halide
   expression grammar}. While the term rewriting system is used for multiple
-purposes within the compiler, the most important
-usage occurs when the TRS serves proof engine to determine if
+purposes within the compiler, the two most important
+uses are when the TRS serves proof engine to determine if
 some equality or inequality holds, or when the rewriter attempts to find tight
 bounds on regions. For example, in order to parallelize a
 reduction variable, the compiler must prove that there are no hazards, which is
@@ -438,22 +441,22 @@ possible inputs or if no setting of $C$ can make the programs equivalent.
 
 \section{Soundness}
 \label{sec:soundness}
-\jln{We haven't synthesized any vector op rules; not sure if that's a conscious decision or we haven't really had any in input expressions.}
+
 We improve the Halide term rewriting system by ensuring its soundness in
 two ways: first, we verify that each individual rule is correct, meaning the
-rewrite preserves semantics.  Then, we verify that the rules are applied
-in an order that prevents infinite loops in the term rewriter; for example, this
-could occur if two or more rules formed a cycle.
+rewrite preserves semantics. Then we verify that the term rewriting system is
+guaranteed to terminate on all inputs by ensuring that there is no sequence of
+applications of rules, on any input expression, that can form a cycle.
 
 \subsection{Rule verification}
 
 We verify each individual rule is correct by modeling Halide expressions in SMT2
-and sending them to the SMT solver Z3~\cite{de2008z3}, searching for counterexamples
-that would indicate the rule is sometimes invalid. Most Halide expression semantics map cleanly
+and using the SMT solver Z3~\cite{de2008z3} to prove that the rule equivalences must hold.
+Most Halide expression semantics map cleanly
 to SMT2 formulas. The functions \texttt{max} and \texttt{min} are defined in
 the usual way, and \texttt{select} in Halide is equivalent to the SMT2 operator
 \texttt{ite}. Division and modulo are given the Euclidean definitions in both
-Halide and SMT2. If a variable appears in the LHS of a rule as a divisor in a
+Halide and SMT2~\cite{boute1992euclidean}. If a variable appears in the LHS of a rule as a divisor in a
 division or modulo operation, it is assumed to be non-zero. %The Halide
 %expressions do not have a true boolean type (true and false are represented by
 %unsigned integers of 1 bitwidth), so expressions must be typed as either
@@ -472,7 +475,7 @@ ask Z3 to search for a variable assignment such that the LHS and RHS are not
 equivalent.  If Z3 indicates no such assignment exists, the LHS must be equivalent to
 the RHS and the rule must be correct. We implemented a SMT2 printer for the
 Halide rewrite rules that constructs a verification problem for each rule
-suitable for passing to Z3 or other SMT system.  Rule verification using Z3 is fully-automated
+suitable for passing to Z3 or other SMT system.  Rule verification using Z3 is fully automated
 and can be run for the current set of rewrite rules via script.
 
 However, nonlinear integer arithmetic is undecidable, and for 123
@@ -483,10 +486,10 @@ were also able to relax the predicates of \jln{TK} rules; for example, in some c
 with a predicate requiring some constant to be positive would be equally valid
 if the constant was non-zero.
 
-We further want to guarantee that given an input expression with well-defined
+We further want to guarantee that, given an input expression with well-defined
 behavior, the term rewriting system will never rewrite it into an expression that has
 undefined behavior. For example, if an input expression never divides by zero, then the
-TRS output never divide by zero. We check this by
+TRS output must never divide by zero. We check this by
 verifying that all terms used as divisors or moduluses in the RHS of a
 rewrite rule also appear as a divisor in the rule's LHS. Note that all divisor
 terms on the LHS side are not required to appear in the RHS; if a divisor is
@@ -733,7 +736,8 @@ and searching for a semantically-equivalent shorter sequence of operations, simi
 to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016superoptimization}.
 We first search for a single-op sequence,
 than iteratively increase the number of operations, in order to find shorter sequences
-first.  If CEGIS returns a shorter sequence, it becomes the candidate right-hand side.
+first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
+operations, it becomes the candidate RHS.
 
 \paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, we must take care to avoid
 undecidable theories, in which case Z3 nearly always fails during the CEGIS process.
@@ -837,12 +841,13 @@ searching for any clause where $c$ is compared with any expression not containin
 constant variables.  If such a clause is found, we can rewrite $c$, but if not, the rule
 cannot be checked at compile time and must be discarded.
 
-Finally, we perform two other forms of filtering.  First, we query Z3 to ensure the
+Finally, we perform three other forms of filtering.  First, we query Z3 to ensure the
 predicate is satisfiable; if not, we discard the rule.  About 10\% of all rules fail
 this filter.  Secondly, we check that the rule is not redundant.  For every pair of
 rules $R_1$ and $R_2$, if $R_1$ matches every left hand side that $R_2$ matches,
 and the predicate for $R_1$ implies the predicate for $R_2$, then we can discard $R_2$
-as $R_1$ is at least as general.
+as $R_1$ is at least as general. Finally, we check that the candidate rule obeys our
+reduction order in order to preserve our termination guarantee.
 
 
 \section{Evaluation}
@@ -967,7 +972,7 @@ miscompilations or other bugs.  Crafting rewrite rules for fixing a specific mis
 is tedious and error-prone; comments from commits to the Halide repository include
 ``Proving these rules on paper is a pain.''  For this experiment, we explore whether
 our automated rule synthesis can replace the human effort.  We look at the last 5 pull
-requests in the Halide git repository~\cite{halide-git} that add rules.  Then, we remove
+requests in the Halide git repository~\footnote{https://github.com/halide/Halide} that add rules.  Then, we remove
 the added rules and use either tests from the PR or hand-crafted failures (in rules
 not exercised by the added tests) and pass them to our system.
 Table~\ref{tab:prbugfixes} summarizes results from the experiment.
@@ -988,10 +993,14 @@ new rules by hand.
 \section{Limitations}
 Synthesis oracle (z3) can't reason about expressions with div/mod, so we're limited in our ability to synthesize those types of rules.
 
+Integers only, no floats etc.
+
+Overflows not considered.
+
 \section{Future work}
 Use synthesis to create separate prover TRS and simplifier TRS?
 
-Synthesize rules containing vector ops.
+Although we do not currently synthesize rules that contain vector operators, they are not incompatible with our approach. Since our reduction of Halide expressions to SMT formulas models vector expressions as integers, we would need to add a typechecking step to ensure correctness in the synthesis process, which we leave as future work.
 
 \section{Related Work}
 
@@ -1033,7 +1042,6 @@ Herbie, superoptimization, abstract interpretation, MCSAT (Jovanovic)
 \subsection{Halide expression grammar}
 \label{ss:appendixA}
 
-\jln{vector ops are missing}
 
 \begin{grammar}
 <Expr> ::= <BoolExpr> 
@@ -1062,10 +1070,11 @@ Herbie, superoptimization, abstract interpretation, MCSAT (Jovanovic)
 \alt `select' <BoolExpr> <IntExpr> <IntExpr>
 \alt integers
 
-<VectorExpr> ::= vectors
+<VectorExpr> ::= `broadcast' <IntExpr>
+\alt `ramp' <IntExpr> <IntExpr>
 \end{grammar}
 
-\subsection{The fully Halide reduction order}
+\subsection{The full Halide reduction order}
 \label{a:reductionorder}
 
 \begin{equation}
