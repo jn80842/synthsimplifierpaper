@@ -904,15 +904,15 @@ exhibit increases in simplifier failures of 44\% and 37\% respectively.  \sak{WH
 \label{sec:eval-correctness}
 \begin{table*}
 
-\caption{Incorrect rules found during verification.\sak{I think we need to state or show why it's incorrect}}
-\begin{tabular}{|l|l|}
+\caption{Incorrect rules found during verification.}
+\begin{tabular}{|l|l|l|}
 \hline
-Incorrect rule & Tool used \\
+Incorrect rule & Counterexample & Tool used \\
 \hline
-$((x + c0)/c1)*c1 - x \rightarrow_R x \bmod c1 \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & Z3 \\
-$x - ((x + c0)/c1)*c1 \rightarrow_R -(x \bmod c1) \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & Z3 \\
-$min(x, c0) < min(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2)$ & Z3 \\
-$max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & Z3 \\
+$((x + c0)/c1)*c1 - x \rightarrow_R x \bmod c1 \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & x := -2, c0 := 2, c1 := 3 & Z3 \\
+$x - ((x + c0)/c1)*c1 \rightarrow_R -(x \bmod c1) \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & x := -2, c0 := 2, c1 := 3 & Z3 \\
+$min(x, c0) < min(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2)$ & x := 0, c0 := 0, c1 := -1, c2 := 1 & Z3 \\
+$max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & x := 0, c0 := 2, c1 := 1, c2 := 1 & Z3 \\
 \hline
 \end{tabular}
 \label{tab:incorrectrules}
