@@ -13,6 +13,9 @@
 \usepackage{natbib}
 \usepackage{csvsimple}
 \usepackage{microtype}
+\usepackage{tikz}
+\usepackage{tikz-qtree}
+\usepackage{tabularx}
 \definecolor{uwpurple}{RGB}{128,0,128}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
 \newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
@@ -322,6 +325,28 @@ We then apply this substitution to the righthand side (RHS) of the rule to obtai
 (y_1 \diamondsuit y_1) \diamondsuit (y_2 \clubsuit y_3)
 \]
 
+\begin{figure*}
+\begin{tabularx}{\textwidth}{XXXX}
+\begin{tikzpicture}
+\Tree [.+ [.- [.min a b ] [.max c c ] ] [.max c c ]]
+\end{tikzpicture}
+&
+\begin{tikzpicture}
+\Tree [.+ [.- [.min a b ] c ] [.max c c ]]
+\end{tikzpicture}
+&
+\begin{tikzpicture}
+\Tree [.+ [.- [.min a b ] c ] c ]
+\end{tikzpicture}
+&
+\begin{tikzpicture}
+\Tree [.min a b ]
+\end{tikzpicture}
+\end{tabularx}
+\caption{We demonstrate the Halide simplifier algorithm using a TRS $R = \{max(x,x) \rightarrow_R x, (x - y) + y \rightarrow_R x\}$ and an expression $min(a,b) - max(c,c) + max(c,c))$. The algorithm attempts to simplify all subtrees bottom up; here, no rule applies to $min(a,b)$ so it is not changed. Next, rule 1 rewrites $max(c,c)$ to $c$. No rule applies to $min(a,b) - c$, so we move to the rightmost subtree and rewrite again to obtain $c$ from $max(c,c)$. Finally, we consider the entire tree $(min(a,b) - c) + c$ and apply rule 2 to produce $min(a,b)$. No rules match this expression, so we are done. \jln{nicer formatting TK}}
+\label{fig:algoexample}
+\end{figure*}
+
 \subsection{Term Rewriting in Halide}
 
 The Halide compiler contains a term rewriting system, currently composed of
@@ -371,8 +396,9 @@ attempts to match the subtree expression with the rule LHSs in order. When a
 match is found, it rewrites the subtree expression using the RHS of that rule,
 and then attempts to simplify the subtree expression again. If no rule matches
 the subtree, the traversal continues; when the entire expression cannot be
-simplified further, the rewritten expression is returned. \jln{use example from
- slides here; also confirm big O performance of this algo}
+simplified further, the rewritten expression is returned. See figure~\ref{fig:algoexample} for a worked example. 
+
+In the worst case, the performance of this algorithm is exponential since it attempts to match rewrite rules for every subtree of the expression AST. However, the fact that the algorithm never backtracks gives important performance advantages. It is memory efficient because it only persists the single expression it is in the process of rewriting, without checkpoints or equivalence classes that would be necessary for a backtracking search. At every stage, in the event that multiple rules could match the current expression, the Halide algorithm picks the first matching rule and applies it, while a backtracking algorithm would potentially explore all  matching rules (the tradeoff being that the Halide algorithm may pick the ``wrong'' rule and have no way of undoing that decision). This also means that the Halide algorithm scales very well in terms of the number of rules in the TRS; see section~\ref{ssec:compilationspeed} for an evaluation of the effects of adding newly synthesized rules on the performance of the compiler.
 
 Halide rewrite rules optionally contain a compile-time predicate that must hold for a rule to
 be applied. Halide expressions may contain constants whose values are known at
@@ -942,6 +968,7 @@ use this rule ordering to ensure we never create rules that violate the ordering
 preventing infinite loops.
 %We checked the existing Halide ruleset against our reduction order and found \NumOrderingProblems rules that were not properly ordered. We use the reduction order to ensure that the simplifier will always terminate by using the order to filter newly synthesized rules.
 \subsection{Compilation Speed}
+\label{ssec:compilationspeed}
 
 We hypothesize that the Halide simplifier scales well in terms of the number of rewrite rules it uses, and thus adding synthesized rules will not greatly affect compilation times. We need empirical results to confirm this hypothesis, since adding rewrite rules could potentially improve simplification time for one expression and degrade it for another. If no rules match a given expression, the simplifier must try to match every applicable rule, so adding rules would increase simplification time; if a new rule allows the simplifier to make progress on a previously unsimplifiable rule, the simplifier will be able to continue working on the expression and thus take more steps. On the other hand, a new rule might allow an expression to simplify to a small expression quickly, thus reducing the number of rewrite steps the simplifier must take; furthermore, if the simplifier can now successfully prove a term when it could not before, it may be able to use some optimization, thus shortening (non-simplifier) compilation time overall.
 
@@ -1001,6 +1028,8 @@ Overflows not considered.
 Use synthesis to create separate prover TRS and simplifier TRS?
 
 Although we do not currently synthesize rules that contain vector operators, they are not incompatible with our approach. Since our reduction of Halide expressions to SMT formulas models vector expressions as integers, we would need to add a typechecking step to ensure correctness in the synthesis process, which we leave as future work.
+
+The priority in which rules are considered for matching clearly can have performance implications, but evaluation/tuning is left as future work.
 
 \section{Related Work}
 
