@@ -300,26 +300,26 @@ Terms are defined inductively over a set of variables $V$ and a set of function 
 
 A \emph{rewrite rule} is a directed binary relation $l \rightarrow r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
 
-Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\otimes, \oplus\}$ and $V$ is an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
+Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\clubsuit, \diamondsuit\}$ and $V$ is an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
 
-\[ R = \{ x_1 \otimes x_2 \rightarrow x_1 \oplus x_2 \} \]
+\[ R = \{ x_1 \clubsuit x_2 \rightarrow_R x_1 \diamondsuit x_2 \} \]
 
 We use $R$ to rewrite the term
 
 \[ 
-(y_1 \oplus y_1) \otimes (y_2 \otimes y_3)
+(y_1 \diamondsuit y_1) \clubsuit (y_2 \clubsuit y_3)
 \]
 
 The first step is matching; we find a substitution that will unify the lefthand side (LHS) of the rule with the term we are rewriting. Here, the substitution is:
 
 \[
-\{ x_1 \mapsto (y_1 \oplus y_1), x_2 \mapsto (y_2 \otimes y_3) \}
+\{ x_1 \mapsto (y_1 \diamondsuit y_1), x_2 \mapsto (y_2 \clubsuit y_3) \}
 \]
 
 We then apply this substitution to the righthand side (RHS) of the rule to obtain the rewritten version of the original term.
 
 \[ 
-(y_1 \oplus y_1) \oplus (y_2 \otimes y_3)
+(y_1 \diamondsuit y_1) \diamondsuit (y_2 \clubsuit y_3)
 \]
 
 \subsection{Term Rewriting in Halide}
@@ -361,7 +361,7 @@ never backtracks and must be careful about memory usage. The second requirement 
 always return the same schedule every time it encounters a particular pipeline.
 This precludes any non-deterministic search strategy for the best sequence of
 rules to apply, or directly invoking a solver such as Z3, since even with a
-fixed random seed machines with different computational power may return
+fixed random seed, machines with different computational power may return
 different results within a given timeout.
 
 The Halide term rewriting algorithm simplifies an input expression in a
