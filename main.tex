@@ -248,12 +248,10 @@ synthesis system that automatically checks compilation failures for expressions 
 correct but not provable, and produces new rules with predicates to guard their application.
 These new rules will preserve correctness and termination properties by construction.
 
-The Halide TRS must balance compilation speed and applicability. 
-Ideally, the TRS would be \emph{convergent}, meaning that if two expressions are equivalent,
-the TRS will return the same canonical form for both of them.
-However, constructing a TRS of this form
-is \sak{impossible? inefficient? Julie, please add some text to explain why we don't just
-use Z3 or egraphs}.  In Halide's compiler, the TRS consists of a series of
+An ideal TRS for our purpose would fully express the semantics of the Halide expression language and be \emph{convergent}, meaning that if two expressions are equivalent,
+the TRS will return the same canonical form for both of them. If so, the simplifier could take any two expressions and determine if they were equivalent by rewriting them and checking to see if they have the same form. However, constructing such a TRS is impossible. Suppose we had a finite set of equational identities $E$ that fully express all the properties of the Halide expression language. A convergent TRS equivalent to $E$ would need to be \emph{convergent}, meaning that if an expression can be rewritten in multiple ways, it will ultimately arrive at the same form, and \emph{terminating}. However, we know $E$ must contain identities that are fundamentally non-terminating, such as commutative properties like $x * y \equiv y * x$. Furthermore, since the Halide expression language contains nonlinear integer arithmetic, the problem of constructing $E$ itself is undecidable. Thus, the challenge for the Halide TRS is to be able to reason about as much of the Halide expression space as it can, while remaining deterministic and performant.
+
+In Halide's compiler, the TRS consists of a series of
 handwritten rules and efficient matchers to match rules bottom-up.  These rules were constructed
 by developers based on observed compilation failures over many years, and ordered in ad-hoc ways
 to avoid non-termination.  Extensive fuzz-testing has been able to find bugs in rewrite rules,
@@ -410,7 +408,7 @@ on infinite integers.
 
 \subsection{Why a custom algorithm?}
 
-Given that we invoke the Z3 solver as an oracle for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide simplifier has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
+Given that we make use of the Z3 solver as an oracle for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide simplifier has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
 
 The Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may be able to complete on a more powerful server when it might time out on another.
 
@@ -680,12 +678,11 @@ match any compile-time constants, along with predicates checkable at compile-tim
 that encode constraints on those constants.
 
 \subsection{Synthesizing Candidate Rules With Constants}
-The synthesis pipeline begins with a collection of failed proofs, which are printed
-by the compiler when debugging output is enabled.  For this work, we obtained a set
-of failed proofs from the authors of \citeauthor{Adams2019}~\cite{Adams2019} which were recorded
-while building random but realistic Halide pipelines with random schedules for
-training the Halide autoscheduler.  For each failed proof, we attempt to generate
-one or more rules capable of transforming the expression.
+The aim of the synthesis pipeline is to learn new rules that would be of use in reasoning about input expressions.
+For this work, scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compiled
+ random but realistic Halide pipelines with random schedules for
+training the Halide autoscheduler. The compiler was instrumented to print expressions that the simplifier was unable to prove to be true, but that fuzz testing was not able to find to be false, a good indicator of a weak spot in the simplifier's reasoning power.
+ For each failed proof, we attempt to generate one or more rules capable of transforming the expression.
 
 
 \paragraph{Generating LHS Patterns} For a given failed expression, the first step
@@ -702,8 +699,8 @@ it contains a repeated $y$.  Although the set of candidate LHS patterns is expon
 in the size of the original expression, our filtering reduces the set to a tractable
 size.
 
-\paragraph{Synthesizing Right-Hand Sides} Given a candidate left-hand side, we 
-synthesize a right-hand side that is semantically equivalent and respects the reduction
+\paragraph{Synthesizing Right-Hand Sides} Given a candidate lefthand side, we 
+synthesize a righthand side that is semantically equivalent and respects the reduction
 order such that $\mathit{LHS} > \mathit{RHS}$.  We utilize two strategies for synthesizing
 right-hand sides: reassociating and applying a known rewrite, or counter-example guided
 inductive synthesis (CEGIS).
@@ -722,14 +719,14 @@ does not match an existing rewrite rule, but a reassociated version does: $y + (
 would be rewritten to $(-10 - (x \% 2)/2) + y)$.  Thus, we construct the candidate rewrite:
 $$(x/2 + y) - (x + 11)/2 \equiv (-10 - (x \% 2)/2) + y)$$
 
-If the first method fails, we apply CEGIS to superoptimize the left-hand side pattern.
+If the first method fails, we apply CEGIS to superoptimize the lefthand side pattern.
 We build a CEGIS loop on top of Z3~\cite{de2008z3}, encoding the LHS as a set of op codes
-and searching for a semantically-equivalent shorter sequence of operations, similar
+and searching for a semantically equivalent but shorter sequence of operations, similar
 to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016superoptimization}.
 We first search for a single-op sequence,
 than iteratively increase the number of operations, in order to find shorter sequences
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
-operations, it becomes the candidate RHS.
+operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the op-code size of the synthesized expression as an approximation for the order
 
 \paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, we must take care to avoid
 undecidable theories, in which case Z3 nearly always fails during the CEGIS process.
@@ -833,13 +830,14 @@ searching for any clause where $c$ is compared with any expression not containin
 constant variables.  If such a clause is found, we can rewrite $c$, but if not, the rule
 cannot be checked at compile time and must be discarded.
 
-Finally, we perform three other forms of filtering.  First, we query Z3 to ensure the
+Once we have a candidate rule guarded by a predicate, we perform three final checks.
+First, we query Z3 to ensure the
 predicate is satisfiable; if not, we discard the rule.  About 10\% of all rules fail
 this filter.  Secondly, we check that the rule is not redundant.  For every pair of
 rules $R_1$ and $R_2$, if $R_1$ matches every left hand side that $R_2$ matches,
 and the predicate for $R_1$ implies the predicate for $R_2$, then we can discard $R_2$
 as $R_1$ is at least as general. Finally, we check that the candidate rule obeys our
-reduction order in order to preserve our termination guarantee.
+reduction order in order to preserve our termination guarantee. If the candidate rule passes all three filters, the rule can be added to the simplifier ruleset automatically without any human auditing.
 
 
 \section{Evaluation}
@@ -920,8 +918,6 @@ Coq.  We found \NumRulesFixed incorrect rules, shown in Table~\ref{tab:incorrect
 and submitted patches to the Halide developers. We also found
 \NumPredicatesRelaxed rules whose predicates could be relaxed while retaining
 correctness.
-
-\jln{Is it possible that the incorrect rules ever led to unsound compilation output? Not sure how to determine this.}
 
 \sak{Write up the fact that we did in fact encounter a case where we
   synthesized a rule that resulted in infinite looping due to an existing
