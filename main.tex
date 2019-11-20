@@ -165,13 +165,12 @@
   that incrementally rewrite expressions into simpler forms and requires high performance 
   in both time and memory usage to keep compile times low.
   In this work, we apply formal techniques to prove the correctness of existing
-  rewrite rules and provide a termination guarantee. Then,
-  we build an automatic program synthesis system that creates new, provably
+  rewrite rules and provide a guarantee of termination. Then,
+  we build an automatic program synthesis system that learns new, provably
   correct rules from failure cases where the compiler was unable to prove properties. We
-  identify and fix \NumRulesFixed incorrect rules and \NumOrderingProblems rules
-  with ordering that may result in infinite rewriting loops. We augment existing rules
-  with a system that automatically synthesizes provably-correct new rules from
-  failed proof examples, adding \NumRulesSynthesized new rules. 
+  identify and fix \NumRulesFixed incorrect rules as well as \NumOrderingProblems rules
+  which could give rise to infinite rewriting loops. We run our synthesis process against 
+  a large suite of failed proofs from realistic applications, discovering \NumRulesSynthesized new rules. 
   The automated system can replace tedious human effort required to craft new rules
   in response to user-reported bugs.  We demonstrate that the new
   term rewriting system is more correct, more robust, and more general, without
@@ -222,7 +221,7 @@ applications, high performance is an essential requirement due to real-time
 requirements, compute cost, and battery life.
 
 Halide~\cite{ragankelley2012halide, ragankelley2013halide} has proven to be an effective
-domain-specific language (DSL) for writing such code and obtaining cross-platform
+domain-specific language for writing such code and obtaining cross-platform
 high performance, with multiple industrial vendors relying on Halide to power
 applications used by millions of users on mobile phones, tablets, desktops, and
 servers.  Halide separates what is computed (the \textit{algorithm}) from how
@@ -238,10 +237,9 @@ which, within Halide, are represented as intervals over the integers.
 Reasoning about these regions uses a \textit{term rewriting system}
 (TRS) on integers: the compiler applies simplification rules to an expression relating
 the regions until no more rewrites apply.  The final expression can be
-true, false, or indeterminate.  If the simplifier finds an expression is indeterminate that
-could have been proved true, it may prevent optimizations
-from being applied, resulting in errors during compilation, or may result
-in the compiler producing suboptimal code.
+true, false, or some more complex expression. If an expression is semantically equivalent to true,
+but the simplifier cannot rewrite it to that form, it may be unable to apply a valid optimization,
+resulting in suboptimal code output and possibly errors during compilation.
 
 In this work, we improve the Halide term rewriting system by formally checking the existing
 set of rules to ensure correctness, and then constructing a rule ordering that 
@@ -256,7 +254,7 @@ the TRS will return the same canonical form for both of them.
 However, constructing a TRS of this form
 is \sak{impossible? inefficient? Julie, please add some text to explain why we don't just
 use Z3 or egraphs}.  In Halide's compiler, the TRS consists of a series of
-hand-written rules and efficient matchers to match rules bottom-up.  These rules were constructed
+handwritten rules and efficient matchers to match rules bottom-up.  These rules were constructed
 by developers based on observed compilation failures over many years, and ordered in ad-hoc ways
 to avoid non-termination.  Extensive fuzz-testing has been able to find bugs in rewrite rules,
 but fuzz-testing cannot provide formal guarantees (and in fact we were able to find bugs in the current version of the simplifer; see~\ref{sec:eval-correctness}). Furthermore, adding additional
@@ -380,7 +378,7 @@ able to generate fast code.
 
 The design of the term rewriting algorithm has two additional important
 requirements. The first is performance: although the TRS is called at
-compile time, it may be invoked hundreds of times in compiling a single pipeline
+compile time, it may be invoked over a hundred thousand times in compiling a single pipeline
 Thus, unlike many term rewriting algorithms, the Halide TRS
 never backtracks and must be careful about memory usage. The second requirement is determinisim: the compiler must
 always return the same schedule every time it encounters a particular pipeline.
@@ -416,7 +414,7 @@ Given that we invoke the Z3 solver as an oracle for both verification and synthe
 
 The Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may be able to complete on a more powerful server when it might time out on another.
 
-A more usual term rewriting algorithm would use backtracking search; at any given step in the rewriting process, multiple rules may match a given expression, and the algorithm must pick one to explore. If that choice was not fruitful, the algorithm will backtrack and choose another path. The Halide simplifier algorithm never backtracks; rules are assigned a fixed priority, and the algorithm applies the first rule that matches in that priority order. This makes the simplifier memory efficient, since it only persists the single expression it is in the process of rewriting, without the checkpoints or equivalence classes that would be necessary for a backtracking search. The tradeoff is that the Halide algorithm may pick the ``wrong'' rule and have no way of undoing that decision. Since the simplifier is invoked thousands of times with each call of the compiler, it chooses to sacrifice some solving power in exchange for performance. This choice gives the Halide algorithm a very smooth performance curve, whether it succeeds or fails in simplifying an input expression, while a solver like Z3 tends to give very good performance in the majority of cases but get bogged down in difficult cases, requiring the use of timeouts. \jln{should be able to add a graph showing z3 vs simplifier performance on expression suite demonstrating this}
+A more usual term rewriting algorithm would use backtracking search; at any given step in the rewriting process, multiple rules may match a given expression, and the algorithm must pick one to explore. If that choice was not fruitful, the algorithm will backtrack and choose another path. The Halide simplifier algorithm never backtracks; rules are assigned a fixed priority, and the algorithm applies the first rule that matches in that priority order. This makes the simplifier memory efficient, since it only persists the single expression it is in the process of rewriting, without the checkpoints or equivalence classes that would be necessary for a backtracking search. The tradeoff is that the Halide algorithm may pick the ``wrong'' rule and have no way of undoing that decision. Since the simplifier is invoked many thousands of times with each call of the compiler, it chooses to sacrifice some solving power in exchange for performance. This choice gives the Halide algorithm a very smooth performance curve, whether it succeeds or fails in simplifying an input expression, while a solver like Z3 tends to give very good performance in the majority of cases but get bogged down in difficult cases, requiring the use of timeouts. \jln{should be able to add a graph showing z3 vs simplifier performance on expression suite demonstrating this}
 
 This also means that the Halide algorithm scales very well in terms of the number of rules in the TRS, whereas adding rules to a more usual backtracking search algorithm causes its search space to grow exponentially. See section~\ref{ssec:compilationspeed} for an evaluation of the effects of adding newly synthesized rules on the performance of the compiler. 
 
@@ -610,7 +608,7 @@ occurrences of some symbol $f \in \Sigma$ in the term $s$. Thus, we can define a
 s >_{var} t \iff \forall x \in V, |s|_x > |t|_x
 \end{equation*}
 
-The order is compatible with $\Sigma$-operations, as is any order based on the number of occurrences of variables or operations. For terms $s$ and $t$, let $s' = |f(u_1,...u_{i-1},s,u_{i+1},...,u_n)|_x$ and $t' = |f(u_1,...u_{i-1},t,u_{i+1},...,u_n)|_x$. Then, 
+The order is compatible with $\Sigma$-operations, as is any order based on the number of occurrences of variables or operations. For terms $s$ and $t$, let $s' = f(u_1,...u_{i-1},s,u_{i+1},...,u_n)$ and $t' = f(u_1,...u_{i-1},t,u_{i+1},...,u_n)$. Then, 
 
 \begin{gather*}
 |s'|_x = \sum_{u_j}^{0<j<=(i-1)} |u_j|_x + |s|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x \\
@@ -1053,6 +1051,12 @@ Herbie, superoptimization, abstract interpretation, MCSAT (Jovanovic)
 \alt <IntExpr> `>=' <IntExpr>
 \alt <IntExpr> `=' <IntExpr>
 \alt <IntExpr> `!=' <IntExpr>
+\alt <VectorExpr> `<' <VectorExpr>
+\alt <VectorExpr> `>' <VectorExpr>
+\alt <VectorExpr> `<=' <VectorExpr>
+\alt <VectorExpr> `>=' <VectorExpr>
+\alt <VectorExpr> `=' <VectorExpr>
+\alt <VectorExpr> `!=' <VectorExpr>
 \alt <BoolExpr> `&&' <BoolExpr>
 \alt <BoolExpr> `||' <BoolExpr>
 \alt `!' <BoolExpr>
@@ -1069,6 +1073,14 @@ Herbie, superoptimization, abstract interpretation, MCSAT (Jovanovic)
 
 <VectorExpr> ::= `broadcast' <IntExpr>
 \alt `ramp' <IntExpr> <IntExpr>
+\alt <VectorExpr> `+' <VectorExpr>
+\alt <VectorExpr> `-' <VectorExpr>
+\alt <VectorExpr> `*' <VectorExpr>
+\alt <VectorExpr> `/' <VectorExpr>
+\alt <VectorExpr> `\%' <VectorExpr>
+\alt `max' <VectorExpr> <VectorExpr>
+\alt `min' <VectorExpr> <VectorExpr>
+\alt `select' <BoolExpr> <VectorExpr> <VectorExpr>
 \end{grammar}
 
 \subsection{The full Halide reduction order}
