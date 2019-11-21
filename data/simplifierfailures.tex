@@ -4,9 +4,9 @@
 & \multicolumn{2}{c|}{}  & \multicolumn{2}{c|}{local}  & \multicolumn{2}{c|}{}  & \multicolumn{2}{c|}{bilateral}  & \multicolumn{2}{c|}{camera}  & \multicolumn{2}{c|}{nl}  & \multicolumn{2}{c|}{stencil} & \multicolumn{2}{c|}{iir} & \multicolumn{2}{c|}{} & \multicolumn{2}{c}{max} \\
 & \multicolumn{2}{c|}{harris}  & \multicolumn{2}{c|}{laplacian}  & \multicolumn{2}{c|}{unsharp}  & \multicolumn{2}{c|}{grid}  & \multicolumn{2}{c|}{pipe}  & \multicolumn{2}{c|}{means}  & \multicolumn{2}{c|}{chain} & \multicolumn{2}{c|}{blur} & \multicolumn{2}{c|}{interpolate} & \multicolumn{2}{c}{filter} \\
 & new & old & new & old & new & old & new & old & new & old & new & old & new & old & new & old & new & old & new & old\\\hline
-Proof failures & 2 & 2 & 2419 & 3113 & 4 & 3 & 11 & 9 & 294 & 312 & 29 & 31 & 3 & 3 & 1 & 1 & 51 & 62 & 0 & 0\\
-\makecell[l]{Non-monotonic\\ expr} & 210 & 418 & 2588 & 4295 & 327 & 494 & 577 & 880 & 2154 & 2400 & 145 & 820 & 1742 & 4364 & 0 & 0 & 472 & 1323 & 83 & 96\\\hline
-Compile time (s) & 11.4 & 11.4 & 439.3 & 462.5 & 12.8 & 12.5 & 12.3 & 12.5 & 51.5 & 52.2 & 67.1 & 68.3 & 308.7 & 305.3 & 6.8 & 7.2 & 38.4 & 38.4 & 5.3 & 5.2 \\
+Proof failures & 6 & 6 & 10261 & 13569 & 19 & 18 & 51 & 54 & 1023 & 1089 & 117 & 133 & 7 & 7 & 1 & 1 & 254 & 301 & 1 & 0\\
+\makecell[l]{Non-monotonic\\ expr} & 922 & 1605 & 11081 & 18539 & 1447 & 2232 & 2601 & 3993 & 9918 & 10795 & 621 & 3582 & 7352 & 18026 & 0 & 0 & 2008 & 5860 & 348 & 401\\\hline
+\makecell[l]{Compile\\ time (min)} & 15.7 & 15.6 & 458.3 & 487.5 & 13.9 & 13.9 & 13.4 & 12.8 & 46.8 & 48.5 & 58.9 & 61.5 & 274.1 & 273.5 & 7.8 & 7.9 & 33.7 & 34.2 & 7.1 & 7.2\\
 %Compile time (ms) & 2703 & 2637 & 136840 & 143032 & 2421 & 2386 & 2388 & 2327 & 14202 & 14097 & 20275 & 20607 & 90101 & 86976\\
 %\% In Halide & 13\% & 	9\% & 	5\% & 	4\% & 	10\% & 	8\% & 	8\% & 	7\% & 	10\% & 	8\% & 	4\% & 	3\% & 	4\% & 	4\%\\
 %\% In LLVM & 87\% & 	91\% & 	95\% & 	96\% & 	90\% & 	92\% & 	92\% & 	93\% & 	90\% & 	92\% & 	96\% & 	97\% & 	96\% & 	96\%\\

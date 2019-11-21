@@ -894,7 +894,8 @@ that the term rewriting system could not transform.
 \subsection{Robustness}
 \begin{table*}[!ht]
   \caption{Proof failures before and after our improvements to the Halide term rewriting system.
-    Compile times are averages for 64 compilations.}
+    All numbers are aggregates for 256 compilations with random schedules; we fix random seeds so
+    the same schedules are used for the new and old columns.}
   \label{tab:simplifierfailures}
   \small
   \input{data/simplifierfailures.tex}
@@ -912,7 +913,7 @@ using randomly-generated schedules with the original and enhanced TRS
 and reporting the number of compilation failures.
 
 Table~\ref{tab:simplifierfailures} summarizes the results.  Overall, the new rules
-reduce the number of proof failures by 21\% and the number of non-monotonic expressions
+reduce the number of proof failures by 23\% and the number of non-monotonic expressions
 by 44\%, showing significant impact from the synthesized rules. \sak{Say something about
   why some have increased failures}
 
@@ -980,9 +981,9 @@ may be able to apply some optimization, thus shortening (non-TRS)
 compilation time overall.
 
 We recorded the compilation times for the random schedules used in the robustness experiment above.
-The maximum slowdown observed with our new rules was for unsharp, which slowed down
-by about 2\%, while the maximum speedup for compilation was 5\% for both bilateral grid
-and interpolate.  Overall, the added rules improved aggregate compilation time by 2\%,
+The maximum slowdown observed with our new rules was for the bilateral grid app, which slowed down
+by about 4\%, while the maximum speedup for compilation was 
+6\% for local laplacian.  Overall, the added rules improved aggregate compilation time by 3.6\%,
 demonstrating that our strategy for augmenting the TRS with synthesized rules does
 not slow down the Halide compiler.
 
@@ -1009,7 +1010,9 @@ not slow down the Halide compiler.
 Many modifications to the term rewriting system occur in response to user-reported
 miscompilations or other bugs.  Crafting rewrite rules for fixing a specific misbehavior
 is tedious and error-prone; comments from commits to the Halide repository include
-``Proving these rules on paper is a pain.''  For this experiment, we explore whether
+``Proving these rules on paper is a pain.''  Hand-crafting these rewrite rules requires
+at least two developers to examine each rule: one to carefully craft the rule, and another to
+review and approve the changes.  For this experiment, we explore whether
 our automated rule synthesis can replace the human effort.  We look at the last 5 pull
 requests in the Halide git repository~\footnote{https://github.com/halide/Halide} that add rules.  Then, we remove
 the added rules and use either tests from the PR or hand-crafted failures (in rules
