@@ -20,6 +20,7 @@
 \definecolor{uwpurple}{RGB}{128,0,128}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
 \newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
+\newcommand{\aba}[1]{\textcolor{red}{\textit{[{#1} --AA]}}}
 \usepackage{syntax}
 %% Conference information
 %% Supplied to authors by publisher for camera-ready submission;
@@ -690,9 +691,9 @@ training the Halide autoscheduler. The compiler was instrumented to print
 expressions that the TRS was unable to prove true, but that fuzz
 testing was not able to find to be false, a good indicator of a weak spot in the
 rewriter's reasoning power. For each failed proof, we attempt to generate one
-or more rules capable of transforming the expression.  In addition, the instrumentation
-printed irreducible expressions passed to the TRS, which we also mine for unique
-expressions.
+or more rules capable of transforming the expression. In addition, we capture all
+integer expressions present in the final Halide IR, at the point just before it is
+lowered to LLVM IR.
 
 In addition to concrete expressions, we enumerate all sequences of up to three operations (that is,
 using four variables) that the rewriter does not reduce.  However, we aggressively restrict
@@ -706,13 +707,13 @@ rewriting system for simple-but-useful rules, as long as we heavily constrain th
 
 \paragraph{Generating LHS Patterns} For a given failed expression, the first step
 is to construct all left-hand-side patterns that match some portion of the expression.
-We constrain the maximum length of a pattern to be six operations, to ensure fast matching
+We constrain the maximum length of a pattern to be five operations, to ensure fast matching
 during term rewriting. At this stage, patterns preserve any constant values, and subtrees
 that exactly match syntactically are assigned the same wildcard. For
 example, given the expression $(a*b + c/b)$, where all nodes are non-constant,
 we extract the following LHS patterns: $x + y$, $x * y$, $x / y$, $x * y + z$,
-$x + y/z$, and $x*y + z/y$.  We then filter out any patterns that do not contain
-a repeated wildcard, as such patterns are unlikely to result in a useful general
+$x + y/z$, and $x*y + z/y$.  We then filter out any patterns that do not either contain
+a repeated wildcard or more than one constant. Such patterns are unlikely to result in a useful general
 rewrite.  Thus, of the set above, we would only consider the last pattern, since
 it contains a repeated $y$.  Although the set of candidate LHS patterns is exponential
 in the size of the original expression, our filtering reduces the set to a tractable
@@ -724,9 +725,9 @@ order such that $\mathit{LHS} > \mathit{RHS}$.  We utilize two strategies for sy
 right-hand sides: reassociating and applying a known rewrite, or counter-example guided
 inductive synthesis (CEGIS).
 
-The first strategy comes from the insight that in many cases, rewrite rules would apply
+The first strategy comes from the insight that in many cases existing rewrite rules would apply
 if the expression were in a different form.  Therefore, we generate all possible
-reassociations and commutations of the LHS expression, by unpacking the expression
+reassociations and commutations of the LHS expression, by unpacking sub-expressions
 into a flattened list of leaves, and then enumerating every valid binary
 tree over permutations of the leaves that is semantically equivalent to the original
 expression.  We then check whether an existing rule rewrites any enumerated reassociation.
@@ -745,7 +746,7 @@ to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016
 We first search for a single-op sequence,
 than iteratively increase the number of operations, in order to find shorter sequences
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
-operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the op-code size of the synthesized expression as an approximation for the order
+operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the op-code count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
 
 \paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, we must take care to avoid
 undecidable theories, in which case Z3 nearly always fails during the CEGIS process.
@@ -806,7 +807,7 @@ k0 \geq 1 \wedge k1 \geq 0 & &
 
 \paragraph{Variable Elimination} We employ three main strategies for eliminating
 variables: traditional variable elimination, in which one equation is rewritten and
-used to eliminate a variable in another equation; using reasoning over the signs in products;
+used to eliminate a variable in another equation; using reasoning over the signs in products \aba{We need to give more detail somewhere below: in $a \times b == c$, knowing the sign of any two terms gives the sign of the third. Applied to $a$ or $b$, this can reduce non-linear equality constraints to linear inequalities.};
 and using Halide's bounds analysis machinery to find facts about the clauses.  The possible
 set of manipulations is very large, and the non-linear nature of the systems prevent most
 tools from robustly reasoning about the expressions.  To tractably eliminate variables and discover
@@ -818,8 +819,8 @@ times.
 We learn a cost model by featurizing systems of equations using a number of hand-crafted
 features\footnote{The full set of features is: the number of constraints, number of variables,
   number of symbolic constants, the number of variables with known constant upper or lower bounds,
-  the number of variables with known constant upper \textit{and} lower bounds, and the number of
-  variables with known but non-constant upper or lower bounds.\sak{Check this list}},
+  the number of variables with known constant upper \textit{and} lower bounds, and finally the number of
+  equality constraints where one side has a known (but potentially non-constant) upper bound and other side has a lower bound.},
 and assigning a cost based on a linear combination of weights for each feature.  Initially,
 we assign weights by hand, and then run on random systems of equations while keeping track
 of which states led to eliminating a non-symbolic constant variable.  Then, we retrain the weights
