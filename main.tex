@@ -252,7 +252,7 @@ correct but not provable, and produces new rules with predicates to guard their 
 These new rules will preserve correctness and termination properties by construction.
 
 An ideal TRS for our purpose would fully express the semantics of the Halide expression language and be \emph{convergent}, meaning that if two expressions are equivalent,
-the TRS will return the same canonical form for both of them. If so, the simplifier could take any two expressions and determine if they were equivalent by rewriting them and checking to see if they have the same form. However, constructing such a TRS is impossible. Suppose we had a finite set of equational identities $E$ that fully express all the properties of the Halide expression language. A convergent TRS equivalent to $E$ would need to be \emph{convergent}, meaning that if an expression can be rewritten in multiple ways, it will ultimately arrive at the same form, and \emph{terminating}. However, we know $E$ must contain identities that are fundamentally non-terminating, such as commutative properties like $x * y \equiv y * x$. Furthermore, since the Halide expression language contains nonlinear integer arithmetic, the problem of constructing $E$ itself is undecidable. Thus, the challenge for the Halide TRS is to be able to reason about as much of the Halide expression space as it can, while remaining deterministic and performant.
+the TRS will return the same canonical form for both of them. If so, the simplifier could take any two expressions and determine if they were equivalent by rewriting them and checking to see if they have the same form. However, constructing such a TRS is impossible. Suppose we had a finite set of equational identities $E$ that fully express all the properties of the Halide expression language. A convergent TRS equivalent to $E$ would need to be \emph{confluent}, meaning that if an expression can be rewritten in multiple ways, it will ultimately arrive at the same form, and \emph{terminating}. However, we know $E$ must contain identities that are fundamentally non-terminating, such as commutative properties like $x * y \equiv y * x$. Furthermore, since the Halide expression language contains nonlinear integer arithmetic, the problem of constructing $E$ itself is undecidable. Thus, the challenge for the Halide TRS is to be able to reason about as much of the Halide expression space as it can, while remaining deterministic and performant.
 
 In Halide's compiler, the TRS consists of a series of
 handwritten rules and efficient matchers to match rules bottom-up.  These rules were constructed
@@ -760,27 +760,27 @@ construct all rules a human can.
 
 At this point in the synthesis pipeline, we have constructed a candidate rewrite
 rule that contains concrete constants.  To make the rule as general as possible,
-we replace each constant with a fresh \emph{constant variable}. A constant
-variable matches only terms with constant values known at compile time. We first query Z3
+we replace each constant with a fresh \emph{symbolic constant}. A symbolic constant
+ matches only terms with constant values known at compile time. We first query Z3
 again to see if the equivalence still holds; if it does, the rule is valid. If
 it is not, we will need to find a \textit{predicate} to guard
 applications of the rule in the simplifier. We attempt to synthesize a predicate
 such that $pred \rightarrow LHS = RHS$ and all variables appearing in the
-predicate are constant variables.
+predicate are symbolic constants.
 
 Consider the synthesized rule $c0 \cdot x > c1 \cdot x \equiv x > c2$, where $c0$, $c1$,
-$c2$ are constant variables. We want to find some term $P$ such that
+$c2$ are symbolic constants. We want to find some term $P$ such that
 $P \rightarrow c0 \cdot x > c1 \cdot x \equiv x > c2$ and
 $\mathcal{V}ar(P) \subseteq \{c0, c1, c2\}$. More generally, for a rule $R$, we begin by
 negating $R$ and deriving as many facts from it as possible that refer only to
-the constant variables. Once we have found $\neg R \rightarrow \neg P$, with $P$ containing
-no non-constant variables, we know that $P \rightarrow R$, so $P$ serves as a
+the symbolic constants. Once we have found $\neg R \rightarrow \neg P$, with $P$ containing
+no non-symbolic constant variables, we know that $P \rightarrow R$, so $P$ serves as a
 valid predicate for the rule.  For example, for the rule above, we derive implications
 from $c0 \cdot x > c1 \cdot x \neq x > c2$, and then negate those implications to
 construct the predicate.
 
-Deriving facts that only contain constant variables requires applying variable
-elimination to get rid of non-constant variables.  Our approach breaks up $\neg P$ into
+Deriving facts that only contain symbolic constants requires applying variable
+elimination to get rid of non-symbolic constant variables.  Our approach breaks up $\neg P$ into
 a large number of simpler cases, then applies variable elimination to each case.
 
 \paragraph{Dividing into Subclauses} We begin by subdividing a negated rewrite $l \neq r$ into
@@ -817,36 +817,36 @@ times.
 
 We learn a cost model by featurizing systems of equations using a number of hand-crafted
 features\footnote{The full set of features is: the number of constraints, number of variables,
-  number of constant variables, the number of variables with known constant upper or lower bounds,
+  number of symbolic constants, the number of variables with known constant upper or lower bounds,
   the number of variables with known constant upper \textit{and} lower bounds, and the number of
   variables with known but non-constant upper or lower bounds.\sak{Check this list}},
 and assigning a cost based on a linear combination of weights for each feature.  Initially,
 we assign weights by hand, and then run on random systems of equations while keeping track
-of which states led to eliminating a non-constant variable.  Then, we retrain the weights
+of which states led to eliminating a non-symbolic constant variable.  Then, we retrain the weights
 as a logistic regressor that predicts which states will lead to successful elimination
 by minimizing cross-entropy loss.  Interestingly, the regressor learned that the most
-important feature is the one counting the number of constant variables, as our goal
-is to eliminate only non-constant variables.  Perhaps unsurprisingly, the feature
+important feature is the one counting the number of symbolic constants, as our goal
+is to eliminate only non-symbolic constant variables.  Perhaps unsurprisingly, the feature
 with the largest negative coefficient was the number of unconstrained variables, as
 these must be eliminated in order to make progress on the system overall.
 
-The tree search logs all constraints found that only use constant variables.  Combining
+The tree search logs all constraints found that only use symbolic constants.  Combining
 these constraints and negating gives us the predicate $P$ we're searching for.
 
 \subsection{Final Simplification \& Filtering} At this stage, we now have a candidate
-rule and predicate over its constant variables.  However, the predicate is often quite
+rule and predicate over its symbolic constants.  However, the predicate is often quite
 large and full of redundant clauses, which could make compile-time checks too slow.
 We simplify the predicate by converting to conjunctive normal form (CNF) and applying
 ad-hoc simplification rules that remove redundant terms.
 
-After simplification, the predicate may still contain constraints on constant variables
+After simplification, the predicate may still contain constraints on symbolic constants
 that appear \textit{only on the right hand side}, since we never restricted which constant
 variables can appear.  Thus, we must further transform the predicate to eliminate
-constraints of this form.  Our strategy is to first try to transform a constant variable
-$c$ into a form $c > Q$, $c < Q$, or $c = Q$ where $Q$ contains only constant variables
+constraints of this form.  Our strategy is to first try to transform a symbolic constant
+$c$ into a form $c > Q$, $c < Q$, or $c = Q$ where $Q$ contains only symbolic constants
 that appear on the LHS of the rule.  If this fails, we attempt further rewrites by
 searching for any clause where $c$ is compared with any expression not containing RHS
-constant variables.  If such a clause is found, we can rewrite $c$, but if not, the rule
+symbolic constants.  If such a clause is found, we can rewrite $c$, but if not, the rule
 cannot be checked at compile time and must be discarded.
 
 Once we have a candidate rule guarded by a predicate, we perform three final checks.
