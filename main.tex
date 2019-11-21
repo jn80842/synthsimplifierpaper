@@ -914,8 +914,10 @@ and reporting the number of compilation failures.
 
 Table~\ref{tab:simplifierfailures} summarizes the results.  Overall, the new rules
 reduce the number of proof failures by 23\% and the number of non-monotonic expressions
-by 44\%, showing significant impact from the synthesized rules. \sak{Say something about
-  why some have increased failures}
+by 44\%, showing significant impact from the synthesized rules.  Halide tracks
+which expressions are provably monotonic, as interval arithmetic is exact for
+such cases; reducing the number of non-monotonic expressions can allow the
+compiler to correctly reason about regions in more cases.
 
 % could also report calls to can_prove and successful calls to can_prove; this is more meaningful as a ratio
 
