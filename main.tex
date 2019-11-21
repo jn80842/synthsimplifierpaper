@@ -35,8 +35,10 @@
 \newcommand{\NumRulesFixed}{{\color{red} 4}\xspace}
 \newcommand{\NumPredicatesRelaxed}{{\color{red} 17}\xspace}
 \newcommand{\NumOrderingProblems}{{\color{red} 46}\xspace}
-\newcommand{\NumRulesSynthesized}{{\color{red} 3192}\xspace}
-\newcommand{\NumFailureExamples}{{\color{red} 59000}\xspace}
+\newcommand{\NumRulesSynthesized}{{\color{red} 2632}\xspace}
+\newcommand{\NumOpSequences}{{\color{red} 6246}\xspace}
+\newcommand{\NumFailureExamples}{{\color{red} 61000}\xspace}
+\newcommand{\NumSimplifiedExpressions}{{\color{red} 195371}\xspace} 
 \newcommand{\NumBugsAutomated}{{\color{red} 5}\xspace}
 
 
@@ -680,10 +682,26 @@ that encode constraints on those constants.
 
 \subsection{Synthesizing Candidate Rules With Constants}
 The aim of the synthesis pipeline is to learn new rules that would be of use in reasoning about input expressions.
-For this work, scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compiled
+For this work, we utilize three sources for candidate rules: failed proofs from
+random pipelines, irreducible expressions found from random pipelines, and enumeration.
+We obtain scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compiled
  random but realistic Halide pipelines with random schedules for
-training the Halide autoscheduler. The compiler was instrumented to print expressions that the simplifier was unable to prove to be true, but that fuzz testing was not able to find to be false, a good indicator of a weak spot in the simplifier's reasoning power.
- For each failed proof, we attempt to generate one or more rules capable of transforming the expression.
+training the Halide autoscheduler. The compiler was instrumented to print
+expressions that the TRS was unable to prove true, but that fuzz
+testing was not able to find to be false, a good indicator of a weak spot in the
+rewriter's reasoning power. For each failed proof, we attempt to generate one
+or more rules capable of transforming the expression.  In addition, the instrumentation
+printed irreducible expressions passed to the TRS, which we also mine for unique
+expressions.
+
+In addition to concrete expressions, we enumerate all sequences of up to three operations (that is,
+using four variables) that the rewriter does not reduce.  However, we aggressively restrict
+this corpus: we avoid symmetries (our synthesis strategy already generates all commutations
+of a rule, as described below), we do not include division or modulo, the variables must occur
+in canonical order, and we do not include constants. The latter constraint
+especially generates a large number of useless rules, which are unlikely to
+match any real-world code. However, using enumeration does help fill in gaps in the term
+rewriting system for simple-but-useful rules, as long as we heavily constrain the enumeration.
 
 
 \paragraph{Generating LHS Patterns} For a given failed expression, the first step
@@ -855,18 +873,23 @@ test the following hypotheses:
 We perform all experiments on a machine with a 16-core Intel i9-9960X CPU @ 3.10GHz,
 running Ubuntu 18.04 and LLVM 8.0.1.
 
-\begin{figure}[htb]
-  \includegraphics[width=\columnwidth]{figures/num-rules-found.pdf}
-  \caption{The number of rules found as a function of unique failed expressions.  Initially, many new rules are discovered,
-    but the rate begins to slow down after a few thousand expressions.}
-  \label{fig:num-rules-found}
-\end{figure}
+%% \begin{figure}[htb]
+%%   \includegraphics[width=\columnwidth]{figures/num-rules-found.pdf}
+%%   \caption{The number of rules found as a function of unique failed expressions.  Initially, many new rules are discovered,
+%%     but the rate begins to slow down after a few thousand expressions.}
+%%   \label{fig:num-rules-found}
+%% \end{figure}
 
-Figure~\ref{fig:num-rules-found} shows the number of rules found as a function of the number of proof failures
-examined.  These proof failures come from constructing random-but-sensical pipelines with random schedules,
-using the training infrastructure from \citeauthor{Adams2019}~\cite{Adams2019}.
-At first, failed expressions yield many rules, but as expected, the number of rules found
-begins to saturate after several thousand expressions.
+%% Figure~\ref{fig:num-rules-found} shows the number of rules found as a function of the number of proof failures
+%% examined.  These proof failures come from constructing random-but-sensical pipelines with random schedules,
+%% using the training infrastructure from \citeauthor{Adams2019}~\cite{Adams2019}.
+%% At first, failed expressions yield many rules, but as expected, the number of rules found
+%% begins to saturate after several thousand expressions.
+
+Overall, we add \NumRulesSynthesized rewrite rules to the Halide term rewriting system, synthesized
+from \NumFailureExamples unique failed proofs from random pipelines with random schedules, \NumSimplifiedExpressions
+unique already-rewritten expressions from random pipelines, and \NumOpSequences unique 3-op sequences
+that the term rewriting system could not transform.  
 
 \subsection{Robustness}
 \begin{table*}[!ht]
