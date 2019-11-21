@@ -16,6 +16,7 @@
 \usepackage{tikz}
 \usepackage{tikz-qtree}
 \usepackage{tabularx}
+\usepackage{makecell}
 \definecolor{uwpurple}{RGB}{128,0,128}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
 \newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
@@ -30,12 +31,12 @@
 \startPage{1}
 
 %% Macros for quantities
-\newcommand{\NumApps}{{\color{red} 7}\xspace}
+\newcommand{\NumApps}{{\color{red} 10}\xspace}
 \newcommand{\NumRulesFixed}{{\color{red} 4}\xspace}
-\newcommand{\NumPredicatesRelaxed}{{\color{red} XX}\xspace}
+\newcommand{\NumPredicatesRelaxed}{{\color{red} 17}\xspace}
 \newcommand{\NumOrderingProblems}{{\color{red} 46}\xspace}
-\newcommand{\NumRulesSynthesized}{{\color{red} XX}\xspace}
-\newcommand{\NumFailureExamples}{{\color{red} XX}\xspace}
+\newcommand{\NumRulesSynthesized}{{\color{red} 3192}\xspace}
+\newcommand{\NumFailureExamples}{{\color{red} 59000}\xspace}
 \newcommand{\NumBugsAutomated}{{\color{red} 5}\xspace}
 
 
@@ -844,14 +845,15 @@ reduction order in order to preserve our termination guarantee. If the candidate
 In this section, we describe experiments to evaluate the improvements made to the Halide term rewriting system.  Specifically, we
 test the following hypotheses:
 \begin{enumerate}
-\item Our improvements to the Halide TRS increases the robustness of the compiler and reduces compilation failures.
+\item The new Halide TRS increases the robustness of the compiler and reduces compilation failures.
 \item The improved TRS is more correct.
-\item This improved robustness and correctness does not come at the cost of vastly slower compilation speed.
+\item This improved robustness and correctness does not come at the cost of slower compilation speed.
 \item Our rule synthesis can be used to automate the effort of crafting new rules in response to bugs.
 %\item Improving the TRS increases performance of generated code.
 \end{enumerate}
 
-We perform all experiments on (Andrew's machine: i9-9960X CPU @ 3.10GHz, Ubuntu 18.04, 16 threads using avx-512, LLVM 8.0.1).
+We perform all experiments on a machine with a 16-core Intel i9-9960X CPU @ 3.10GHz,
+running Ubuntu 18.04 and LLVM 8.0.1.
 
 \begin{figure}[htb]
   \includegraphics[width=\columnwidth]{figures/num-rules-found.pdf}
@@ -861,32 +863,35 @@ We perform all experiments on (Andrew's machine: i9-9960X CPU @ 3.10GHz, Ubuntu 
 \end{figure}
 
 Figure~\ref{fig:num-rules-found} shows the number of rules found as a function of the number of proof failures
-examined.  At first, failed expressions yield many rules, but as expected, the number of rules found
+examined.  These proof failures come from constructing random-but-sensical pipelines with random schedules,
+using the training infrastructure from \citeauthor{Adams2019}~\cite{Adams2019}.
+At first, failed expressions yield many rules, but as expected, the number of rules found
 begins to saturate after several thousand expressions.
 
 \subsection{Robustness}
 \begin{table*}[!ht]
-  \caption{Proof failures before and after our improvements to the Halide term rewriting system.}
+  \caption{Proof failures before and after our improvements to the Halide term rewriting system.
+    Compile times are averages for 64 compilations.}
   \label{tab:simplifierfailures}
   \small
   \input{data/simplifierfailures.tex}
 \end{table*}
 
-Our hypothesis is that adding the newly synthesized rules to the Halide
-simplifier has increased the set of expressions it can simplify. Since the
-simplifier is non-confluent both before and after the new rules were added, we
+Our hypothesis is that adding newly synthesized rules to the Halide
+term rewriting system increases the set of expressions it can simplify. Since the
+TRS is non-confluent both before and after the new rules were added, we
 have no theoretical guarantee that this is the case (in fact, it is possible
-that the augmented simplifier might fail to simplify an expression that would
-previously have succeeded if the new rules move the expression into a local
-minimum). We test the robustness of the enhanced simplifier empirically by
-compiling randomly generated schedules with the original and enhanced simplifier
+that the augmented TRS may fail to simplify an expression that would
+previously succeed if the new rules move the expression into a local
+minimum). We test the robustness of the enhanced TRS empirically by
+compiling the existing example applications in the Halide repository
+using randomly-generated schedules with the original and enhanced TRS
 and reporting the number of compilation failures.
 
 Table~\ref{tab:simplifierfailures} summarizes the results.  Overall, the new rules
-reduce the number of proof failures by 82\% and the number of non-monotonic expressions
-by 44\%.  Interestingly, two of the test applications, unsharp and bilateral grid,
-exhibit increases in simplifier failures of 44\% and 37\% respectively.  \sak{WHY?}
-
+reduce the number of proof failures by 21\% and the number of non-monotonic expressions
+by 44\%, showing significant impact from the synthesized rules. \sak{Say something about
+  why some have increased failures}
 
 % could also report calls to can_prove and successful calls to can_prove; this is more meaningful as a ratio
 
@@ -895,15 +900,13 @@ exhibit increases in simplifier failures of 44\% and 37\% respectively.  \sak{WH
 \begin{table*}
 
 \caption{Incorrect rules found during verification.}
-\begin{tabular}{|l|l|l|}
-\hline
+\begin{tabular}{l|l|l}
 Incorrect rule & Counterexample & Tool used \\
 \hline
 $((x + c0)/c1)*c1 - x \rightarrow_R x \bmod c1 \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & x := -2, c0 := 2, c1 := 3 & Z3 \\
 $x - ((x + c0)/c1)*c1 \rightarrow_R -(x \bmod c1) \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & x := -2, c0 := 2, c1 := 3 & Z3 \\
 $min(x, c0) < min(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2)$ & x := 0, c0 := 0, c1 := -1, c2 := 1 & Z3 \\
 $max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & x := 0, c0 := 2, c1 := 1, c2 := 1 & Z3 \\
-\hline
 \end{tabular}
 \label{tab:incorrectrules}
 \end{table*}
@@ -911,7 +914,7 @@ $max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & 
 
 
 As described in Section~\ref{sec:soundness}, we improved the correctness of
-the simplifier by verifying the existing rules using a combination of Z3 and
+the TRS by verifying the existing rules using a combination of Z3 and
 Coq. We ran our automated scripts on the 999 existing rewrite rules, using Z3
 to verify 872 of them as correct.  We further verified 123 rules manually using
 Coq.  We found \NumRulesFixed incorrect rules, shown in Table~\ref{tab:incorrectrules},
@@ -919,22 +922,46 @@ and submitted patches to the Halide developers. We also found
 \NumPredicatesRelaxed rules whose predicates could be relaxed while retaining
 correctness.
 
-\sak{Write up the fact that we did in fact encounter a case where we
-  synthesized a rule that resulted in infinite looping due to an existing
-  ordering-violating rule}
-
 We also ensure the termination of the simplifier by devising a reduction order
 over its rewrite rules. We identify \NumOrderingProblems rewrite rules that do
-not conform to this ordering, and reported them to the Halide developers. We generated 128 random schedules for each of our \NumApps, and evaluated performance with and without the \NumOrderingProblems rules, finding a negligible effect on runtime, which seems to indicate that removing the rules would give a termination guarantee without incurring a performance penalty.
+not conform to this ordering, and reported them to the Halide developers. We
+generated 128 random schedules for each of our \NumApps, and evaluated
+performance with and without the \NumOrderingProblems rules, finding a
+negligible effect on runtime, which seems to indicate that removing the rules
+would give a termination guarantee without incurring a performance penalty.
+
+The existence of rewrite rules that violate the ordering can lead
+to infinite loops: in one case, we synthesized an ordering-obeying rule that interacted
+with a one of the order-violating rules.  As a result, the compiler
+would loop until running out of stack space, resulting in a crash
+during compilation.
 
 % We also use this rule ordering to ensure we never create rules that violate the ordering, preventing infinite loops.
 %We checked the existing Halide ruleset against our reduction order and found \NumOrderingProblems rules that were not properly ordered. We use the reduction order to ensure that the simplifier will always terminate by using the order to filter newly synthesized rules.
 \subsection{Compilation Speed}
 \label{ssec:compilationspeed}
 
-We hypothesize that the Halide simplifier scales well in terms of the number of rewrite rules it uses, and thus adding synthesized rules will not greatly affect compilation times. We need empirical results to confirm this hypothesis, since adding rewrite rules could potentially improve simplification time for one expression and degrade it for another. If no rules match a given expression, the simplifier must try to match every applicable rule, so adding rules would increase simplification time; if a new rule allows the simplifier to make progress on a previously unsimplifiable rule, the simplifier will be able to continue working on the expression and thus take more steps. On the other hand, a new rule might allow an expression to simplify to a small expression quickly, thus reducing the number of rewrite steps the simplifier must take; furthermore, if the simplifier can now successfully prove a term when it could not before, it may be able to use some optimization, thus shortening (non-simplifier) compilation time overall.
+We hypothesize that the Halide TRS scales well in terms of the number of
+rewrite rules it uses, and thus adding synthesized rules will not greatly affect
+compilation times. We need empirical results to confirm this hypothesis, since
+adding rewrite rules could potentially improve simplification time for one
+expression and degrade it for another. If no rules match a given expression, the
+TRS must try to match every applicable rule, so adding rules would
+increase simplification time; if a new rule allows the TRS to make
+progress on a previously unsimplifiable rule, the TRS will be able to
+continue working on the expression and thus take more steps. On the other hand,
+a new rule might allow an expression to simplify to a small expression quickly,
+thus reducing the number of rewrite steps the TRS must take; furthermore,
+if the TRS can now successfully prove a term when it could not before, it
+may be able to apply some optimization, thus shortening (non-TRS)
+compilation time overall.
 
 We recorded the compilation times for the random schedules used in the robustness experiment above.
+The maximum slowdown observed with our new rules was for unsharp, which slowed down
+by about 2\%, while the maximum speedup for compilation was 5\% for both bilateral grid
+and interpolate.  Overall, the added rules improved aggregate compilation time by 2\%,
+demonstrating that our strategy for augmenting the TRS with synthesized rules does
+not slow down the Halide compiler.
 
 \jln{Ras suggests we record can\_prove expressions and get timing on simplifying them so we can separate simplifier timing from the full compliation times.}
 
@@ -979,19 +1006,39 @@ Overall, the experiment shows that real-world bugfixes can be synthesized by
 our system, replacing much of the tedious human effort required when crafting
 new rules by hand.
 
-\section{Limitations}
-Synthesis oracle (z3) can't reason about expressions with div/mod, so we're limited in our ability to synthesize those types of rules.
+\section{Limitations \& Future Work}
+For this work, we considered only the subset of the term rewriting system that
+is used to prove properties over infinite integers; the full TRS includes rules
+for simplifying expressions with floating point values as well as rules for
+fixed-bitwidth integers.  As a result, we do not consider cases where the TRS
+must also reason about whether overflow can occur.  Extending our improvements
+and automation to such rules could be done in future work.
 
-Integers only, no floats etc.
+One major limitation of the synthesis process we use is that our oracle
+for rules, Z3, cannot reason about expressions with divisions or modulo
+where the right hand side is a variable.  Though we work around this to
+synthesize rules with generalized predicates on right hand side constants,
+the overall synthesis machinery cannot generalize these to non-constants.
+Extending the synthesizer may be more easily possible for rules that operate
+on integers with finite bit widths.
 
-Overflows not considered.
+The Halide TRS is used both to prove expressions true or false and to
+simplify expressions to more easily optimizable forms, but these two use cases
+are not always aligned. One could imagine two separate simplifiers with
+different rulesets and reduction orders. One interesting direction for future
+work might be to use the synthesizer to create these two rulesets, which would
+otherwise be a very human-effort intensive task.
 
-\section{Future work}
-The Halide simplifier is used both to prove expressions true or false and to simplify expressions to more easily optimizable forms, but these two usecases are not always aligned. One could imagine two separate simplifiers with different rulesets and reduction orders. One interesting direction for future work might be to use the synthesizer to create these two rulesets, which would otherwise be a very human-effort intensive task.
+Although we do not currently synthesize rules that contain vector operators,
+they are not incompatible with our approach. Since our reduction of Halide
+expressions to SMT formulas models vector expressions as integers, we would need
+to add a typechecking step to ensure correctness in the synthesis process, which
+we leave as future work.
 
-Although we do not currently synthesize rules that contain vector operators, they are not incompatible with our approach. Since our reduction of Halide expressions to SMT formulas models vector expressions as integers, we would need to add a typechecking step to ensure correctness in the synthesis process, which we leave as future work.
-
-The priority in which rules are considered for matching clearly can have performance implications, but evaluation/tuning is left as future work.
+The priority in which rules are considered for matching clearly can have
+performance implications, but evaluation and tuning is left as future work, and
+may require modifying our ordering or creating different orderings for different
+uses of the term rewriting system.
 
 \section{Related Work}
 
@@ -1002,6 +1049,16 @@ Butler et al.~\cite{butler2017synthesizing} uses synthesis to learn human-interp
 Herbie, superoptimization, abstract interpretation, MCSAT (Jovanovic)
 
 \section{Conclusion}
+In this work, we improved the Halide term rewriting system by applying formal
+techniques to verify rewrite rules and to ensure termination.  In this process,
+we discovered \NumRulesFixed incorrect rules and \NumPredicatesRelaxed cases
+where we could make rules more general, as well as \NumOrderingProblems rules
+that could potentially cause termination problems.  We additionally built
+an automated synthesis-based pipeline for constructing new rewrite rules from
+proof failures, augmenting the compiler with \NumRulesSynthesized synthesized
+rewrite rules and demonstrating that our system can be used to automatically fix
+user-reported compiler bugs. Overall, our improvements make the term rewriting
+system more robust and more correct, without slowing down compilation speed.
 
 
 %% Acknowledgments
