@@ -683,10 +683,12 @@ If $t$ contains more occurrences of some variable $x$ than $s$, some substitutio
 The TRS's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Appendix~\ref{a:reductionorder} for a full formalization.
 
 The final reduction order type is intended to favor rules that bring certain
-types of operations closer to the root of the expression AST. For example,
-leaving operations distributed over additions ($a*c + b*c$ rather than
-$c*(a +b)$) can facilitate some compiler optimizations; moving constants higher in the
-AST can help cluster and fold them, reducing the overall size of the expression.
+types of operations closer to the root of the expression AST.
+% Following is repetitive from above:
+%For example,
+%leaving operations distributed over additions ($a*c + b*c$ rather than
+%$c*(a +b)$) can facilitate some compiler optimizations; moving constants higher in the
+%AST can help cluster and fold them, reducing the overall size of the expression.
 We define this preference using a \emph{recursive multiset path order}, shown to be a type of reduction in~\cite{baader1999term}. The order compares terms recursively starting with the root of the expression AST. First we
 fix an ordering over the function symbols, then compare terms by their root
 symbol. If the symbols are equal, we recursively order the multiset of the left
