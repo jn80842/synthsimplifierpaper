@@ -369,7 +369,7 @@ term rewriting system.
 \subsection{Term Rewriting Systems}
 Term rewriting systems~\cite{gorn1967} successively apply \textit{rewrite rules} to transform a given
 expression into a simpler form, until no further simplifications are possible.  Such systems are widely
-used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{}.
+used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{cousot1977abstract, cousot1979systematic}.
 
 Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
 
@@ -1285,9 +1285,7 @@ Program synthesis has been applied to term rewriting systems in several domains.
 
 Superoptimization, a process of finding a shorter or more desirable program that is semantically equivalent to a larger one, is similar to our work synthesizing righthand side terms for candidate LHSs. STOKE~\cite{schkufza2013stochastic} uses Monte Carlo Markov Chain sampling to explore the space of x86 assembly programs, while Phothilimthana et al.~\cite{phothilimthana2016scaling} describes a cooperative superoptimizer that searches for better programs using multiple techniques in a way that allows them to learn from each other. 
 
-
-\sak{Julie, please add or remove}
-NLIA work~\cite{jovanovic2017solving}
+SMT solvers seek to achieve practical results in theoretically challenging problems, such as the theory of non-linear integer arithmetic. For example, Jovanovic~\cite{jovanovic2017solving} describes a satisfiability procedure for NLIA that is effective in practice and implements it in the Yices2 solver. In this work we leverage Z3's NLIA solving abilities and extend synthesis to include certain types of non-linear expressions by using constants as operands and later generalizing.
 
 \section{Conclusion}
 In this work, we improved the Halide term rewriting system by applying formal
