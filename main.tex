@@ -723,13 +723,13 @@ the simplifier cannot resolve, but which are known to be true.
 In this section, we describe a workflow for automatically augmenting the Halide
 TRS using program synthesis.
 A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
-Overall, we begin by synthesizing candidate rules that contain concrete constants,
+We begin by synthesizing candidate rules that contain concrete constants,
 then generalize those rules by replacing concrete constants with wildcards that
 match any compile-time constants, along with predicates checkable at compile-time
 that encode constraints on those constants.
 
 \subsection{Synthesizing Candidate Rules With Constants}
-The aim of the synthesis pipeline is to learn new rules that would be of use in reasoning about input expressions.
+The aim of the synthesis pipeline is to learn new rules useful for reasoning about input expressions.
 For this work, we utilize three sources for candidate rules: failed proofs from
 random pipelines, irreducible expressions found from random pipelines, and enumeration.
 We obtain scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compiled
@@ -739,8 +739,8 @@ expressions that the TRS was unable to prove true, but that fuzz
 testing was not able to find to be false, a good indicator of a weak spot in the
 rewriter's reasoning power. For each failed proof, we attempt to generate one
 or more rules capable of transforming the expression. In addition, we capture all
-integer expressions present in the final Halide IR, at the point just before it is
-lowered to LLVM IR.
+integer expressions present in the final Halide IR, at the point just before 
+lowering to LLVM IR.
 
 In addition to concrete expressions, we enumerate all sequences of up to three operations (that is,
 using four variables) that the rewriter does not reduce.  However, we aggressively restrict
@@ -751,7 +751,7 @@ especially avoids generating a large number of useless rules, which are unlikely
 match any real-world code. However, using enumeration does help fill in gaps in the term
 rewriting system for simple-but-useful rules, as long as we heavily constrain the enumeration.
 
-\paragraph{Generating LHS Patterns} For a given failed expression, the first step
+\paragraph{Generating LHS Patterns} For a given input expression, the first step
 is to construct all left-hand-side patterns that match some portion of the expression.
 We constrain the maximum length of a pattern to be five operations, to ensure fast matching
 during term rewriting. At this stage, patterns preserve any constant values, and subtrees
@@ -786,17 +786,17 @@ would be rewritten to $(-10 - (x \% 2)/2) + y)$.  Thus, we construct the candida
 $$(x/2 + y) - (x + 11)/2 \equiv (-10 - (x \% 2)/2) + y)$$
 
 If the first method fails, we apply CEGIS to superoptimize the lefthand side pattern.
-We build a CEGIS loop on top of Z3~\cite{de2008z3}, encoding the LHS as a set of op codes
+We build a CEGIS loop on top of Z3~\cite{de2008z3}, encoding the LHS as a set of op-codes
 and searching for a semantically equivalent but shorter sequence of operations, similar
 to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016superoptimization}.
 We first search for a single-op sequence,
-than iteratively increase the number of operations, in order to find shorter sequences
+then iteratively increase the number of operations, in order to find shorter sequences
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
 operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the op-code count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
 
 \paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, we must take care to avoid
 undecidable theories, in which case Z3 nearly always fails during the CEGIS process.
-Therefore we limit the use of division and modulo in our op codes to be division
+Therefore we limit the use of division and modulo in our op-codes to be division
 or modulo by 2 only, and rely on the generalization step described next to
 widen the set of denominators for which a rule applies.  Because of this
 restriction, our synthesized rules cannot contain non-constants in denominators
@@ -811,7 +811,7 @@ we replace each constant with a fresh \emph{symbolic constant}. A symbolic const
  matches only terms with constant values known at compile time. We first query Z3
 again to see if the equivalence still holds; if it does, the rule is valid. If
 it is not, we will need to find a \textit{predicate} to guard
-applications of the rule in the simplifier. We attempt to synthesize a predicate
+applications of the rule in the term rewriting system. We attempt to synthesize a predicate
 such that $pred \rightarrow LHS = RHS$ and all variables appearing in the
 predicate are symbolic constants.
 
@@ -853,8 +853,12 @@ k0 \geq 1 \wedge k1 \geq 0 & &
 
 \paragraph{Variable Elimination} We employ three main strategies for eliminating
 variables: traditional variable elimination, in which one equation is rewritten and
-used to eliminate a variable in another equation; using reasoning over the signs in products \aba{We need to give more detail somewhere below: in $a \times b == c$, knowing the sign of any two terms gives the sign of the third. Applied to $a$ or $b$, this can reduce non-linear equality constraints to linear inequalities.};
-and using Halide's bounds analysis machinery to find facts about the clauses.  The possible
+used to eliminate a variable in another equation; using reasoning over the signs in products;
+and using Halide's bounds analysis machinery to find facts about the clauses.  Reasoning about signs
+is especially powerful; for example, given $a \times b == c$, knowing the signs of any
+two terms allows us to convert the non-linear equality constraint into a linear inequality.
+
+The possible
 set of manipulations is very large, and the non-linear nature of the systems prevent most
 tools from robustly reasoning about the expressions.  To tractably eliminate variables and discover
 facts about the systems, we use beam search~\cite{beamsearch} in order to avoid applying
@@ -935,7 +939,7 @@ running Ubuntu 18.04 and LLVM 8.0.1.
 Overall, we add \NumRulesSynthesized rewrite rules to the Halide term rewriting system, synthesized
 from \NumFailureExamples unique failed proofs from random pipelines with random schedules, \NumSimplifiedExpressions
 unique already-rewritten expressions from random pipelines, and \NumOpSequences unique 3-op sequences
-that the term rewriting system could not transform.  
+that the original term rewriting system could not transform.  
 
 \subsection{Robustness}
 \begin{table*}[!ht]
