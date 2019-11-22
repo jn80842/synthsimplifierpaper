@@ -574,11 +574,8 @@ $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
 be matched to the rule and rewritten to $3 + 5$, and so on. To guarantee
 termination regardless of the rule application algorithm, we can think of defining some strategy
 every rule should follow, so that every application of a rule will cause the rewritten expression to
-decrease monotonically in some direction. In other
-words, we need $s \rightarrow_R t$, $s > t$ for some strict order $>$. However, since
-the set of terms is infinite, we cannot check that $s > t$ for all pairs of
-terms $s, t$. Instead, we show that for every rule $l \rightarrow_R r$ in our
-term rewriting system, $l > r$. This will suffice if $>$ is a \emph{reduction
+decrease monotonically in some fixed direction. Then, we show that for every rule $l \rightarrow_R r$ in our
+term rewriting system, $l > r$. This will suffice to guarantee termination if $>$ is a \emph{reduction
   order}. We take the definition of a reduction order and the next two theorems from Baader and Nipkow~\cite{baader1999term}
 
 \begin{theorem}\label{theorem:terminates}
@@ -610,7 +607,7 @@ can have strong performance implications.
 Simplifying an expression in a way that
 improves performance could mean cancelling correlated subexpressions, using
 fewer expensive operations such as vector operations, or clustering constants
-that can pre-computed into a single constant.
+that can be pre-computed into a single constant.
 
 Consider the space of all possible Halide expressions, in which our starting
 expression is a point. If all rewrite rules follow the strategy defined by a reduction order, applying any
@@ -653,7 +650,7 @@ First, orders over variable or operation occurrence counts are well-founded
 because they are defined using a measure function that maps terms to the natural
 numbers. Let the function $|s|_x$ represent the number of occurrences of the
 variable $x$ in the term $s$. Similarly, let $|s|_f$ represent the number of
-occurrences of some symbol $f \in \Sigma$ in the term $s$. Thus, we can define a reduction order such that for every variable present in some term $s$, that variable occurs strictly more times in $s$ then in term $t$.
+occurrences of some symbol $f \in \Sigma$ in the term $s$. Then, we can define a reduction order such that for every variable present in some term $s$, that variable occurs strictly more times in $s$ then in term $t$.
 
 \begin{equation*}
 s >_{var} t \iff \forall x \in V, |s|_x > |t|_x
@@ -670,7 +667,7 @@ As the summations are the same for $|s'|_x$ and $|t'|_x$, it must be true that i
 
 The order is also closed under substitution; for any variable substitution
 $v \mapsto u$, the number of occurrences of any variable $x$ will be increased
-by some $n = |u|_x$ for every occurrence of $v$ in $s$. Since we know $v$ occurs
+by some $n = |u|_x$ for every occurrence of $v$ in $s$. Since we know $x$ occurs
 fewer times in $t$ than $s$, the relation must hold.
 
 We use similar orders defined using the number of occurrences of function symbols in terms. As an example consider an order $>_{\texttt{\%}}$ which states that $s >_{\texttt{\%}} t$ if $s$ contains strictly more modulo operations than $t$. This order is compatible with $\Sigma$-operations by the same argument as above. We need to add one more condition to make sure this order is closed under substitution:
@@ -679,9 +676,9 @@ We use similar orders defined using the number of occurrences of function symbol
 s >_{\texttt{\%}} t \iff |s|_{\texttt{\%}} > |t|_{\texttt{\%}} \wedge \forall x \in V, |s|_x \geq |t|_x
 \end{equation*}
 
-If $t$ contains more occurrences of some variable $v$ than $s$, some substitution $v \mapsto u$ such that $|u|_{\texttt{\%}} > 0$ would increase the size of $|\sigma(t)|_{\texttt{\%}}$ more than it would the size of $|\sigma(s)|_{\texttt{\%}}$. By fixing this additional condition, $\sigma(s) >_{\texttt{\%}} \sigma(t)$ for any substitution $\sigma$ if $s >_{\texttt{\%}} t$.
+If $t$ contains more occurrences of some variable $x$ than $s$, some substitution $x \mapsto u$ such that $|u|_{\texttt{\%}} > 0$ would increase the size of $|\sigma(t)|_{\texttt{\%}}$ more than it would the size of $|\sigma(s)|_{\texttt{\%}}$. By fixing this additional condition, $\sigma(s) >_{\texttt{\%}} \sigma(t)$ for any substitution $\sigma$ if $s >_{\texttt{\%}} t$.
 
-The simplifier's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Appendix~\ref{a:reductionorder} for a full formalization.
+The TRS's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Appendix~\ref{a:reductionorder} for a full formalization.
 
 The final reduction order type is intended to favor rules that bring certain
 types of operations closer to the root of the expression AST. For example,
