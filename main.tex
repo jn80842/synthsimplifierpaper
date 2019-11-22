@@ -960,7 +960,7 @@ previously succeed if the new rules move the expression into a local
 minimum). We test the robustness of the enhanced TRS empirically by
 compiling the existing example applications in the Halide repository
 using randomly-generated schedules with the original and enhanced TRS
-and reporting the number of compilation failures.
+and reporting the number of proof failures.
 
 Table~\ref{tab:simplifierfailures} summarizes the results.  Overall, the new rules
 reduce the number of proof failures by 23\% and the number of non-monotonic expressions
@@ -969,7 +969,8 @@ which expressions are provably monotonic, as interval arithmetic is exact for
 such cases; reducing the number of non-monotonic expressions can allow the
 compiler to correctly reason about regions in more cases.
 
-Interestingly, none of existing proof failures caused the overall compilation process to fail, and none of the cases we corrected improved the performance of the generated code. In that sense we have a qualified negative result for this hypothesis. The Halide compiler is already robust to any weaknesses of its TRS \emph{over the example application suite included with the compiler}. Anecdotally, Halide users report that this is not the case over novel applications or for the less well-exercised compiler backends. We believe there are two main reasons for this surprising robustness. First, most loop optimizations in Halide (such as vectorization) are explicitly directed by the programmer, not enabled heuristically by the compiler as with C compilers, so changes to internal compiler analysis should never result in optimizations turning on or off. Second, for the optimization which \emph{do} require analysis (such as sliding window optimizations), the Halide compiler employs fall-back strategies when the TRS fails. For example, proofs can be attempted in multiple ways, or low-overhead dynamic checks can be injected when static proofs fail. These fall-back strategies have been tuned to the same application suite we use as our test set.
+Interestingly, none of existing proof failures caused the overall compilation process to fail, and none of the cases we corrected improved the performance of the generated code. %In that sense we have a qualified negative result for this hypothesis.
+The Halide compiler is already robust to any weaknesses of its TRS \emph{over the example application suite included with the compiler}. Anecdotally, Halide users report that this is not the case over novel applications or for the less well-exercised compiler backends. We believe there are two main reasons for this surprising robustness. First, most loop optimizations in Halide (such as vectorization) are explicitly directed by the programmer, not enabled heuristically by the compiler as with C compilers, so changes to internal compiler analysis should never result in optimizations turning on or off. Second, for the optimization which \emph{do} require analysis (such as sliding window optimizations), the Halide compiler employs fall-back strategies when the TRS fails. For example, proofs can be attempted in multiple ways, or low-overhead dynamic checks can be injected when static proofs fail. These fall-back strategies have been tuned to the same application suite we use as our test set.
 
 % could also report calls to can_prove and successful calls to can_prove; this is more meaningful as a ratio
 
@@ -1067,7 +1068,7 @@ is tedious and error-prone; comments from commits to the Halide repository inclu
 at least two developers to examine each rule: one to carefully craft the rule, and another to
 review and approve the changes.  For this experiment, we explore whether
 our automated rule synthesis can replace the human effort.  We look at the last 5 pull
-requests in the Halide git repository~\footnote{https://github.com/halide/Halide} that add rules.  Then, we remove
+requests in the Halide git repository\footnote{https://github.com/halide/Halide} that add rules.  Then, we remove
 the added rules and use either tests from the PR or hand-crafted failures (in rules
 not exercised by the added tests) and pass them to our system.
 Table~\ref{tab:prbugfixes} summarizes results from the experiment.
@@ -1123,11 +1124,11 @@ Finally, while enhancing the Halide TRS was not able to improve the performance 
 
 \section{Related Work}
 
-An egraph, as introduced by Nelson~\cite{nelson1980techniques}, is a data structure used to compute applications of the rules of a term rewriting system. The algorithm builds up equivalence classes by successively applying all rules to all expressions within those classes, then queries to see if two expressions are equivalent by checking if they are present in the same class. Like our algorithm, it does not backtrack, but the egraph can require significant amounts of memory, which our algorithm avoids.
+An \textit{equivalence graph} or egraph, as introduced by Nelson~\cite{nelson1980techniques}, is a data structure used to compute applications of the rules of a term rewriting system. The algorithm builds up equivalence classes by successively applying all rules to all expressions within those classes, then queries to see if two expressions are equivalent by checking if they are present in the same class. Like our algorithm, it does not backtrack, but the egraph can require significant amounts of memory, which our algorithm avoids.
 
 Herbie~\cite{panchekha2015automatically}, a tool for improving the accuracy of floating point arithmetic, uses an egraph term rewriting system made up of a small library of axioms to find repairs once a fault has been localized. Herbie assures termination by bounding the number of rewrites their system may apply, and achieves good performance by pruning the expression search space and applying rewrites only to particular expression nodes. 
 
-Program synthesis has been applied to term rewriting systems in several domains. Swapper~\cite{singh2016swapper} synthesizes a set of rewrite rules to transform SMT formulas into forms that can be more easily solved by theory solvers, similar to the use of the Halide TRS as a simplifier, using the SKETCH tool. Butler 2017~\cite{butler2017synthesizing} learns human-interpretable strategies (essentially rewrite rules) for puzzle games such as Sudoku or Nonograms and Butler 2018~\cite{butler2018framework} finds tactics for solving K-12 algebra problems, both using a CEGIS loop similar to our synthesis process. None of these address termination, although Swapper likely screens out non-terminating rulesets through an autotune step. The Butler works both focus on synthesizing small, highly general rulesets that are similar to human rewriting strategies, unlike the Halide TRS which tolerates very large rulesets.
+Program synthesis has been applied to term rewriting systems in several domains. Swapper~\cite{singh2016swapper} synthesizes a set of rewrite rules to transform SMT formulas into forms that can be more easily solved by theory solvers, similar to the use of the Halide TRS as a simplifier, using the SKETCH tool. Butler 2017~\cite{butler2017synthesizing} learns human-interpretable strategies (essentially rewrite rules) for puzzle games such as Sudoku or Nonograms and Butler 2018~\cite{butler2018framework} finds tactics for solving K-12 algebra problems, both using a CEGIS loop similar to our synthesis process. None of these address termination, although Swapper likely screens out non-terminating rulesets through its autotuning step. The Butler works both focus on synthesizing small, highly general rulesets that are similar to human rewriting strategies, unlike the Halide TRS which tolerates very large rulesets.
 
 Superoptimization, a process of finding a shorter or more desirable program that is semantically equivalent to a larger one, is similar to our work synthesizing righthand side terms for candidate LHSs. STOKE~\cite{schkufza2013stochastic} uses Monte Carlo Markov Chain sampling to explore the space of x86 assembly programs, while Phothilimthana et al.~\cite{phothilimthana2016scaling} describes a cooperative superoptimizer that searches for better programs using multiple techniques in a way that allows them to learn from each other. 
 
