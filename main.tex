@@ -1118,11 +1118,15 @@ uses of the term rewriting system.
 
 \section{Related Work}
 
-Program synthesis has been applied to term rewriting systems in Swapper~\cite{singh2016swapper}, a tool that learns a set of rewrite formulas to transform SMT formulas into forms that can be more easily solved by theory solvers. Swapper takes a training set of formulas drawn from a target domain, does probabilistic sampling to choose LHS candidates, synthesizes predicates and RHS, and finally autotunes the resulting ruleset to choose a rule subset and rule order that gives the best solver performance. Unlike our work, Swapper is an optimizer rather than a prover. Because our rewrite algorithm scales well in terms of the number of rules, we simply use all candidate LHS terms for synthesis rather than sampling. Swapper synthesizes RHS terms that have fewer AST nodes than their corresponding LHS terms; this is not a reduction order and does not guarantee termination, although the autotuning step should reject rulesets with cycles. Finally, Swapper creates a fresh term rewriting system with each invocation, whereas our work augments and maintains an existing term rewriting system.
+Herbie~\cite{panchekha2015automatically}
 
-Butler et al.~\cite{butler2017synthesizing} uses synthesis to learn human-interpretable strategies for puzzle games such as Sudoku or Nonograms. Strategies consist of a pattern (LHS term with variables), condition (predicate), and action (RHS term expressing rewrite), and so comprise a term rewriting system. Strategies are synthesizing Rosette, using a CEGIS loop similar to our synthesis process. Progress in these puzzle games is always monotonic, which gives a natural reduction order. Their goal is to model human strategies, which are greedy and non-deterministic, so they do not consider rule priority or any particular term rewriting algorithm. 
+Program synthesis has been applied to term rewriting systems in several domains. Swapper~\cite{singh2016swapper} synthesizes a set of rewrite rules to transform SMT formulas into forms that can be more easily solved by theory solvers, similar to the use of the Halide TRS as a simplifier, using the SKETCH tool. Butler 2017~\cite{butler2017synthesizing} learns human-interpretable strategies (essentially rewrite rules) for puzzle games such as Sudoku or Nonograms and Butler 2018~\cite{butler2018framework} finds tactics for solving K-12 algebra problems, both using a CEGIS loop similar to our synthesis process. None of these address termination, although Swapper likely screens out non-terminating rulesets through an autotune step. The Butler works both focus on synthesizing small, highly general rulesets that are similar to human rewriting strategies, unlike the Halide TRS which tolerates very large rulesets.
 
-Herbie, superoptimization, abstract interpretation, MCSAT (Jovanovic)
+Superoptimization, a process of finding a shorter or more desirable program that is semantically equivalent to a larger one, is similar to our work synthesizing righthand side terms for candidate LHSs. STOKE~\cite{schkufza2013stochastic} uses Monte Carlo Markov Chain sampling to explore the space of x86 assembly programs, while Phothilimthana et al.~\cite{phothilimthana2016scaling} describes a cooperative superoptimizer that searches for better programs using multiple techniques in a way that allows them to learn from each other. 
+
+
+
+NLIA work~\cite{jovanovic2017solving}
 
 \section{Conclusion}
 In this work, we improved the Halide term rewriting system by applying formal
