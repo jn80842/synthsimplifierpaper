@@ -201,12 +201,10 @@
 %% Note: \begin{abstract}...\end{abstract} environment must come
 %% before \maketitle command
 \begin{abstract}
-  The wide adoption of Halide as an efficient domain-specific language
-  for image processing and tensor computations shows the language is
-  useful and effective for compiling high performance code across platforms.
-  In the Halide compiler, reasoning about the code relies on a term rewriting system to
-  prove properties required for efficient and correct compilation.  This rewrite
-  system is written as a collection of handwritten transformation rules 
+  Halide is a domain-specific language for high-performance image processing and tensor computations. Its usefulness for this purpose is evidenced by its wide adoption in industry.
+  Internally, the Halide compiler relies on a term rewriting system to
+  prove properties of code required for efficient and correct compilation.  This rewrite
+  system is a collection of handwritten transformation rules 
   that incrementally rewrite expressions into simpler forms; the system requires high performance 
   in both time and memory usage to keep compile times low.
   In this work, we apply formal techniques to prove the correctness of existing
@@ -219,7 +217,7 @@
   The automated system can replace tedious human effort required to craft new rules
   in response to user-reported bugs.  We demonstrate that the new
   term rewriting system is provably sound, more robust, and more general, without
-  making compilation time slower.
+  slowing down the compiler.
 \end{abstract}
 
 
@@ -1108,8 +1106,9 @@ minimum). We test the robustness of the enhanced TRS empirically by
 compiling the existing example applications in the Halide repository
 using randomly-generated schedules with the original and enhanced TRS
 and reporting the number of proof failures.
+Note that these applications were not used as a source of expressions for synthesizing new rules.
 
-Table~\ref{tab:simplifierfailures} summarizes the results.  Overall, the new rules
+Table~\ref{tab:simplifierfailures} summarizes the results.  The new rules
 reduce the number of proof failures by 23\% and the number of non-monotonic expressions
 by 44\%, showing significant impact from the synthesized rules.  Halide tracks
 which expressions are provably monotonic, as interval arithmetic is exact for
@@ -1117,7 +1116,7 @@ such cases; reducing the number of non-monotonic expressions can allow the
 compiler to correctly reason about regions in more cases.
 
 Interestingly, none of existing proof failures caused the overall compilation process to fail, and none of the cases we corrected improved the performance of the generated code. %In that sense we have a qualified negative result for this hypothesis.
-The Halide compiler is already robust to any weaknesses of its TRS \emph{over the example application suite included with the compiler}. Anecdotally, Halide users report that this is not the case over novel applications or for the less well-exercised compiler backends. We believe there are two main reasons for this surprising robustness. First, most loop optimizations in Halide (such as vectorization) are explicitly directed by the programmer, not enabled heuristically by the compiler as with C compilers, so changes to internal compiler analysis should never result in optimizations turning on or off. Second, for the optimization which \emph{do} require analysis (such as sliding window optimizations), the Halide compiler employs fall-back strategies when the TRS fails. For example, proofs can be attempted in multiple ways, or low-overhead dynamic checks can be injected when static proofs fail. These fall-back strategies have been tuned to the same application suite we use as our test set.
+We found that the Halide compiler is already robust to any weaknesses of its TRS over the example application suite included with the compiler. Anecdotally, Halide users report that this is not the case over novel applications or for the less well-exercised compiler backends. We believe there are two main reasons for this surprising robustness. First, most loop optimizations in Halide (such as vectorization) are explicitly directed by the programmer, not enabled heuristically by the compiler as with C compilers, so changes to internal compiler analysis should never result in optimizations turning on or off. Second, for the optimizations which \emph{do} require analysis (such as sliding window optimizations), the Halide compiler employs fall-back strategies when the TRS fails. For example, proofs can be attempted in multiple ways, or low-overhead dynamic checks can be injected when static proofs fail. These fall-back strategies have been tuned to the same application suite we use as our test set.
 
 % could also report calls to can_prove and successful calls to can_prove; this is more meaningful as a ratio
 
@@ -1136,8 +1135,6 @@ $max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & 
 \end{tabular}
 \label{tab:incorrectrules}
 \end{table*}
-
-
 
 As described in Section~\ref{sec:soundness}, we guaranteed the correctness of
 the TRS by verifying the existing rules using a combination of Z3 and
@@ -1169,25 +1166,34 @@ during compilation.
 
 We hypothesize that the Halide TRS scales well in terms of the number of
 rewrite rules it uses, and thus adding synthesized rules will not greatly affect
-compilation times. We need empirical results to confirm this hypothesis, since
-adding rewrite rules could potentially improve simplification time for one
-expression and degrade it for another. If no rules match a given expression, the
-TRS must try to match every applicable rule, so adding rules would
-increase simplification time; if a new rule allows the TRS to make
-progress on a previously unsimplifiable rule, the TRS will be able to
-continue working on the expression and thus take more steps. On the other hand,
-a new rule might allow an expression to simplify to a small expression quickly,
-thus reducing the number of rewrite steps the TRS must take; furthermore,
-if the TRS can now successfully prove a term when it could not before, it
-may be able to apply some optimization, thus shortening (non-TRS)
-compilation time overall.
+compilation times.
 
-We recorded the compilation times for the random schedules used in the robustness experiment above.
-The maximum slowdown observed with our new rules was for the bilateral grid app, which slowed down
-by about 4\%, while the maximum speedup for compilation was 
-6\% for local laplacian.  Overall, the added rules improved aggregate compilation time by 3.6\%,
-demonstrating that our strategy for augmenting the TRS with synthesized rules does
-not slow down the Halide compiler.
+We tested this by recording compilation times for the random schedules
+used in the robustness experiment above. Surprisingly, we found that
+adding the new rules /emph{decreases} compile times. While more time
+is spent rewriting expressions, the simpler expressions make later
+passes cheaper (particularly those inside of LLVM), and then net
+effect is a decrease in compile-times of 3.6\%.
+
+%We need empirical results to confirm this hypothesis, since
+%adding rewrite rules could potentially improve simplification time for one
+%expression and degrade it for another. If no rules match a given expression, the
+%TRS must try to match every applicable rule, so adding rules would
+%increase simplification time; if a new rule allows the TRS to make
+%progress on a previously unsimplifiable rule, the TRS will be able to
+%continue working on the expression and thus take more steps. On the other hand,
+%a new rule might allow an expression to simplify to a small expression quickly,
+%thus reducing the number of rewrite steps the TRS must take; furthermore,
+%if the TRS can now successfully prove a term when it could not before, it
+%may be able to apply some optimization, thus shortening (non-TRS)
+%compilation time overall.
+
+%We recorded the compilation times for the random schedules used in the robustness experiment above.
+%The maximum slowdown observed with our new rules was for the bilateral grid app, which slowed down
+%by about 4\%, while the maximum speedup for compilation was 
+%6\% for local laplacian.  Overall, the added rules improved aggregate compilation time by 3.6\%,
+%demonstrating that our strategy for augmenting the TRS with synthesized rules does
+%not slow down the Halide compiler.
 
 
 %% \subsection{Generated Code Performance}
@@ -1292,7 +1298,15 @@ that could potentially cause termination problems.  We additionally built
 an automated synthesis-based pipeline for constructing new rewrite rules from
 proof failures, augmenting the compiler with \NumRulesSynthesized synthesized
 rewrite rules and demonstrating that our system can be used to automatically fix
-user-reported compiler bugs. Overall, our improvements guarantee the soundess of the term rewriting system and make it more robust  without slowing down compilation speed.
+user-reported compiler bugs.
+
+Our improvements guarantee the soundness of the term rewriting system
+and increase its robustness and coverage, while (counter-intuitively)
+decreasing total compile times. There are no significant costs or
+downsides we could identify. Indeed, augmenting this part of the
+Halide compiler using verification and synthesis seems to constitute a
+free lunch, and we expect to be able to make a strong case for the
+inclusion of this work into the compiler.
 
 
 %% Acknowledgments
