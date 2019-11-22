@@ -20,6 +20,7 @@
 \definecolor{uwpurple}{RGB}{128,0,128}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
 \newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
+\newcommand{\aba}[1]{\textcolor{red}{\textit{[{#1} --AA]}}}
 \usepackage{syntax}
 %% Conference information
 %% Supplied to authors by publisher for camera-ready submission;
@@ -35,8 +36,10 @@
 \newcommand{\NumRulesFixed}{{\color{red} 4}\xspace}
 \newcommand{\NumPredicatesRelaxed}{{\color{red} 17}\xspace}
 \newcommand{\NumOrderingProblems}{{\color{red} 46}\xspace}
-\newcommand{\NumRulesSynthesized}{{\color{red} 3192}\xspace}
-\newcommand{\NumFailureExamples}{{\color{red} 59000}\xspace}
+\newcommand{\NumRulesSynthesized}{{\color{red} 2632}\xspace}
+\newcommand{\NumOpSequences}{{\color{red} 6246}\xspace}
+\newcommand{\NumFailureExamples}{{\color{red} 61000}\xspace}
+\newcommand{\NumSimplifiedExpressions}{{\color{red} 195371}\xspace} 
 \newcommand{\NumBugsAutomated}{{\color{red} 5}\xspace}
 \newcommand{\NumOriginalRules}{{\color{red} 999}\xspace}
 
@@ -548,7 +551,7 @@ However, nonlinear integer arithmetic is undecidable, and for 123
 rules, Z3 either timed out or returned unknown. Nearly all of these rules used
 either division or modulo. We used the proof assistant Coq to manually prove or
 disprove the correctness of these remaining rules. \jln{about 20 left to go} We
-were also able to relax the predicates of \NumPredicatesRelaxed rules; for example, in some cases a rule
+were also able to relax the predicates of \jln{TK} rules; for example, in some cases a rule
 with a predicate requiring some constant to be positive would be equally valid
 if the constant was non-zero.
 
@@ -570,9 +573,8 @@ Term rewriting systems are not guaranteed to terminate. Consider a term
 rewriting system containing only one rule: $x + y \rightarrow y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
 be matched to the rule and rewritten to $3 + 5$, and so on. To guarantee
-termination regardless of the rule application algorithm, we can think of defining some strategy
-every rule should follow, so that every application of a rule will cause the rewritten expression to
-decrease monotonically in some direction. In other
+termination regardless of the rule application algorithm, every application of
+a rule needs to strictly (monotonically) decrease in some measure. In other
 words, we need $s \rightarrow_R t$, $s > t$ for some strict order $>$. However, since
 the set of terms is infinite, we cannot check that $s > t$ for all pairs of
 terms $s, t$. Instead, we show that for every rule $l \rightarrow_R r$ in our
@@ -611,7 +613,7 @@ fewer expensive operations such as vector operations, or clustering constants
 that can pre-computed into a single constant.
 
 Consider the space of all possible Halide expressions, in which our starting
-expression is a point. If all rewrite rules follow the strategy defined by a reduction order, applying any
+expression is a point. If all rewrite rules obey a reduction order, applying any
 rewrite rule will move the expression through the expression space monotonically
 in some direction, preventing cycles and ensuring termination. Our reduction
 order guides the rewritten expression to some desirable part of the
@@ -660,8 +662,8 @@ s >_{var} t \iff \forall x \in V, |s|_x > |t|_x
 The order is compatible with $\Sigma$-operations, as is any order based on the number of occurrences of variables or operations. For terms $s$ and $t$, let $s' = f(u_1,...u_{i-1},s,u_{i+1},...,u_n)$ and $t' = f(u_1,...u_{i-1},t,u_{i+1},...,u_n)$. Then, 
 
 \begin{gather*}
-|s'|_x = \sum_{u_j}^{0<j \leq (i-1)} |u_j|_x + |s|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x \\
-|t'|_x = \sum_{u_j}^{0<j \leq (i-1)} |u_j|_x + |t|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x
+|s'|_x = \sum_{u_j}^{0<j<=(i-1)} |u_j|_x + |s|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x \\
+|t'|_x = \sum_{u_j}^{0<j<=(i-1)} |u_j|_x + |t|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x
 \end{gather*}
 
 As the summations are the same for $|s'|_x$ and $|t'|_x$, it must be true that if $|s|_x > |t|_x$, then $|s'|_x > |t'|_x$.
@@ -679,10 +681,14 @@ s >_{\texttt{\%}} t \iff |s|_{\texttt{\%}} > |t|_{\texttt{\%}} \wedge \forall x 
 
 If $t$ contains more occurrences of some variable $v$ than $s$, some substitution $v \mapsto u$ such that $|u|_{\texttt{\%}} > 0$ would increase the size of $|\sigma(t)|_{\texttt{\%}}$ more than it would the size of $|\sigma(s)|_{\texttt{\%}}$. By fixing this additional condition, $\sigma(s) >_{\texttt{\%}} \sigma(t)$ for any substitution $\sigma$ if $s >_{\texttt{\%}} t$.
 
- The simplifier's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Appendix~\ref{a:reductionorder} for a full formalization.
+The full Halide reduction order composes several orders of these types, defining the various different dimensions the simplifier moves expressions through the full expression space. The simplifier attempts to decrease the number of variable occurrences; if those are equal, it tries to decrease the number of non-linear expressions (multiplication, division, and modulus); if all those are equal, it prefers expressions that contain fewer operations in total, and so on. The simplifier's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Appendix~\ref{a:reductionorder} for a full formalization.
+
 
 The final reduction order type is intended to favor rules that bring certain
-types of operations closer to the root of the expression AST. 
+types of operations closer to the root of the expression AST. For example,
+leaving operations distributed over additions ($a*c + b*c$ rather than
+$c*(a +b)$) can facilitate some compiler optimizations; moving constants higher in the
+AST can help cluster and fold them, reducing the overall size of the expression.
 We define this preference using a \emph{recursive multiset path order}, shown to be a type of reduction in~\cite{baader1999term}. The order compares terms recursively starting with the root of the expression AST. First we
 fix an ordering over the function symbols, then compare terms by their root
 symbol. If the symbols are equal, we recursively order the multiset of the left
@@ -724,21 +730,37 @@ that encode constraints on those constants.
 
 \subsection{Synthesizing Candidate Rules With Constants}
 The aim of the synthesis pipeline is to learn new rules that would be of use in reasoning about input expressions.
-For this work, we use scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} which compile
+For this work, we utilize three sources for candidate rules: failed proofs from
+random pipelines, irreducible expressions found from random pipelines, and enumeration.
+We obtain scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compiled
  random but realistic Halide pipelines with random schedules for
-training the Halide autoscheduler. The compiler was instrumented to print expressions that the simplifier was unable to prove to be true, but that fuzz testing was not able to find to be false, a good indicator of a weak spot in the simplifier's reasoning power.
- For each failed proof, we attempt to generate one or more rules capable of transforming the expression.
+training the Halide autoscheduler. The compiler was instrumented to print
+expressions that the TRS was unable to prove true, but that fuzz
+testing was not able to find to be false, a good indicator of a weak spot in the
+rewriter's reasoning power. For each failed proof, we attempt to generate one
+or more rules capable of transforming the expression. In addition, we capture all
+integer expressions present in the final Halide IR, at the point just before it is
+lowered to LLVM IR.
+
+In addition to concrete expressions, we enumerate all sequences of up to three operations (that is,
+using four variables) that the rewriter does not reduce.  However, we aggressively restrict
+this corpus: we avoid symmetries (our synthesis strategy already generates all commutations
+of a rule, as described below), we do not include division or modulo, the variables must occur
+in canonical order, and we do not include constants. The latter constraint
+especially generates a large number of useless rules, which are unlikely to
+match any real-world code. However, using enumeration does help fill in gaps in the term
+rewriting system for simple-but-useful rules, as long as we heavily constrain the enumeration.
 
 
 \paragraph{Generating LHS Patterns} For a given failed expression, the first step
 is to construct all left-hand-side patterns that match some portion of the expression.
-We constrain the maximum length of a pattern to be six operations, to ensure fast matching
+We constrain the maximum length of a pattern to be five operations, to ensure fast matching
 during term rewriting. At this stage, patterns preserve any constant values, and subtrees
 that exactly match syntactically are assigned the same wildcard. For
 example, given the expression $(a*b + c/b)$, where all nodes are non-constant,
 we extract the following LHS patterns: $x + y$, $x * y$, $x / y$, $x * y + z$,
-$x + y/z$, and $x*y + z/y$.  We then filter out any patterns that do not contain
-a repeated wildcard, as such patterns are unlikely to result in a useful general
+$x + y/z$, and $x*y + z/y$.  We then filter out any patterns that do not either contain
+a repeated wildcard or more than one constant. Such patterns are unlikely to result in a useful general
 rewrite.  Thus, of the set above, we would only consider the last pattern, since
 it contains a repeated $y$.  Although the set of candidate LHS patterns is exponential
 in the size of the original expression, our filtering reduces the set to a tractable
@@ -750,9 +772,9 @@ order such that $\mathit{LHS} > \mathit{RHS}$.  We utilize two strategies for sy
 right-hand sides: reassociating and applying a known rewrite, or counter-example guided
 inductive synthesis (CEGIS).
 
-The first strategy comes from the insight that in many cases, rewrite rules would apply
+The first strategy comes from the insight that in many cases existing rewrite rules would apply
 if the expression were in a different form.  Therefore, we generate all possible
-reassociations and commutations of the LHS expression, by unpacking the expression
+reassociations and commutations of the LHS expression, by unpacking sub-expressions
 into a flattened list of leaves, and then enumerating every valid binary
 tree over permutations of the leaves that is semantically equivalent to the original
 expression.  We then check whether an existing rule rewrites any enumerated reassociation.
@@ -771,7 +793,7 @@ to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016
 We first search for a single-op sequence,
 than iteratively increase the number of operations, in order to find shorter sequences
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
-operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the op-code size of the synthesized expression as an approximation for the order
+operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the op-code count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
 
 \paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, we must take care to avoid
 undecidable theories, in which case Z3 nearly always fails during the CEGIS process.
@@ -832,7 +854,7 @@ k0 \geq 1 \wedge k1 \geq 0 & &
 
 \paragraph{Variable Elimination} We employ three main strategies for eliminating
 variables: traditional variable elimination, in which one equation is rewritten and
-used to eliminate a variable in another equation; using reasoning over the signs in products;
+used to eliminate a variable in another equation; using reasoning over the signs in products \aba{We need to give more detail somewhere below: in $a \times b == c$, knowing the sign of any two terms gives the sign of the third. Applied to $a$ or $b$, this can reduce non-linear equality constraints to linear inequalities.};
 and using Halide's bounds analysis machinery to find facts about the clauses.  The possible
 set of manipulations is very large, and the non-linear nature of the systems prevent most
 tools from robustly reasoning about the expressions.  To tractably eliminate variables and discover
@@ -844,8 +866,8 @@ times.
 We learn a cost model by featurizing systems of equations using a number of hand-crafted
 features\footnote{The full set of features is: the number of constraints, number of variables,
   number of symbolic constants, the number of variables with known constant upper or lower bounds,
-  the number of variables with known constant upper \textit{and} lower bounds, and the number of
-  variables with known but non-constant upper or lower bounds.\sak{Check this list}},
+  the number of variables with known constant upper \textit{and} lower bounds, and finally the number of
+  equality constraints where one side has a known (but potentially non-constant) upper bound and other side has a lower bound.},
 and assigning a cost based on a linear combination of weights for each feature.  Initially,
 we assign weights by hand, and then run on random systems of equations while keeping track
 of which states led to eliminating a non-symbolic constant variable.  Then, we retrain the weights
@@ -898,23 +920,29 @@ test the following hypotheses:
 We perform all experiments on a machine with a 16-core Intel i9-9960X CPU @ 3.10GHz,
 running Ubuntu 18.04 and LLVM 8.0.1.
 
-\begin{figure}[htb]
-  \includegraphics[width=\columnwidth]{figures/num-rules-found.pdf}
-  \caption{The number of rules found as a function of unique failed expressions.  Initially, many new rules are discovered,
-    but the rate begins to slow down after a few thousand expressions.}
-  \label{fig:num-rules-found}
-\end{figure}
+%% \begin{figure}[htb]
+%%   \includegraphics[width=\columnwidth]{figures/num-rules-found.pdf}
+%%   \caption{The number of rules found as a function of unique failed expressions.  Initially, many new rules are discovered,
+%%     but the rate begins to slow down after a few thousand expressions.}
+%%   \label{fig:num-rules-found}
+%% \end{figure}
 
-Figure~\ref{fig:num-rules-found} shows the number of rules found as a function of the number of proof failures
-examined.  These proof failures come from constructing random-but-sensical pipelines with random schedules,
-using the training infrastructure from \citeauthor{Adams2019}~\cite{Adams2019}.
-At first, failed expressions yield many rules, but as expected, the number of rules found
-begins to saturate after several thousand expressions.
+%% Figure~\ref{fig:num-rules-found} shows the number of rules found as a function of the number of proof failures
+%% examined.  These proof failures come from constructing random-but-sensical pipelines with random schedules,
+%% using the training infrastructure from \citeauthor{Adams2019}~\cite{Adams2019}.
+%% At first, failed expressions yield many rules, but as expected, the number of rules found
+%% begins to saturate after several thousand expressions.
+
+Overall, we add \NumRulesSynthesized rewrite rules to the Halide term rewriting system, synthesized
+from \NumFailureExamples unique failed proofs from random pipelines with random schedules, \NumSimplifiedExpressions
+unique already-rewritten expressions from random pipelines, and \NumOpSequences unique 3-op sequences
+that the term rewriting system could not transform.  
 
 \subsection{Robustness}
 \begin{table*}[!ht]
   \caption{Proof failures before and after our improvements to the Halide term rewriting system.
-    Compile times are averages for 64 compilations.}
+    All numbers are aggregates for 256 compilations with random schedules; we fix random seeds so
+    the same schedules are used for the new and old columns.}
   \label{tab:simplifierfailures}
   \small
   \input{data/simplifierfailures.tex}
@@ -1004,9 +1032,9 @@ may be able to apply some optimization, thus shortening (non-TRS)
 compilation time overall.
 
 We recorded the compilation times for the random schedules used in the robustness experiment above.
-The maximum slowdown observed with our new rules was for unsharp, which slowed down
-by about 2\%, while the maximum speedup for compilation was 5\% for both bilateral grid
-and interpolate.  Overall, the added rules improved aggregate compilation time by 2\%,
+The maximum slowdown observed with our new rules was for the bilateral grid app, which slowed down
+by about 4\%, while the maximum speedup for compilation was 
+6\% for local laplacian.  Overall, the added rules improved aggregate compilation time by 3.6\%,
 demonstrating that our strategy for augmenting the TRS with synthesized rules does
 not slow down the Halide compiler.
 
@@ -1032,7 +1060,9 @@ not slow down the Halide compiler.
 Many modifications to the term rewriting system occur in response to user-reported
 miscompilations or other bugs.  Crafting rewrite rules for fixing a specific misbehavior
 is tedious and error-prone; comments from commits to the Halide repository include
-``Proving these rules on paper is a pain.''  For this experiment, we explore whether
+``Proving these rules on paper is a pain.''  Hand-crafting these rewrite rules requires
+at least two developers to examine each rule: one to carefully craft the rule, and another to
+review and approve the changes.  For this experiment, we explore whether
 our automated rule synthesis can replace the human effort.  We look at the last 5 pull
 requests in the Halide git repository~\footnote{https://github.com/halide/Halide} that add rules.  Then, we remove
 the added rules and use either tests from the PR or hand-crafted failures (in rules
