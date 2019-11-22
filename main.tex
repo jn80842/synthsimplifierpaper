@@ -1113,6 +1113,8 @@ performance implications, but evaluation and tuning is left as future work, and
 may require modifying our ordering or creating different orderings for different
 uses of the term rewriting system.
 
+Finally, while enhancing the Halide TRS was not able to improve the performance of the mature Halide compiler, we suspect this may not be the case for other, less well-exercised compiler backends. In future work we plan to use this technique to enhance the ruleset used to compile to GPU code or to the Hexagon ISA.
+
 \section{Related Work}
 
 An egraph, as introduced by Nelson~\cite{nelson1980techniques}, is a data structure used to compute applications of the rules of a term rewriting system. The algorithm builds up equivalence classes by successively applying all rules to all expressions within those classes, then queries to see if two expressions are equivalent by checking if they are present in the same class. Like our algorithm, it does not backtrack, but the egraph can require significant amounts of memory, which our algorithm avoids.
