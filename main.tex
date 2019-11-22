@@ -280,7 +280,7 @@ compilation, so the rewriter must be as efficient as possible.  The Halide
 TRS is therefore structured to be as efficient of possible: unlike traditional
 term rewriting systems, it does no backtracking and only keeps a single expression
 at any point in rewriting.  As a result, the TRS is far more efficient than traditional
-rewriters.  For example, \sak{Julie: please add a sentence about Z3 vs Halide TRS speed}.
+rewriters, resolving queries orders of magnitudes faster than Z3.
 The Halide TRS consists of a series of handwritten rules and efficient matchers
 to match rules bottom-up. In order to be as complete as possible, the Halide TRS is structured
 to operate efficiently even with many rules; currently, it consists of nearly 1000
@@ -573,8 +573,9 @@ Term rewriting systems are not guaranteed to terminate. Consider a term
 rewriting system containing only one rule: $x + y \rightarrow y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
 be matched to the rule and rewritten to $3 + 5$, and so on. To guarantee
-termination regardless of the rule application algorithm, every application of
-a rule needs to strictly (monotonically) decrease in some measure. In other
+termination regardless of the rule application algorithm, we can think of defining some strategy
+every rule should follow, so that every application of a rule will cause the rewritten expression to
+decrease monotonically in some direction. In other
 words, we need $s \rightarrow_R t$, $s > t$ for some strict order $>$. However, since
 the set of terms is infinite, we cannot check that $s > t$ for all pairs of
 terms $s, t$. Instead, we show that for every rule $l \rightarrow_R r$ in our
@@ -613,7 +614,7 @@ fewer expensive operations such as vector operations, or clustering constants
 that can pre-computed into a single constant.
 
 Consider the space of all possible Halide expressions, in which our starting
-expression is a point. If all rewrite rules obey a reduction order, applying any
+expression is a point. If all rewrite rules follow the strategy defined by a reduction order, applying any
 rewrite rule will move the expression through the expression space monotonically
 in some direction, preventing cycles and ensuring termination. Our reduction
 order guides the rewritten expression to some desirable part of the
@@ -638,7 +639,7 @@ to move the expression monotonically in the direction of $>_a$, and
 monotonically in the direction of $>_b$ only as long as the $>_a$ order is not
 violated.
 
-Using this lexicographic composition, the full Halide reduction order is made up of a set of strategies for moving expressions through the expression space. The strategy first tries to reduce the number of vector operations, then prefers rules that decrease the number of variable occurrences. If those are equal, it tries to decrease the number of non-linear expressions (multiplication, division, and modulo); if all those are equal, it prefers expressions that contain fewer operations in total, and so on. Finally, it prefers rules which move certain operations higher toward the root of the expression. For example,
+Using this lexicographic composition, the full Halide reduction order is made up of a set of strategies for moving expressions toward more desirable forms. The strategy first tries to reduce the number of vector operations, then prefers rules that decrease the number of variable occurrences. If those are equal, it tries to decrease the number of non-linear expressions (multiplication, division, and modulo); if all those are equal, it prefers expressions that contain fewer operations in total, and so on. Finally, it prefers rules which move certain operations higher toward the root of the expression. For example,
 leaving operations distributed over additions ($a*c + b*c$ rather than
 $c*(a +b)$) can facilitate some compiler optimizations; moving constants higher in the
 AST can help cluster and fold them, reducing the overall size of the expression.
@@ -662,8 +663,8 @@ s >_{var} t \iff \forall x \in V, |s|_x > |t|_x
 The order is compatible with $\Sigma$-operations, as is any order based on the number of occurrences of variables or operations. For terms $s$ and $t$, let $s' = f(u_1,...u_{i-1},s,u_{i+1},...,u_n)$ and $t' = f(u_1,...u_{i-1},t,u_{i+1},...,u_n)$. Then, 
 
 \begin{gather*}
-|s'|_x = \sum_{u_j}^{0<j<=(i-1)} |u_j|_x + |s|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x \\
-|t'|_x = \sum_{u_j}^{0<j<=(i-1)} |u_j|_x + |t|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x
+|s'|_x = \sum_{u_j}^{0<j \leq (i-1)} |u_j|_x + |s|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x \\
+|t'|_x = \sum_{u_j}^{0<j \leq (i-1)} |u_j|_x + |t|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x
 \end{gather*}
 
 As the summations are the same for $|s'|_x$ and $|t'|_x$, it must be true that if $|s|_x > |t|_x$, then $|s'|_x > |t'|_x$.
@@ -681,8 +682,7 @@ s >_{\texttt{\%}} t \iff |s|_{\texttt{\%}} > |t|_{\texttt{\%}} \wedge \forall x 
 
 If $t$ contains more occurrences of some variable $v$ than $s$, some substitution $v \mapsto u$ such that $|u|_{\texttt{\%}} > 0$ would increase the size of $|\sigma(t)|_{\texttt{\%}}$ more than it would the size of $|\sigma(s)|_{\texttt{\%}}$. By fixing this additional condition, $\sigma(s) >_{\texttt{\%}} \sigma(t)$ for any substitution $\sigma$ if $s >_{\texttt{\%}} t$.
 
-The full Halide reduction order composes several orders of these types, defining the various different dimensions the simplifier moves expressions through the full expression space. The simplifier attempts to decrease the number of variable occurrences; if those are equal, it tries to decrease the number of non-linear expressions (multiplication, division, and modulus); if all those are equal, it prefers expressions that contain fewer operations in total, and so on. The simplifier's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Appendix~\ref{a:reductionorder} for a full formalization.
-
+The simplifier's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Appendix~\ref{a:reductionorder} for a full formalization.
 
 The final reduction order type is intended to favor rules that bring certain
 types of operations closer to the root of the expression AST. For example,
@@ -888,8 +888,8 @@ We simplify the predicate by converting to conjunctive normal form (CNF) and app
 ad-hoc simplification rules that remove redundant terms.
 
 After simplification, the predicate may still contain constraints on symbolic constants
-that appear \textit{only on the right hand side}, since we never restricted which constant
-variables can appear.  Thus, we must further transform the predicate to eliminate
+that appear \textit{only on the right hand side}, since we never restricted which symbolic constants
+ can appear.  Thus, we must further transform the predicate to eliminate
 constraints of this form.  Our strategy is to first try to transform a symbolic constant
 $c$ into a form $c > Q$, $c < Q$, or $c = Q$ where $Q$ contains only symbolic constants
 that appear on the LHS of the rule.  If this fails, we attempt further rewrites by
