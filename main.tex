@@ -747,7 +747,6 @@ especially avoids generating a large number of useless rules, which are unlikely
 match any real-world code. However, using enumeration does help fill in gaps in the term
 rewriting system for simple-but-useful rules, as long as we heavily constrain the enumeration.
 
-
 \paragraph{Generating LHS Patterns} For a given failed expression, the first step
 is to construct all left-hand-side patterns that match some portion of the expression.
 We constrain the maximum length of a pattern to be five operations, to ensure fast matching
@@ -1114,7 +1113,9 @@ uses of the term rewriting system.
 
 \section{Related Work}
 
-Herbie~\cite{panchekha2015automatically}, a tool for improving the accuracy of floating point arithmetic, uses a term rewriting system made up of a small library of axioms to find repairs once a fault has been localized. Herbie assures termination by bounding the number of rewrites their system may apply, and achieves good performance by pruning the expression search space and applying rewrites only to particular expression nodes. 
+An egraph, as introduced by Nelson~\cite{nelson1980techniques}, is a data structure used to compute applications of the rules of a term rewriting system. The algorithm builds up equivalence classes by successively applying all rules to all expressions within those classes, then queries to see if two expressions are equivalent by checking if they are present in the same class. Like our algorithm, it does not backtrack, but the egraph can require significant amounts of memory, which our algorithm avoids.
+
+Herbie~\cite{panchekha2015automatically}, a tool for improving the accuracy of floating point arithmetic, uses an egraph term rewriting system made up of a small library of axioms to find repairs once a fault has been localized. Herbie assures termination by bounding the number of rewrites their system may apply, and achieves good performance by pruning the expression search space and applying rewrites only to particular expression nodes. 
 
 Program synthesis has been applied to term rewriting systems in several domains. Swapper~\cite{singh2016swapper} synthesizes a set of rewrite rules to transform SMT formulas into forms that can be more easily solved by theory solvers, similar to the use of the Halide TRS as a simplifier, using the SKETCH tool. Butler 2017~\cite{butler2017synthesizing} learns human-interpretable strategies (essentially rewrite rules) for puzzle games such as Sudoku or Nonograms and Butler 2018~\cite{butler2018framework} finds tactics for solving K-12 algebra problems, both using a CEGIS loop similar to our synthesis process. None of these address termination, although Swapper likely screens out non-terminating rulesets through an autotune step. The Butler works both focus on synthesizing small, highly general rulesets that are similar to human rewriting strategies, unlike the Halide TRS which tolerates very large rulesets.
 
