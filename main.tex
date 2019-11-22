@@ -248,8 +248,8 @@ resulting in suboptimal code output and possibly errors during compilation.
 In this work, we improve the Halide term rewriting system by formally checking the existing
 set of rules to ensure correctness, and then constructing a rule rewrite strategy that 
 ensures termination.  We then automate the task of writing new rules by building a program
-synthesis system that automatically checks proof failures for expressions that are
-correct but not provable, and produces new rules with predicates to guard their application.
+synthesis system that automatically checks proof failures (expressions that are
+correct but not provable by the current TRS), and produces new rules with predicates to guard their application.
 These synthesized rules preserve correctness and termination properties by construction.
 
 An ideal TRS for our purpose would fully express the semantics of the Halide
@@ -453,7 +453,7 @@ A more usual term rewriting algorithm would use backtracking search; at any give
 This choice gives the Halide algorithm a very smooth performance curve, whether it succeeds or fails in simplifying an input expression, while a solver like Z3 tends to give very good performance in the majority of cases but gets bogged down in difficult cases, requiring the use of timeouts. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including expressions that are both provably true and not provably true, and checked them with Z3 (using a 60 second timeout) and the Halide TRS. Z3 could prove more expressions true, but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over seven minutes to check the set of expressions while the Halide TRS took just two seconds. 
 
 \begin{table}
-\caption{Z3 compared against the Halide TRS.}
+\caption{We compare the performance of Z3 and the Halide TRS in proving a set of 4304 expressions gathered from realistic compiler output.}
 \begin{tabular}{l|r|r|r}
 Tool & Runtime & Proven expressions & Not proven \\
 \hline
@@ -551,8 +551,8 @@ and can be run for the current set of rewrite rules via script.
 However, nonlinear integer arithmetic is undecidable, and for 123
 rules, Z3 either timed out or returned unknown. Nearly all of these rules used
 either division or modulo. We used the proof assistant Coq to manually prove or
-disprove the correctness of these remaining rules. \jln{about 20 left to go} We
-were also able to relax the predicates of \jln{TK} rules; for example, in some cases a rule
+disprove the correctness of these remaining rules. We
+were also able to relax the predicates of \NumPredicatesRelaxed rules; for example, in some cases a rule
 with a predicate requiring some constant to be positive would be equally valid
 if the constant was non-zero.
 
@@ -576,11 +576,8 @@ $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
 be matched to the rule and rewritten to $3 + 5$, and so on. To guarantee
 termination regardless of the rule application algorithm, we can think of defining some strategy
 every rule should follow, so that every application of a rule will cause the rewritten expression to
-decrease monotonically in some direction. In other
-words, we need $s \rightarrow_R t$, $s > t$ for some strict order $>$. However, since
-the set of terms is infinite, we cannot check that $s > t$ for all pairs of
-terms $s, t$. Instead, we show that for every rule $l \rightarrow_R r$ in our
-term rewriting system, $l > r$. This will suffice if $>$ is a \emph{reduction
+decrease monotonically in some fixed direction. Then, we show that for every rule $l \rightarrow_R r$ in our
+term rewriting system, $l > r$. This will suffice to guarantee termination if $>$ is a \emph{reduction
   order}. We take the definition of a reduction order and the next two theorems from Baader and Nipkow~\cite{baader1999term}
 
 \begin{theorem}\label{theorem:terminates}
@@ -612,7 +609,7 @@ can have strong performance implications.
 Simplifying an expression in a way that
 improves performance could mean cancelling correlated subexpressions, using
 fewer expensive operations such as vector operations, or clustering constants
-that can pre-computed into a single constant.
+that can be pre-computed into a single constant.
 
 Consider the space of all possible Halide expressions, in which our starting
 expression is a point. If all rewrite rules follow the strategy defined by a reduction order, applying any
@@ -655,7 +652,7 @@ First, orders over variable or operation occurrence counts are well-founded
 because they are defined using a measure function that maps terms to the natural
 numbers. Let the function $|s|_x$ represent the number of occurrences of the
 variable $x$ in the term $s$. Similarly, let $|s|_f$ represent the number of
-occurrences of some symbol $f \in \Sigma$ in the term $s$. Thus, we can define a reduction order such that for every variable present in some term $s$, that variable occurs strictly more times in $s$ then in term $t$.
+occurrences of some symbol $f \in \Sigma$ in the term $s$. Then, we can define a reduction order such that for every variable present in some term $s$, that variable occurs strictly more times in $s$ then in term $t$.
 
 \begin{equation*}
 s >_{var} t \iff \forall x \in V, |s|_x > |t|_x
@@ -672,7 +669,7 @@ As the summations are the same for $|s'|_x$ and $|t'|_x$, it must be true that i
 
 The order is also closed under substitution; for any variable substitution
 $v \mapsto u$, the number of occurrences of any variable $x$ will be increased
-by some $n = |u|_x$ for every occurrence of $v$ in $s$. Since we know $v$ occurs
+by some $n = |u|_x$ for every occurrence of $v$ in $s$. Since we know $x$ occurs
 fewer times in $t$ than $s$, the relation must hold.
 
 We use similar orders defined using the number of occurrences of function symbols in terms. As an example consider an order $>_{\texttt{\%}}$ which states that $s >_{\texttt{\%}} t$ if $s$ contains strictly more modulo operations than $t$. This order is compatible with $\Sigma$-operations by the same argument as above. We need to add one more condition to make sure this order is closed under substitution:
@@ -681,9 +678,9 @@ We use similar orders defined using the number of occurrences of function symbol
 s >_{\texttt{\%}} t \iff |s|_{\texttt{\%}} > |t|_{\texttt{\%}} \wedge \forall x \in V, |s|_x \geq |t|_x
 \end{equation*}
 
-If $t$ contains more occurrences of some variable $v$ than $s$, some substitution $v \mapsto u$ such that $|u|_{\texttt{\%}} > 0$ would increase the size of $|\sigma(t)|_{\texttt{\%}}$ more than it would the size of $|\sigma(s)|_{\texttt{\%}}$. By fixing this additional condition, $\sigma(s) >_{\texttt{\%}} \sigma(t)$ for any substitution $\sigma$ if $s >_{\texttt{\%}} t$.
+If $t$ contains more occurrences of some variable $x$ than $s$, some substitution $x \mapsto u$ such that $|u|_{\texttt{\%}} > 0$ would increase the size of $|\sigma(t)|_{\texttt{\%}}$ more than it would the size of $|\sigma(s)|_{\texttt{\%}}$. By fixing this additional condition, $\sigma(s) >_{\texttt{\%}} \sigma(t)$ for any substitution $\sigma$ if $s >_{\texttt{\%}} t$.
 
-The simplifier's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Appendix~\ref{a:reductionorder} for a full formalization.
+The TRS's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Appendix~\ref{a:reductionorder} for a full formalization.
 
 The final reduction order type is intended to favor rules that bring certain
 types of operations closer to the root of the expression AST. For example,
@@ -989,7 +986,7 @@ $max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & 
 
 
 
-As described in Section~\ref{sec:soundness}, we improved the correctness of
+As described in Section~\ref{sec:soundness}, we guaranteed the correctness of
 the TRS by verifying the existing rules using a combination of Z3 and
 Coq. We ran our automated scripts on the \NumOriginalRules existing rewrite rules, using Z3
 to verify 872 of them as correct.  We further verified 123 rules manually using
@@ -1001,7 +998,7 @@ correctness.
 We also ensure the termination of the simplifier by devising a reduction order
 over its rewrite rules. We identify \NumOrderingProblems rewrite rules that do
 not conform to this ordering, and reported them to the Halide developers. We
-generated 128 random schedules for each of our \NumApps, and evaluated
+generated 128 random schedules for each of our \NumApps applications, and evaluated
 performance with and without the \NumOrderingProblems rules, finding a
 negligible effect on runtime, which seems to indicate that removing the rules
 would give a termination guarantee without incurring a performance penalty.
@@ -1119,7 +1116,7 @@ uses of the term rewriting system.
 
 \section{Related Work}
 
-Herbie~\cite{panchekha2015automatically}
+Herbie~\cite{panchekha2015automatically}, a tool for improving the accuracy of floating point arithmetic, uses a term rewriting system made up of a small library of axioms to find repairs once a fault has been localized. Herbie assures termination by bounding the number of rewrites their system may apply, and achieves good performance by pruning the expression search space and applying rewrites only to particular expression nodes. 
 
 Program synthesis has been applied to term rewriting systems in several domains. Swapper~\cite{singh2016swapper} synthesizes a set of rewrite rules to transform SMT formulas into forms that can be more easily solved by theory solvers, similar to the use of the Halide TRS as a simplifier, using the SKETCH tool. Butler 2017~\cite{butler2017synthesizing} learns human-interpretable strategies (essentially rewrite rules) for puzzle games such as Sudoku or Nonograms and Butler 2018~\cite{butler2018framework} finds tactics for solving K-12 algebra problems, both using a CEGIS loop similar to our synthesis process. None of these address termination, although Swapper likely screens out non-terminating rulesets through an autotune step. The Butler works both focus on synthesizing small, highly general rulesets that are similar to human rewriting strategies, unlike the Halide TRS which tolerates very large rulesets.
 
