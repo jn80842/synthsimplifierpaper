@@ -246,50 +246,78 @@ but the simplifier cannot rewrite it to that form, it may be unable to apply a v
 resulting in suboptimal code output and possibly errors during compilation.
 
 In this work, we improve the Halide term rewriting system by formally checking the existing
-set of rules to ensure correctness, and then constructing a rule ordering that 
+set of rules to ensure correctness, and then constructing a rule rewrite strategy that 
 ensures termination.  We then automate the task of writing new rules by building a program
-synthesis system that automatically checks compilation failures for expressions that are
+synthesis system that automatically checks proof failures failures for expressions that are
 correct but not provable, and produces new rules with predicates to guard their application.
-These new rules will preserve correctness and termination properties by construction.
+These new rules preserve correctness and termination properties by construction.
 
-An ideal TRS for our purpose would fully express the semantics of the Halide expression language and be \emph{convergent}, meaning that if two expressions are equivalent,
-the TRS will return the same canonical form for both of them. If so, the simplifier could take any two expressions and determine if they were equivalent by rewriting them and checking to see if they have the same form. However, constructing such a TRS is impossible. Suppose we had a finite set of equational identities $E$ that fully express all the properties of the Halide expression language. A convergent TRS equivalent to $E$ would need to be \emph{confluent}, meaning that if an expression can be rewritten in multiple ways, it will ultimately arrive at the same form, and \emph{terminating}. However, we know $E$ must contain identities that are fundamentally non-terminating, such as commutative properties like $x * y \equiv y * x$. Furthermore, since the Halide expression language contains nonlinear integer arithmetic, the problem of constructing $E$ itself is undecidable. Thus, the challenge for the Halide TRS is to be able to reason about as much of the Halide expression space as it can, while remaining deterministic and performant.
+An ideal TRS for our purpose would fully express the semantics of the Halide
+expression language and be \emph{convergent}, meaning that if two expressions
+are equivalent, the TRS will return the same canonical form for both of them. If
+so, the simplifier could take any two expressions and determine if they were
+equivalent by rewriting them and checking to see if they have the same form.
+%% However, constructing such a TRS is impossible. Suppose we had a finite set of
+%% equational identities $E$ that fully express all the properties of the Halide
+%% expression language. A convergent TRS equivalent to $E$ would need to be
+%% \emph{confluent}, meaning that if an expression can be rewritten in multiple
+%% ways, it will ultimately arrive at the same form, and \emph{terminating}.
+%% However, we know $E$ must contain identities that are fundamentally
+%% non-terminating, such as commutative properties like $x * y \equiv y * x$.
+%% Furthermore, since the Halide expression language contains nonlinear integer
+%% arithmetic, the problem of constructing $E$ itself is undecidable. Thus, the
+%% challenge for the Halide TRS is to be able to reason about as much of the Halide
+%% expression space as it can, while remaining deterministic and performant.
 
-In Halide's compiler, the TRS consists of a series of
-handwritten rules and efficient matchers to match rules bottom-up.  These rules were constructed
-by developers based on observed compilation failures over many years, and ordered in ad-hoc ways
-to avoid non-termination.  Extensive fuzz-testing has been able to find bugs in rewrite rules,
-but fuzz-testing cannot provide formal guarantees (and in fact we were able to find bugs in the current version of the simplifer; see~\ref{sec:eval-correctness}). Furthermore, adding additional
-rules requires expert programmers to meticulously analyze compilation failures and hand-craft
-rules that mitigate the problems without causing new errors.
+In Halide's compiler, the TRS can be called thousands of times per
+compilation, so the rewriter must be as efficient as possible.  The Halide
+TRS is therefore structured to be as efficient of possible: unlike traditional
+term rewriting systems, it does no backtracking and only keeps a single expression
+at any point in rewriting.  As a result, the TRS is far more efficient than traditional
+rewriters.  For example, \sak{Julie: please add a sentence about Z3 vs Halide TRS speed}.
+The Halide TRS consists of a series of handwritten rules and efficient matchers
+to match rules bottom-up. In order to be as complete as possible, the Halide TRS is structured
+to operate efficiently even with many rules; currently, it consists of nearly 1000
+rewrites rules.  These rules were constructed by developers based on
+observed compilation failures over many years, and ordered in ad-hoc ways to
+avoid non-termination. Extensive fuzz-testing has been able to find bugs in
+rewrite rules, but fuzz-testing cannot provide formal guarantees (and in fact we
+were able to find bugs in the current version of the simplifer;
+see~\ref{sec:eval-correctness}). Furthermore, adding additional rules requires
+expert programmers to meticulously analyze compilation failures and hand-craft
+rules that mitigate the problems without causing new errors, which is a process
+that is notoriously difficult and the subject of numerous complaints from
+Halide developers.
 
-The verification and synthesis
-of these rules poses significant challenges: the underlying theory of non-linear integer arithmetic (NLIA)
+Verification and synthesis
+of Halide term rewriting rules poses significant challenges: the underlying theory of non-linear integer arithmetic (NLIA)
 is known to be undecidable~\cite{matiyasevich1993hilberts10th}. We verify
 existing rules using a combination of the Z3~\cite{de2008z3} satisfiability
 modulo theory (SMT) solver and the Coq~\cite{coq19} interactive theorem prover. 
 New rules are constructed by combining Z3 and a hand-written solver that uses beam
 search with a learned cost model. To search for cases where the Halide compiler
-fails to prove properties, we run \NumApps existing Halide pipelines with
-randomized schedules, and augment this set with a random pipeline generator
-designed to produce plausible image processing and machine learning pipelines.
-\sak{Revise previous sentence if we can gety by with just random pipelines}
+fails to prove properties, we use a combination of failed proofs and integer expressions
+from a randomized pipeline generator designed to produce plausible image processing
+pipelines with randomized schedules, as well as carefully targeted enumeration
+of expressions.
 
 We make three main contributions:
 \begin{itemize}
   \item We guarantee soundness by verifying the existing Halide TRS.
   \item We guarantee termination by fixing a reduction order.
-  \item We strengthen the simplifier by developing a synthesis algorithm to learn new rewrite rules from expressions the current simplifier cannot make progress on.
+  \item We strengthen the simplifier by developing a synthesis algorithm to learn new rewrite rules from expressions the current rewriter cannot make progress on.
 \end{itemize}
 
 Overall, we discover \NumRulesFixed bugs in hand-written Halide simplifier rules, and discover \NumOrderingProblems
-potential issues in rule ordering.  We then synthesize \NumRulesSynthesized new rules from \NumFailureExamples
-failure examples and further demonstrate the utility of our synthesizer by attempting to
+potential issues in the rule rewrite strategy.  We then synthesize \NumRulesSynthesized new rules 
+and further demonstrate the utility of our synthesizer by attempting to
 automatically produce the \NumBugsAutomated latest code changes that add new
-rules based on compiler misbehavior. We additionally craft a strategy for grouping
-new rules that prevents compile times from increasing linearly with the number
-of rules.  Overall, we demonstrate that our approach
-reduces compilation failures, does not slow down the compiler, and replaces the
+rules based on compiler misbehavior.
+%We additionally craft a strategy for grouping
+%new rules that prevents compile times from increasing linearly with the number
+%of rules.
+Overall, we demonstrate that our approach
+reduces failed proofs,  does not slow down the compiler, and replaces the
 tedious human effort required to craft bug fixes due to missing rules in the
 term rewriting system.
 
