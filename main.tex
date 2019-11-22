@@ -891,9 +891,11 @@ using randomly-generated schedules with the original and enhanced TRS
 and reporting the number of compilation failures.
 
 Table~\ref{tab:simplifierfailures} summarizes the results.  Overall, the new rules
-reduce the number of proof failures by 21\% and the number of non-monotonic expressions
-by 44\%, showing significant impact from the synthesized rules. \sak{Say something about
-  why some have increased failures}
+reduce the number of proof failures by 23\% and the number of non-monotonic expressions
+by 44\%, showing significant impact from the synthesized rules.  Halide tracks
+which expressions are provably monotonic, as interval arithmetic is exact for
+such cases; reducing the number of non-monotonic expressions can allow the
+compiler to correctly reason about regions in more cases.
 
 Interestingly, none of existing proof failures caused the overall compilation process to fail, and none of the cases we corrected improved the performance of the generated code. In that sense we have a qualified negative result for this hypothesis. The Halide compiler is already robust to any weaknesses of its TRS \emph{over the example application suite included with the compiler}. Anecdotally, Halide users report that this is not the case over novel applications or for the less well-exercised compiler backends. We believe there are two main reasons for this surprising robustness. First, most loop optimizations in Halide (such as vectorization) are explicitly directed by the programmer, not enabled heuristically by the compiler as with C compilers, so changes to internal compiler analysis should never result in optimizations turning on or off. Second, for the optimization which \emph{do} require analysis (such as sliding window optimizations), the Halide compiler employs fall-back strategies when the TRS fails. For example, proofs can be attempted in multiple ways, or low-overhead dynamic checks can be injected when static proofs fail. These fall-back strategies have been tuned to the same application suite we use as our test set.
 
