@@ -747,7 +747,7 @@ using four variables) that the rewriter does not reduce.  However, we aggressive
 this corpus: we avoid symmetries (our synthesis strategy already generates all commutations
 of a rule, as described below), we do not include division or modulo, the variables must occur
 in canonical order, and we do not include constants. The latter constraint
-especially generates a large number of useless rules, which are unlikely to
+especially avoids generating a large number of useless rules, which are unlikely to
 match any real-world code. However, using enumeration does help fill in gaps in the term
 rewriting system for simple-but-useful rules, as long as we heavily constrain the enumeration.
 
