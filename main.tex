@@ -413,11 +413,22 @@ Given that we make use of the Z3 solver as an oracle for both verification and s
 
 The Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may be able to complete on a more powerful server when it might time out on another.
 
-A more usual term rewriting algorithm would use backtracking search; at any given step in the rewriting process, multiple rules may match a given expression, and the algorithm must pick one to explore. If that choice was not fruitful, the algorithm will backtrack and choose another path. The Halide simplifier algorithm never backtracks; rules are assigned a fixed priority, and the algorithm applies the first rule that matches in that priority order. This makes the simplifier memory efficient, since it only persists the single expression it is in the process of rewriting, without the checkpoints or equivalence classes that would be necessary for a backtracking search. The tradeoff is that the Halide algorithm may pick the ``wrong'' rule and have no way of undoing that decision. Since the simplifier is invoked many thousands of times with each call of the compiler, it chooses to sacrifice some solving power in exchange for performance. This choice gives the Halide algorithm a very smooth performance curve, whether it succeeds or fails in simplifying an input expression, while a solver like Z3 tends to give very good performance in the majority of cases but get bogged down in difficult cases, requiring the use of timeouts. \jln{should be able to add a graph showing z3 vs simplifier performance on expression suite demonstrating this}
+A more usual term rewriting algorithm would use backtracking search; at any given step in the rewriting process, multiple rules may match a given expression, and the algorithm must pick one to explore. If that choice was not fruitful, the algorithm will backtrack and choose another path. The Halide simplifier algorithm never backtracks; rules are assigned a fixed priority, and the algorithm applies the first rule that matches in that priority order. This makes the simplifier memory efficient, since it only persists the single expression it is in the process of rewriting, without the checkpoints or equivalence classes that would be necessary for a backtracking search. The tradeoff is that the Halide algorithm may pick the ``wrong'' rule and have no way of undoing that decision. Since the simplifier is invoked many thousands of times with each call of the compiler, it chooses to sacrifice some solving power in exchange for performance. This choice gives the Halide algorithm a very smooth performance curve, whether it succeeds or fails in simplifying an input expression, while a solver like Z3 tends to give very good performance in the majority of cases but get bogged down in difficult cases, requiring the use of timeouts. To demonstrate the performance difference between Z3 and the Halide TRS, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including expressions that are both provably true and not provably true. Although Z3 was able to prove more expressions true, its performance was orders of magnitude lower than that of the Halide TRS; see Table~\ref{tab:simplifiervsz3} for results.
+
+\begin{table}
+\caption{z3 vs simplifier}
+\begin{tabular}{l|r|r|r}
+Tool & Runtime & Proven expressions & Not proven \\
+\hline
+Z3 & 7m29s & 1125 & 3179 \\
+Halide TRS & 2s & 885 & 3419 
+\end{tabular}
+\label{tab:simplifervsz3}
+\end{table}
 
 This also means that the Halide algorithm scales very well in terms of the number of rules in the TRS, whereas adding rules to a more usual backtracking search algorithm causes its search space to grow exponentially. See section~\ref{ssec:compilationspeed} for an evaluation of the effects of adding newly synthesized rules on the performance of the compiler. 
 
-Finally, although Z3 can be used to simplify expressions, its cost metric is to simply reduce the size of expressions. Gathering like terms in some cases can actually prevent Halide or LLVM optimizations from applying. The Halide simplifier guides expressions into more optimizable forms and can be changed or tuned as needed if further optimizations are discovered. \jln{should also mention here that Halide simplifier can solve some expressions that z3 cannot, as shown by the fact that z3 could not verify around 100 of the rewrite rules}
+Finally, although Z3 can be used to simplify expressions, its cost metric is to simply reduce the size of expressions. Gathering like terms in some cases can actually prevent Halide or LLVM optimizations from applying. The Halide simplifier guides expressions into more optimizable forms and can be changed or tuned as needed if further optimizations are discovered. 
 
 %Z3 is general-purpose, but we need not be. The handwritten simplifier ruleset was written to address expressions that are generated by the Halide compiler. Since we are driven by a subset of all Halide expressions and not arbitrary expressions in the Halide expression language, we can specialize and in some cases solve expressions that Z3 cannot. 
 
@@ -842,7 +853,6 @@ and the predicate for $R_1$ implies the predicate for $R_2$, then we can discard
 as $R_1$ is at least as general. Finally, we check that the candidate rule obeys our
 reduction order in order to preserve our termination guarantee. If the candidate rule passes all three filters, the rule can be added to the simplifier ruleset automatically without any human auditing.
 
-
 \section{Evaluation}
 In this section, we describe experiments to evaluate the improvements made to the Halide term rewriting system.  Specifically, we
 test the following hypotheses:
@@ -969,7 +979,6 @@ and interpolate.  Overall, the added rules improved aggregate compilation time b
 demonstrating that our strategy for augmenting the TRS with synthesized rules does
 not slow down the Halide compiler.
 
-\jln{Ras suggests we record can\_prove expressions and get timing on simplifying them so we can separate simplifier timing from the full compliation times.}
 
 %% \subsection{Generated Code Performance}
 
