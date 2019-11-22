@@ -17,6 +17,47 @@
 \usepackage{tikz-qtree}
 \usepackage{tabularx}
 \usepackage{makecell}
+\usetikzlibrary{arrows,backgrounds,calc,trees}
+
+\pgfdeclarelayer{background}
+\pgfsetlayers{background,main}
+
+\newcommand{\convexpath}[2]{
+[   
+    create hullnodes/.code={
+        \global\edef\namelist{#1}
+        \foreach [count=\counter] \nodename in \namelist {
+            \global\edef\numberofnodes{\counter}
+            \node at (\nodename) [draw=none,name=hullnode\counter] {};
+        }
+        \node at (hullnode\numberofnodes) [name=hullnode0,draw=none] {};
+        \pgfmathtruncatemacro\lastnumber{\numberofnodes+1}
+        \node at (hullnode1) [name=hullnode\lastnumber,draw=none] {};
+    },
+    create hullnodes
+]
+($(hullnode1)!#2!-90:(hullnode0)$)
+\foreach [
+    evaluate=\currentnode as \previousnode using \currentnode-1,
+    evaluate=\currentnode as \nextnode using \currentnode+1
+    ] \currentnode in {1,...,\numberofnodes} {
+  let
+    \p1 = ($(hullnode\currentnode)!#2!-90:(hullnode\previousnode)$),
+    \p2 = ($(hullnode\currentnode)!#2!90:(hullnode\nextnode)$),
+    \p3 = ($(\p1) - (hullnode\currentnode)$),
+    \n1 = {atan2(\y3,\x3)},
+    \p4 = ($(\p2) - (hullnode\currentnode)$),
+    \n2 = {atan2(\y4,\x4)},
+    \n{delta} = {-Mod(\n1-\n2,360)}
+  in 
+    {-- (\p1) arc[start angle=\n1, delta angle=\n{delta}, radius=#2] -- (\p2)}
+}
+-- cycle
+}
+\tikzset{
+  leaf/.style={sibling distance=5mm}
+}
+
 \definecolor{uwpurple}{RGB}{128,0,128}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
 \newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
@@ -358,25 +399,131 @@ We then apply this substitution to the righthand side (RHS) of the rule to obtai
 (y_1 \diamondsuit y_1) \diamondsuit (y_2 \clubsuit y_3)
 \]
 
+
+
 \begin{figure*}
-\begin{tabularx}{\textwidth}{XXXX}
-\begin{tikzpicture}
-\Tree [.+ [.- [.min a b ] [.max c c ] ] [.max c c ]]
+\begin{tabular}{cccc}
+
+%\Tree [.+ [.- [.min a b ] [.max c c ] ] [.max c c ]]
+\begin{tikzpicture}[level distance=12mm]
+\tikzstyle{level 1}=[sibling distance=15mm]
+\tikzstyle{level 2}=[sibling distance=10mm]
+\tikzstyle{level 3}=[level distance=10mm,sibling distance=5mm]
+
+
+%\Tree [.+ [.- [.min a b ] c ] [.max c c ]]
+\node (+) {+}
+  child { node (-) {-}
+    child { node (min) {min}
+      child {node (a) {a}}
+      child {node (b) {b}}
+    }
+    child { node (max2) {max}
+      child {node (c4) {c}}
+      child {node (c5) {c}}
+    }
+  }
+  child { [sibling distance=5mm] node (max) {max}
+    child { node (c2) {c}}
+    child { node (c3) {c}}
+  };
+\begin{pgfonlayer}{background}
+\fill[red,opacity=0.3] \convexpath{c4,max2,c5}{10pt};
+\end{pgfonlayer}
+\end{tikzpicture}
+
+&
+\begin{tikzpicture}[level distance=12mm]
+\tikzstyle{level 1}=[sibling distance=15mm]
+\tikzstyle{level 2}=[sibling distance=10mm]
+\tikzstyle{level 3}=[level distance=10mm,sibling distance=5mm]
+%\Tree [.+ [.- [.min a b ] c ] [.max c c ]]
+\node (+) {+}
+  child { node (-) {-}
+    child { node (min) {min}
+      child {node (a) {a}}
+      child {node (b) {b}}
+    }
+    child { node (c) {c}}
+  }
+  child { node (max) {max}
+    child { node (c2) {c}}
+    child { node (c3) {c}}
+  };
+\begin{pgfonlayer}{background}
+\fill[blue,opacity=0.3] \convexpath{c2,max,c3}{10pt};
+\end{pgfonlayer}
 \end{tikzpicture}
 &
-\begin{tikzpicture}
-\Tree [.+ [.- [.min a b ] c ] [.max c c ]]
+\begin{tikzpicture}[level distance=12mm]
+\tikzstyle{level 1}=[sibling distance=15mm]
+\tikzstyle{level 2}=[sibling distance=10mm]
+\tikzstyle{level 3}=[level distance=10mm,sibling distance=5mm]
+%\Tree [.+ [.- [.min a b ] c ] c ]
+\node (+) {+}
+  child { node (-) {-}
+    child { node (min) {min}
+      child {node (a) {a}}
+      child {node (b) {b}}
+    }
+    child { node (c) {c}
+    [red,opacity=0.0]
+    child { [red,opacity=0.0] node (fake) {f}}
+    child { [red,opacity=0.0] node (fake2) {f}}
+    }
+  }
+  child { node (max) {max}
+    child { node (c2) {c}}
+    child { node (c3) {c}}
+  };
+%\node (+) {+}
+%  child { node (-) {-}
+%    child { node (min) {min}
+%      child {node (a) {a}}
+%      child {node (b) {b}}
+%    }
+%    child { node (c) {c}
+%        [red,opacity=0.0]
+%    child { [red,opacity=0.0] node (fake) {f}}
+%    child { [red,opacity=0.0] node (fake2) {f}}
+%    }
+%  }
+%  child { node (c2) {c} 
+
+  \begin{pgfonlayer}{background}
+\fill[red,opacity=0.3] \convexpath{a,min,-,c,fake2}{10pt};
+\end{pgfonlayer}
 \end{tikzpicture}
 &
-\begin{tikzpicture}
-\Tree [.+ [.- [.min a b ] c ] c ]
-\end{tikzpicture}
-&
-\begin{tikzpicture}
-\Tree [.min a b ]
-\end{tikzpicture}
-\end{tabularx}
-\caption{We demonstrate the Halide simplifier algorithm using a TRS $R = \{max(x,x) \rightarrow_R x, (x - y) + y \rightarrow_R x\}$ and an expression $min(a,b) - max(c,c) + max(c,c))$. The algorithm attempts to simplify all subtrees bottom up; here, no rule applies to $min(a,b)$ so it is not changed. Next, rule 1 rewrites $max(c,c)$ to $c$. No rule applies to $min(a,b) - c$, so we move to the rightmost subtree and rewrite again to obtain $c$ from $max(c,c)$. Finally, we consider the entire tree $(min(a,b) - c) + c$ and apply rule 2 to produce $min(a,b)$. No rules match this expression, so we are done. \jln{nicer formatting TK}}
+\vspace{0pt}
+\begin{tikzpicture}[level distance=12mm]
+\tikzstyle{level 1}=[sibling distance=15mm]
+\tikzstyle{level 2}=[sibling distance=10mm]
+\tikzstyle{level 3}=[level distance=10mm,sibling distance=5mm]
+\node (min) {min}
+  child { node (a) {a}
+     % [red,opacity=0.0]
+    child {     [red,opacity=0.0] node (fake1) {f}
+      child {    [red,opacity=0.0] node (fake2) {f}}
+      child {    [red,opacity=0.0] node (fake3) {f}}
+    }
+    child {     [red,opacity=0.0] node (fake4) {f}
+    [red,opacity=0.0]
+    child { [red,opacity=0.0] node (fake) {f}}
+    child { [red,opacity=0.0] node (fake2) {f}}
+    }
+  }
+  child { node (b) {b}
+     % [red,opacity=0.0]
+    child {     [red,opacity=0.0] node (fake5) {f}}
+    child {     [red,opacity=0.0] node (fake6) {f}}
+  };
+
+
+\end{tikzpicture} \\
+(i) & (ii) & (iii) & (iv)
+\end{tabular}
+\caption{We demonstrate the Halide simplifier algorithm using a TRS $R = \{max(x,x) \rightarrow_R x, (x - y) + y \rightarrow_R x\}$ and an expression $min(a,b) - max(c,c) + max(c,c))$. The algorithm attempts to simplify all subtrees bottom up; here, no rule applies to $min(a,b)$ so it is not changed. Next (i), rule 1 rewrites $max(c,c)$ to $c$. No rule applies to $min(a,b) - c$, so we move to the rightmost subtree and rewrite again (ii) to obtain $c$ from $max(c,c)$. Finally, we consider the entire tree $(min(a,b) - c) + c$ (iii) and apply rule 2 to produce $min(a,b)$. No rules match this expression, so we are left with $min(a,b)$ (iv).}
 \label{fig:algoexample}
 \end{figure*}
 
