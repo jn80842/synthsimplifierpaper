@@ -543,7 +543,7 @@ s$, where $l$ must be zero or positive.
 Given this modeling, for each rule, we assert any assumptions are true, then
 ask Z3 to search for a variable assignment such that the LHS and RHS are not
 equivalent.  If Z3 indicates no such assignment exists, the LHS must be equivalent to
-the RHS and the rule must be correct. We implemented a SMT2 printer for the
+the RHS and the rule must be correct. We implemented an SMT2 printer for 
 Halide rewrite rules that constructs a verification problem for each rule
 suitable for passing to Z3 or other SMT system.  Rule verification using Z3 is fully automated
 and can be run for the current set of rewrite rules via script.
@@ -574,11 +574,11 @@ Term rewriting systems are not guaranteed to terminate. Consider a term
 rewriting system containing only one rule: $x + y \rightarrow y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
 be matched to the rule and rewritten to $3 + 5$, and so on. To guarantee
-termination regardless of the rule application algorithm, we can think of defining some strategy
+termination regardless of the rule application algorithm, we can define some strategy
 every rule should follow, so that every application of a rule will cause the rewritten expression to
 decrease monotonically in some fixed direction. Then, we show that for every rule $l \rightarrow_R r$ in our
 term rewriting system, $l > r$. This will suffice to guarantee termination if $>$ is a \emph{reduction
-  order}. We take the definition of a reduction order and the next two theorems from Baader and Nipkow~\cite{baader1999term}
+  order}. We take the definition of a reduction order and the next two theorems from Baader and Nipkow~\cite{baader1999term}.
 
 \begin{theorem}\label{theorem:terminates}
 A term rewriting system $R$ terminates iff there exists a reduction order $>$ that satisfies $l > r$ for all $l \rightarrow_R r \in R$.
@@ -637,10 +637,10 @@ to move the expression monotonically in the direction of $>_a$, and
 monotonically in the direction of $>_b$ only as long as the $>_a$ order is not
 violated.
 
-Using this lexicographic composition, the full Halide reduction order is made up of a set of strategies for moving expressions toward more desirable forms. The strategy first tries to reduce the number of vector operations, then prefers rules that decrease the number of variable occurrences. If those are equal, it tries to decrease the number of non-linear expressions (multiplication, division, and modulo); if all those are equal, it prefers expressions that contain fewer operations in total, and so on. Finally, it prefers rules which move certain operations higher toward the root of the expression. For example,
+Using this lexicographic composition, the full Halide reduction order is made up of a set of strategies for moving expressions toward more desirable forms. The strategy first tries to reduce the number of vector operations, then prefers rules that decrease the number of variable occurrences. If those are equal, it tries to decrease the number of non-linear expressions (multiplication, division, and modulo); if all those are equal, it prefers expressions that contain fewer operations in total. Finally, it prefers rules which move certain operations higher toward the root of the expression. For example,
 leaving operations distributed over additions ($a*c + b*c$ rather than
 $c*(a +b)$) can facilitate some compiler optimizations; moving constants higher in the
-AST can help cluster and fold them, reducing the overall size of the expression.
+AST can help cluster and fold them (i.e. statically compute them), reducing the overall size of the expression.
 
 The orders that comprise our strategy have three main types: orders over variable
 occurrence counts, orders over operation occurrence counts, and recursive
