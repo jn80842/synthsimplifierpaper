@@ -163,7 +163,7 @@
   The wide adoption of Halide as an efficient domain-specific language
   for image processing and tensor computations shows the language is
   useful and effective for compiling high performance code across platforms.
-  In Halide, reasoning about the code relies on a term rewriting system to
+  In the Halide compiler, reasoning about the code relies on a term rewriting system to
   prove properties required for efficient and correct compilation.  This rewrite
   system is written as a collection of handwritten transformation rules 
   that incrementally rewrite expressions into simpler forms; the system requires high performance 
@@ -248,19 +248,19 @@ resulting in suboptimal code output and possibly errors during compilation.
 In this work, we improve the Halide term rewriting system by formally checking the existing
 set of rules to ensure correctness, and then constructing a rule rewrite strategy that 
 ensures termination.  We then automate the task of writing new rules by building a program
-synthesis system that automatically checks proof failures failures for expressions that are
+synthesis system that automatically checks proof failures for expressions that are
 correct but not provable, and produces new rules with predicates to guard their application.
 These synthesized rules preserve correctness and termination properties by construction.
 
 An ideal TRS for our purpose would fully express the semantics of the Halide
 expression language and be \emph{convergent}, meaning that if two expressions
 are equivalent, the TRS will return the same canonical form for both of them. If
-so, the simplifier could take any two expressions and determine if they were
+so, the rewriter could take any two expressions and determine if they were
 equivalent by rewriting them and checking to see if they have the same form.
 However, since the Halide expression language contains nonlinear integer
 arithmetic, the problem of constructing such a term rewriting system is
 undecidable~\cite{matiyasevich1993hilberts10th}. Thus, the challenge for the
-Halide TRS is to be able to reason about as much of the Halide expression space
+Halide TRS is to reason about as much of the Halide expression space
 as it can, while remaining deterministic and performant.
 
 %% However, constructing such a TRS is impossible. Suppose we had a finite set of
@@ -275,21 +275,21 @@ as it can, while remaining deterministic and performant.
 %% challenge for the Halide TRS is to be able to reason about as much of the Halide
 %% expression space as it can, while remaining deterministic and performant.
 
-In Halide's compiler, the TRS can be called thousands of times per
-compilation, so the rewriter must be as efficient as possible.  The Halide
-TRS is therefore structured to be as efficient of possible: unlike traditional
+The Halide term rewriting system can be called thousands of times per
+compilation, so the rewriter must be exceedingly fast.  The Halide
+TRS is therefore structured to be as efficient as possible: unlike traditional
 term rewriting systems, it does no backtracking and only keeps a single expression
 at any point in rewriting.  As a result, the TRS is far more efficient than traditional
-rewriters, resolving queries orders of magnitudes faster than Z3.
+rewriters, but not necessarily as complete, resolving queries orders of magnitudes faster than Z3.
 The Halide TRS consists of a series of handwritten rules and efficient matchers
 to match rules bottom-up. In order to be as complete as possible, the Halide TRS is structured
 to operate efficiently even with many rules; currently, it consists of nearly 1000
-rewrites rules.  These rules were constructed by developers based on
+rewrite rules.  These rules were constructed by developers based on
 observed compilation failures over many years, and ordered in ad-hoc ways to
 avoid non-termination. Extensive fuzz-testing has been able to find bugs in
 rewrite rules, but fuzz-testing cannot provide formal guarantees (and in fact we
 were able to find bugs in the current version of the simplifer;
-see~\ref{sec:eval-correctness}). Furthermore, adding additional rules requires
+see Section~\ref{sec:eval-correctness}). Furthermore, adding additional rules requires
 expert programmers to meticulously analyze compilation failures and hand-craft
 rules that mitigate the problems without causing new errors, which is a process
 that is notoriously difficult and the subject of numerous complaints from
@@ -316,7 +316,7 @@ We make three main contributions:
 Overall, we discover \NumRulesFixed bugs in hand-written Halide simplifier rules, and discover \NumOrderingProblems
 potential issues in the rule rewrite strategy.  We then synthesize \NumRulesSynthesized new rules 
 and further demonstrate the utility of our synthesizer by attempting to
-automatically produce the \NumBugsAutomated latest code changes that add new
+automatically reproduce the \NumBugsAutomated latest code changes that add new
 rules based on compiler misbehavior.
 %We additionally craft a strategy for grouping
 %new rules that prevents compile times from increasing linearly with the number
@@ -326,15 +326,15 @@ reduces failed proofs,  does not slow down the compiler, and replaces the
 tedious human effort required to craft bug fixes due to missing rules in the
 term rewriting system.
 
-\section{Overview}
+\section{Background \& Overview}
 \subsection{Term Rewriting Systems}
 Term rewriting systems~\cite{gorn1967} successively apply \textit{rewrite rules} to transform a given
 expression into a simpler form, until no further simplifications are possible.  Such systems are widely
-used in theorem proving~\cite{} and abstract interpretation~\cite{}.
+used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{}.
 
 Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
 
-A \emph{rewrite rule} is a directed binary relation $l \rightarrow r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
+A \emph{rewrite rule} is a directed binary relation $l \rightarrow_R r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
 
 Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\clubsuit, \diamondsuit\}$ and $V$ is an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
 
@@ -442,18 +442,18 @@ this work, although Halide expressions can contain floats and fixed-width
 integers. However, the uses of the TRS we consider in this work all operate
 on infinite integers.
 
-\subsection{Why a custom algorithm?}
+\subsection{Why a Custom Algorithm?}
 
 Given that we make use of the Z3 solver as an oracle for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide simplifier has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
 
-The Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may be able to complete on a more powerful server when it might time out on another.
+The Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may complete on a more powerful server while timing out on a different machine.
 
 A more usual term rewriting algorithm would use backtracking search; at any given step in the rewriting process, multiple rules may match a given expression, and the algorithm must pick one to explore. If that choice was not fruitful, the algorithm will backtrack and choose another path. The Halide simplifier algorithm never backtracks; rules are assigned a fixed priority, and the algorithm applies the first rule that matches in that priority order. This makes the simplifier memory efficient, since it only persists the single expression it is in the process of rewriting, without the checkpoints or equivalence classes that would be necessary for a backtracking search. The tradeoff is that the Halide algorithm may pick the ``wrong'' rule and have no way of undoing that decision. Since the simplifier is invoked many thousands of times with each call of the compiler, it chooses to sacrifice some solving power in exchange for performance. 
 
-This choice gives the Halide algorithm a very smooth performance curve, whether it succeeds or fails in simplifying an input expression, while a solver like Z3 tends to give very good performance in the majority of cases but get bogged down in difficult cases, requiring the use of timeouts. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including expressions that are both provably true and not provably true, and checked them with Z3 (using a 60 second timeout) and the Halide TRS. Z3 was able to prove more expressions true, but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over seven minutes to check the set of expressions while the Halide TRS took just two seconds. The Halide TRS is invoked many thousands of times during the course of a single compilation, so this high performance is essential.
+This choice gives the Halide algorithm a very smooth performance curve, whether it succeeds or fails in simplifying an input expression, while a solver like Z3 tends to give very good performance in the majority of cases but gets bogged down in difficult cases, requiring the use of timeouts. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including expressions that are both provably true and not provably true, and checked them with Z3 (using a 60 second timeout) and the Halide TRS. Z3 could prove more expressions true, but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over seven minutes to check the set of expressions while the Halide TRS took just two seconds. 
 
 \begin{table}
-\caption{z3 vs simplifier}
+\caption{Z3 compared against the Halide TRS.}
 \begin{tabular}{l|r|r|r}
 Tool & Runtime & Proven expressions & Not proven \\
 \hline
@@ -463,7 +463,7 @@ Halide TRS & 2s & 885 & 3419
 \label{tab:simplifiervsz3}
 \end{table}
 
-Because the Halide algorithm is always rewriting a single expression, it scales very well in terms of the number of rules in the TRS, whereas adding rules to a more usual backtracking search algorithm causes its search space to grow exponentially. See section~\ref{ssec:compilationspeed} for an evaluation of the effects of adding newly synthesized rules on the performance of the compiler. 
+Because the Halide algorithm is always rewriting a single expression, it scales well in terms of the number of rules in the TRS, while adding rules to a more usual backtracking search algorithm causes search spaces to grow exponentially. See Section~\ref{ssec:compilationspeed} for an evaluation of the effects of adding newly synthesized rules on the performance of the compiler. 
 
 Finally, although Z3 can be used to simplify expressions, its cost metric is to simply reduce the size of expressions. Gathering like terms in some cases can actually prevent Halide or LLVM optimizations from applying. The Halide simplifier guides expressions into more optimizable forms and can be changed or tuned as needed if further optimizations are discovered. 
 
@@ -481,6 +481,7 @@ Finally, although Z3 can be used to simplify expressions, its cost metric is to 
 %The Halide TRS gives a nice starting point for synthesis because a failed call to the simplifier yields an expression the simplifier can make no progress on. A failed egraph call gives an equivalence class that should include the goal state but doesn't, so it's not as clear how to debug that.
 
 \subsection{Program Synthesis}
+Our pipeline for automatically generating new rules relies on program synthesis.
 Syntax-guided synthesis (SyGuS)~\cite{sygus} has been used
 to search over a space of possible programs in order to find one that meets
 a semantic specification.  One of the most popular techniques is counterexample-guided
