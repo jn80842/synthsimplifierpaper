@@ -549,7 +549,7 @@ able to generate fast code.
 
 The design of the term rewriting algorithm has two additional important
 requirements. The first is performance: although the TRS is called at
-compile time, it may be invoked over a hundred thousand times in compiling a single pipeline
+compile time, it may be invoked over a hundred thousand times in compiling a single pipeline. 
 Thus, unlike many term rewriting algorithms, the Halide TRS
 never backtracks and keeps memory usage very low. The second requirement is determinism: the compiler must
 always return the same schedule every time it encounters a particular pipeline.
