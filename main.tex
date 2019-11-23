@@ -1021,7 +1021,7 @@ variables: traditional variable elimination, in which one equation is rewritten 
 used to eliminate a variable in another equation; using reasoning over the signs in products;
 and using Halide's bounds analysis machinery to find facts about the clauses.  Reasoning about signs
 is especially powerful; for example, given $a \times b == c$, knowing the signs of any
-two terms allows us to convert the non-linear equality constraint into a linear inequality.
+two terms tells us the sign of the third. This converts the non-linear equality constraint into a linear inequality.
 
 The possible
 set of manipulations is very large, and the non-linear nature of the systems prevent most
