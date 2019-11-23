@@ -953,6 +953,21 @@ restriction, our synthesized rules cannot contain non-constants in denominators
 or the righthand side of a modulo.  As a result, our synthesis system cannot
 construct all rules a human can.
 
+\begin{table*}
+\caption{Sample rules synthesized by our process. }
+\begin{tabular}{l|l|l}
+LHS & RHS & Predicate \\
+\hline
+$(x*y) - (w + (y*z))$ & $(y*(x - z)) - w $ & \\
+$x < ((y + x) + z)$ &  $0 < (y + z)$ & \\
+$x < (min(z, (x - y)) + min(x, y))$ &  $false$ & \\
+$((x - ((y*c0) + z)) + c1)/c0$ & $((x + (c1 - z))/c0) - y$ & \\
+$select((c0 < min(x, y)), (z + min(y, 0)), z)$ &  $z$ &  $-1 \leq c0 $ \\
+$min((x*c0), c1)/c0$ & $min(x, -1)$ & $((0 \leq (c0 + c1)) \wedge (1 \leq c0)) \wedge (c1 \leq -1)$ \\
+\end{tabular}
+\label{tab:samplerules}
+\end{table*}
+
 \subsection{Generalizing Constants}
 
 At this point in the synthesis pipeline, we have constructed a candidate rewrite
@@ -1089,7 +1104,7 @@ running Ubuntu 18.04 and LLVM 8.0.1.
 Overall, we add \NumRulesSynthesized rewrite rules to the Halide term rewriting system, synthesized
 from \NumFailureExamples unique failed proofs from random pipelines with random schedules, \NumSimplifiedExpressions
 unique already-rewritten expressions from random pipelines, and \NumOpSequences unique 3-op sequences
-that the original term rewriting system could not transform.  
+that the original term rewriting system could not transform.  Table~\ref{tab:samplerules} lists a few of the rules synthesized by our process.
 
 \subsection{Robustness}
 \begin{table*}[!ht]
