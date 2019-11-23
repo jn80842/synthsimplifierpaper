@@ -351,10 +351,10 @@ We make three main contributions:
 \begin{itemize}
   \item We guarantee soundness by verifying the existing Halide TRS.
   \item We guarantee termination by defining a rule strategy that prevents rewriter cycles.
-  \item We strengthen the simplifier by developing a synthesis algorithm to learn new rewrite rules from expressions the current rewriter cannot make progress on.
+  \item We strengthen the TRS by developing a synthesis algorithm to learn new rewrite rules from expressions the current rewriter cannot make progress on.
 \end{itemize}
 
-Overall, we discover \NumRulesFixed bugs in hand-written Halide simplifier rules, and discover \NumOrderingProblems
+Overall, we discover \NumRulesFixed bugs in hand-written Halide rewrite rules, and discover \NumOrderingProblems
 potential issues in the rule rewrite strategy.  We then synthesize \NumRulesSynthesized new rules 
 and further demonstrate the utility of our synthesizer by attempting to
 automatically reproduce the \NumBugsAutomated latest code changes that add new
@@ -516,7 +516,7 @@ We then apply this substitution to the righthand side (RHS) of the rule to obtai
 \end{tikzpicture} \\
 (i) & (ii) & (iii) & (iv)
 \end{tabular}
-\caption{We demonstrate the Halide simplifier algorithm using a TRS $R = \{max(x,x) \rightarrow_R x, (x - y) + y \rightarrow_R x\}$ and an expression $min(a,b) - max(c,c) + max(c,c)$. The algorithm attempts to simplify all subtrees bottom up; here, no rule applies to $min(a,b)$ so it is not changed. Next (i), rule 1 rewrites $max(c,c)$ to $c$. No rule applies to $min(a,b) - c$, so we move to the rightmost subtree and rewrite again (ii) to obtain $c$ from $max(c,c)$. Finally, we consider the entire tree $min(a,b) - c) + c$ (iii) and apply rule 2 to produce $min(a,b)$. No rules match this expression, so we are left with $min(a,b)$ (iv).}
+\caption{We demonstrate the Halide rewriting algorithm using a TRS $R = \{max(x,x) \rightarrow_R x, (x - y) + y \rightarrow_R x\}$ and an expression $min(a,b) - max(c,c) + max(c,c)$. The algorithm attempts to simplify all subtrees bottom up; here, no rule applies to $min(a,b)$ so it is not changed. Next (i), rule 1 rewrites $max(c,c)$ to $c$. No rule applies to $min(a,b) - c$, so we move to the rightmost subtree and rewrite again (ii) to obtain $c$ from $max(c,c)$. Finally, we consider the entire tree $min(a,b) - c) + c$ (iii) and apply rule 2 to produce $min(a,b)$. No rules match this expression, so we are left with $min(a,b)$ (iv).}
 \label{fig:algoexample}
 \end{figure*}
 
@@ -584,11 +584,11 @@ on infinite integers.
 
 \subsection{Why a Custom Algorithm?}
 
-Given that we make use of the Z3 solver as an oracle for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide simplifier has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
+Given that we make use of the Z3 solver as an oracle for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide term rewriting system has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
 
 As discussed above, Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may complete on a more powerful server while timing out on a different machine.
 
-A more usual term rewriting algorithm would use backtracking search; at any given step in the rewriting process, multiple rules may match a given expression, and the algorithm must pick one to explore. If that choice was not fruitful, the algorithm will backtrack and choose another path. The Halide TRS algorithm never backtracks; rules are assigned a fixed priority, and the algorithm applies the first rule that matches in that priority order. This makes the simplifier memory efficient, since it only persists the single expression it is in the process of rewriting, without the checkpoints or equivalence classes that would be necessary for a backtracking search. The tradeoff is that the Halide algorithm may pick the ``wrong'' rule and have no way of undoing that decision. Since the simplifier is invoked many thousands of times with each call of the compiler, it chooses to sacrifice some solving power in exchange for performance. 
+A more usual term rewriting algorithm would use backtracking search; at any given step in the rewriting process, multiple rules may match a given expression, and the algorithm must pick one to explore. If that choice was not fruitful, the algorithm will backtrack and choose another path. The Halide TRS algorithm never backtracks; rules are assigned a fixed priority, and the algorithm applies the first rule that matches in that priority order. This makes the TRS memory efficient, since it only persists the single expression it is in the process of rewriting, without the checkpoints or equivalence classes that would be necessary for a backtracking search. The tradeoff is that the Halide algorithm may pick the ``wrong'' rule and have no way of undoing that decision. Since the rewriter is invoked many thousands of times with each call of the compiler, it chooses to sacrifice some solving power in exchange for performance. 
 
 This choice gives the Halide algorithm a very smooth performance curve, whether it succeeds or fails in simplifying an input expression, while a solver like Z3 tends to give very good performance in the majority of cases but gets bogged down in difficult cases, requiring the use of timeouts. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including expressions that are both provably true and not provably true, and checked them with Z3 (using a 60 second timeout) and the Halide TRS. Z3 could prove more expressions true, but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over seven minutes to check the set of expressions while the Halide TRS took just two seconds. The set of expressions is much smaller than the number of calls the compiler would make to the rewriter in the compilation of a single pipeline.
 
@@ -870,7 +870,7 @@ We find that all but \NumOrderingProblems of the existing Halide TRS rules confo
 
 The Halide term rewriting system is not complete: there
 exist expressions checked by the compiler running on real-world pipelines that
-the simplifier cannot resolve, but which are known to be true. 
+the TRS cannot resolve, but which are known to be true. 
 In this section, we describe a workflow for automatically augmenting the Halide
 TRS using program synthesis.
 A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
@@ -1118,12 +1118,12 @@ that the original term rewriting system could not transform.  Table~\ref{tab:sam
   \input{data/simplifierfailures.tex}
 \end{table*}
 
-%\begin{table*}[!ht]
-%  \caption{Effects of deleting rules that don't obey the reduction order. All numbers are aggregates for 128 compilations with random %schedules.}
-%  \label{tab:orderingdeletions}
-%  \small
-%  \input{data/orderingdeletions.tex}
-%\end{table*}
+\begin{table*}[!ht]
+ \caption{Effects of deleting rules that don't obey the reduction order. All numbers are aggregates for 128 compilations with random schedules.}
+ \label{tab:orderingdeletions}
+ \small
+ \input{data/orderingdeletions.tex}
+\end{table*}
 
 Our hypothesis is that adding newly synthesized rules to the Halide
 term rewriting system increases the set of expressions it can simplify. Since the
@@ -1171,7 +1171,7 @@ and submitted patches to the Halide developers. We also found
 \NumPredicatesRelaxed rules whose predicates could be relaxed while retaining
 correctness.
 
-We also ensure the termination of the simplifier by devising a reduction order
+We also ensure the termination of the term rewriting system by devising a reduction order
 over its rewrite rules. We identify \NumOrderingProblems rewrite rules that do
 not conform to this ordering, and reported them to the Halide developers. We
 generated 128 random schedules for 7 of our \NumApps applications, and evaluated
@@ -1285,7 +1285,7 @@ on integers with finite bit widths.
 
 The Halide TRS is used both to prove expressions true or false and to
 simplify expressions to more easily optimizable forms, but these two use cases
-are not always aligned. One could imagine two separate simplifiers with
+are not always aligned. One could imagine two separate rewriters with
 different rulesets and reduction orders. One interesting direction for future
 work might be to use the synthesizer to create these two rulesets, which would
 otherwise be a very human-effort intensive task.
