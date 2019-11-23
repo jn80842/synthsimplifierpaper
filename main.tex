@@ -1412,15 +1412,14 @@ For some term $s \in T(\Sigma, V)$ and some variable $x \in V$, let $|s|_x$ be t
 
 Let $\mathcal{P}os(t)$ be the set of indexes to the subterms in the term $t$, and let $t|_p$ be a subterm of the term $t$ at the position $p$. Then, $s >_{vec} t$ iff the number of occurrences of \texttt{ramp} and \texttt{broadcast} in $s$ are greater than the number of occurrences in $t$ and that for every variable contained by $t$, if it is present in some subterm $t|_p$ and that subterm does not start with a \texttt{ramp} or \texttt{broadcast}, then the number of occurrences of that variable must be greater or equal in $s$ than in $t$.
 
-\begin{gather*}
-%\begin{split}
-s >_{vec} t \iff \\
- |s|_{\texttt{ramp}} + |s|_{\texttt{broadcast}} > |t|_{\texttt{ramp}} + |t|_{\texttt{broadcast}} \wedge \\
-\forall x \in V, (\exists p \in \mathcal{P}os(t), x \in t|_p \wedge \\
-(t|_p \neq \texttt{ramp}(v_1,v_2) \wedge t|_p \neq \texttt{broadcast}(v))) \\
-\implies |s|_x \geq |t|_x
-%\end{split}
-\end{gather*}
+\begin{equation*}
+\begin{split}
+s >_{vec} t \iff & (|s|_{\texttt{ramp}} + |s|_{\texttt{broadcast}} > |t|_{\texttt{ramp}} + |t|_{\texttt{broadcast}} \wedge \\
+& \forall x \in V, (\exists p \in \mathcal{P}os(t), x \in t|_p \wedge \\
+& (t|_p \neq \texttt{ramp}(v_1,v_2) \wedge t|_p \neq \texttt{broadcast}(v)))) \\
+& \implies |s|_x \geq |t|_x
+\end{split}
+\end{equation*}
 
 Next, $s >_{var} t$ iff for every variable that occurs in $t$, it occurs strictly more times in $s$.
 
@@ -1430,60 +1429,49 @@ s >_{var} t \iff \forall x \in \mathcal{V}ar(t), |s|_x > |t|_x
 
 We say $s >_{nonlinear} t$ if the total number of multiplications, divisions, and moduluses in $s$ is greater than that of $t$, while all variables in $t$ occur an equal or greater number of times in $s$.
 
-\begin{equation}
+\begin{equation*}
 \begin{split}
-s >_{nonlinear} t \iff \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
-\sum_{op \in \{*,/,\%\}} |s|_{op} > \sum_{op \in \{*,/,\%\}} |t|_{op}
+s >_{nonlinear} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
+& \sum_{op \in \{*,/,\%\}} |s|_{op} > \sum_{op \in \{*,/,\%\}} |t|_{op}
 \end{split}
-\end{equation}
+\end{equation*}
 
 We say $s >_{op} t$ if the total number of all operations in $s$ is greater than that of $t$, while all variables in $t$ occur an equal or greater number of times in $s$.
 
-\begin{equation}
+\begin{equation*}
 \begin{split}
-s >_{op} t \iff \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
-\sum_{op \in \Sigma} |s|_{op} > \sum_{op \in \Sigma} |t|_{op}
+s >_{op} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
+& \sum_{op \in \Sigma} |s|_{op} > \sum_{op \in \Sigma} |t|_{op}
 \end{split}
-\end{equation}
+\end{equation*}
 
 The next order is itself a lexicographic composition of a series of orders over total counts of each type of operation, using the order specified in ~\ref{symbolstrength}; first terms are compared by the number of \texttt{ramp} occurrences; if those are equal they are compared by the number of \texttt{broadcast} operators, and so on. 
 
-\begin{equation}
+\begin{equation*}
 \begin{split}
-s >_{histo} t \iff \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
-|s|_{\texttt{ramp}} > |t|_{texttt{ramp}} \vee \\
-|s|_{\texttt{ramp}} = |t|_{texttt{ramp}} \wedge |s|_{\texttt{broadcast}} > |t|_{texttt{broadcast}} \vee \\
-\dots \\
-\dots \wedge |s|_{\texttt{=}} > |t|_{texttt{=}} 
+s >_{histo} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
+& |s|_{\texttt{ramp}} > |t|_{\texttt{ramp}} \vee \\
+& |s|_{\texttt{ramp}} = |t|_{\texttt{ramp}} \wedge |s|_{\texttt{broadcast}} > |t|_{\texttt{broadcast}} \vee \\
+& \dots \\
+& \dots \wedge |s|_{\texttt{=}} > |t|_{\texttt{=}} 
 \end{split}
-\end{equation}
+\end{equation*}
 
 The last two orders are recursive multiset path orders, defined in general as:
 
-\begin{equation}
+\begin{equation*}
 \begin{split}
 s >_{mpo} t \iff & t \in \mathcal{V}ar(s) \vee \\
               &  s = f(s_1,\dots,s_m), t = g(t_1,...,t_n), f > g \vee \\
                & \{s_1, \dots, s_m\} >_{mpo} \{t_1,\dots,t_n\}
 \end{split}
-\end{equation}
+\end{equation*}
 
-First, $s >_{mpo^+} t$ where $>_mpo^+$ is a multiset path order defined on the strict order $<_+$ over all Halide operators.
+First, $s >_{mpo^+} t$ where $>_{mpo^+}$ is a multiset path order defined on the strict order $>_+$ over all Halide operators.
 
-\begin{equation}
+\begin{equation*}
 f >_+ g \iff (f \neq \texttt{+} \wedge f \neq \texttt{-}) \wedge (g = \texttt{+} \vee g = \texttt{-})
-\end{equation}
-
-\[
-f_{root_{\texttt{+}}}(term) = \begin{cases}
-                          1 & root(term) \neq \texttt{+} \wedge root(term) \neq \texttt{-} \\
-                          0 & otherwise
-                          \end{cases}
-\]
-
-\begin{equation}
-s >_{root_{\texttt{+}}} t \iff f_{root_{\texttt{+}}}(s) > f_{root_{\texttt{+}}}(t)
-\end{equation}
+\end{equation*}
 
 Finally, $s >_{mpo^{op}} t$ where $>_{mpo^{op}}$ is a multiset path order defined on a strict order over the Halide operators as defined in ~\ref{symbolstrength}.
 
