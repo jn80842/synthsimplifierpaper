@@ -810,7 +810,7 @@ s = f(v_1,v_1) \\
  t = g(v_1)
 \end{gather*}
 
- Clearly $|s|_{v_1} > |t|_{v_1}$, so $s >_{var} t$. Now consider a substitution $\sigma = v_1 \mapsto \{h(v_2,v_2)\}$, such that 
+ Clearly $|s|_{v_1} > |t|_{v_1}$, so $s >_{var} t$. Now consider a substitution $\sigma = \{v_1 \mapsto h(v_2,v_2)\}$, such that 
 \begin{gather*}
 \sigma(s) = f(h(v_2,v_2),h(v_2,v_2)) \\
  \sigma(t) = g(h(v_2,v_2))
@@ -1281,7 +1281,7 @@ for rules, Z3, cannot reason about expressions with divisions or modulo
 where the right operand is a variable.  Though we work around this to
 synthesize rules with generalized predicates on right hand side constants,
 the overall synthesis machinery cannot generalize these to non-constants.
-Extending the synthesizer may be more easily possible for rules that operate
+Extending the synthesizer may be more tractable for rules that operate
 on integers with finite bit widths.
 
 The Halide TRS is used both to prove expressions true or false and to
