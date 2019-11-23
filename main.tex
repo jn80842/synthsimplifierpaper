@@ -1172,7 +1172,7 @@ correctness.
 We also ensure the termination of the simplifier by devising a reduction order
 over its rewrite rules. We identify \NumOrderingProblems rewrite rules that do
 not conform to this ordering, and reported them to the Halide developers. We
-generated 128 random schedules for 8 of our \NumApps applications, and evaluated
+generated 128 random schedules for 7 of our \NumApps applications, and evaluated
 performance with and without the \NumOrderingProblems rules.  Table~\ref{tab:orderingdeletions} shows the results of this experiment. We see a negligible effect on runtime and compilation time, which seems to indicate that removing the rules
 would give a termination guarantee without incurring a performance penalty. Proof failures improve for some applications but worsen for others; intriguingly, the non-monotonic expression counts reduced dramatically. This would seem to indicate that our rule strategy is well suited in guiding expressions toward a desirable form.
 
