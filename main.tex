@@ -851,7 +851,9 @@ s >_{mpo} t \iff & t \in \mathcal{V}ar(s) \vee \\
 \end{split}
 \end{equation*}
 
-We find that all but \NumOrderingProblems of the existing Halide TRS rules conform to our defined order. We benchmark after removing these non-compliant rules and find no appreciable decrease in performance; we describe the results of our ordering experiment in Section~\ref{sec:eval-correctness}.
+We find that almost all exsting Halide rewrite rules conform to our defined order;
+full details are described in Section~\ref{sec:eval-correctness}.
+%We find that all but \NumOrderingProblems of the existing Halide TRS rules conform to our defined order. We benchmark after removing these non-compliant rules and find no appreciable decrease in performance; we describe the results of our ordering experiment in Section~\ref{sec:eval-correctness}.
 
 
 
@@ -1169,9 +1171,12 @@ correctness.
 
 We also ensure the termination of the term rewriting system by devising a reduction order
 over its rewrite rules. We identify \NumOrderingProblems rewrite rules that do
-not conform to this ordering, and reported them to the Halide developers. We
-generated 128 random schedules for 7 of our \NumApps applications, and evaluated
-performance with and without the \NumOrderingProblems rules. The effect on compile time and runtimes was negligible, which would indicate that removing the rules would provide a termination guarantee without incurring a performance penalty.
+not conform to this ordering, and reported them to the Halide developers as rules
+that possibly should be altered or removed.
+
+%We
+%generated 128 random schedules for 7 of our \NumApps applications, and evaluated
+%performance with and without the \NumOrderingProblems rules. The effect on compile time and runtimes was negligible, which would indicate that removing the rules would provide a termination guarantee without incurring a performance penalty.
 
 
 % Table~\ref{tab:orderingdeletions} shows the results of this experiment. We see a negligible effect on runtime and compilation time, which seems to indicate that removing the rules
