@@ -520,7 +520,7 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 
 The Halide compiler contains a term rewriting system, currently composed of
 nearly a thousand rules, that operates over the space of Halide
-expressions\footnote{See Appendix ~\ref{ss:appendixA} for the full Halide
+expressions\footnote{See Supplemental Material for the full Halide
   expression grammar}. While the term rewriting system is used for multiple
 purposes within the compiler, the two most important
 uses are when the TRS serves as a proof engine to determine if
@@ -782,7 +782,7 @@ The orders that comprise our strategy have three main types: orders over variabl
 occurrence counts, orders over operation occurrence counts, and recursive
 multiset path orders. We sketch the proof that the orders have the required
 properties for reduction orders in the remainder of this section; a full
-definition of the reduction order is given in Appendix ~\ref{a:reductionorder}.
+definition of the reduction order is given in Supplemental Material.
 
 First, orders over variable or operation occurrence counts are well-founded 
 because they are defined using a measure function that maps terms to the natural
@@ -827,7 +827,7 @@ s >_{\texttt{\%}} t \iff |s|_{\texttt{\%}} > |t|_{\texttt{\%}} \wedge \forall x 
 
 If $t$ contains more occurrences of some variable $x$ than $s$, some substitution $x \mapsto u$ such that $|u|_{\texttt{\%}} > 0$ would increase the size of $|\sigma(t)|_{\texttt{\%}}$ more than it would the size of $|\sigma(s)|_{\texttt{\%}}$. By fixing this additional condition, $\sigma(s) >_{\texttt{\%}} \sigma(t)$ for any substitution $\sigma$ if $s >_{\texttt{\%}} t$.
 
-The TRS's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Appendix~\ref{a:reductionorder} for a full formalization.
+The TRS's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Supplemental Material for a full formalization.
 
 The final reduction order type is intended to favor rules that bring certain
 types of operations closer to the root of the expression AST.
