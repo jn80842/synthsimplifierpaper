@@ -775,7 +775,7 @@ to move the expression monotonically in the direction of $>_a$, and
 monotonically in the direction of $>_b$ only as long as the $>_a$ order is not
 violated.
 
-Using this lexicographic composition, the full Halide reduction order is made up of a set of strategies for moving expressions toward more desirable forms. The strategy first tries to reduce the number of vector operations, then prefers rules that decrease the number of variable occurrences. If those are equal, it tries to decrease the number of non-linear expressions (multiplication, division, and modulo); if all those are equal, it prefers expressions that contain fewer operations in total. Finally, it prefers rules which move certain operations higher toward the root of the expression. For example,
+Using this lexicographic composition, the full Halide reduction order is made up of a set of strategies for moving expressions toward more desirable forms. The strategy first tries to reduce the number of vector operations, then prefers rules that decrease the number of variable occurrences. If those two metrics are equal, it tries to decrease the number of nonlinear expressions (multiplication, division, and modulo); if all those are equal, it prefers expressions that contain fewer operations in total. Finally, it prefers rules which move certain operations higher toward the root of the expression. For example,
 leaving operations distributed over additions ($a*c + b*c$ rather than
 $c*(a +b)$) can facilitate some compiler optimizations; moving constants higher in the
 AST can help cluster and fold them (i.e. statically compute them), reducing the overall size of the expression.
@@ -805,10 +805,21 @@ The order is compatible with $\Sigma$-operations, as is any order based on the n
 
 As the summations are the same for $|s'|_x$ and $|t'|_x$, it must be true that if $|s|_x > |t|_x$, then $|s'|_x > |t'|_x$.
 
-\sak{Julie: please take a look at this paragraph} The order is also closed under substitution; for any variable substitution
-$v \mapsto u$, the number of occurrences of any variable $x$ will be increased
-by some $n = |u|_x$ for every occurrence of $v$ in $s$. Since we know $x$ occurs
-fewer times in $t$ than $s$, the relation must hold.
+To see why the order is closed under substitution, consider the terms 
+
+\begin{gather*}
+s = f(v_1,v_1) \\
+ t = g(v_1)
+\end{gather*}
+
+ Clearly $|s|_{v_1} > |t|_{v_1}$, so $s >_{var} t$. Now consider a substitution $\sigma = v_1 \mapsto \{h(v_2,v_2)\}$, such that 
+\begin{gather*}
+\sigma(s) = f(h(v_2,v_2),h(v_2,v_2)) \\
+ \sigma(t) = g(h(v_2,v_2))
+\end{gather*}
+
+ The application of $\sigma$ to any term will increase the number of occurrences of $v_2$ by 2. Since the original variable $v_1$ appears more frequently in $s$ than $t$, it is impossible to find a substitution that will increase the count of a variable more in $t$ than it does in $s$. Therefore, it must be true that $\sigma(s) >_{var} \sigma(t)$ if $s >_{var} t$.
+
 
 We use similar orders defined using the number of occurrences of function symbols in terms. As an example consider an order $>_{\texttt{\%}}$ which states that $s >_{\texttt{\%}} t$ if $s$ contains strictly more modulo operations than $t$. This order is compatible with $\Sigma$-operations by the same argument as above. We need to add one more condition to make sure this order is closed under substitution:
 
