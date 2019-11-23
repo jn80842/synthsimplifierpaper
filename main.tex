@@ -879,29 +879,30 @@ that encode constraints on those constants.
 
 \subsection{Synthesizing Candidate Rules With Constants}
 The aim of the synthesis pipeline is to learn new rules useful for reasoning about input expressions.
-For this work, we utilize three sources for candidate rules: failed proofs from
-random pipelines, irreducible expressions found from random pipelines, and enumeration.
-We obtain scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compiled
+We obtain scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compile
  random but realistic Halide pipelines with random schedules for
-training the Halide autoscheduler. The compiler was instrumented to print
+training the Halide autoscheduler, and instrument the compiler to gather our dataset.
+Since the rewriter works as both a prover and a simplifier, we need a dataset that reflects both usages.
+For the prover usecase,  the compiler was instrumented to print
 expressions that the TRS was unable to prove true, but that fuzz
 testing was not able to find to be false, a good indicator of a weak spot in the
-rewriter's reasoning power. For each failed proof, we attempt to generate one
-or more rules capable of transforming the expression. In addition, we capture all
+rewriter's reasoning power. For the simplifier usecase, we capture all
 integer expressions present in the final Halide IR, at the point just before 
-lowering to LLVM IR.
+lowering to LLVM IR. These expressions have been reduced as far as the current rewriter can, so we attempt
+to learn rules that could reduce them even further. 
 
 In addition to concrete expressions, we enumerate all sequences of up to three operations (that is,
-using four variables) that the rewriter does not reduce.  However, we aggressively restrict
+using four variables) that the rewriter does not reduce. Although in general our synthesis strategy is data-driven,
+it proved helpful to use this bounded space of expressions to fill in gaps and find simple but useful rules.
+  Further, we aggressively restrict
 this corpus: we avoid symmetries (our synthesis strategy already generates all commutations
 of a rule, as described below), we do not include division or modulo, the variables must occur
 in canonical order, and we do not include constants. The latter constraint
 especially avoids generating a large number of useless rules, which are unlikely to
-match any real-world code. However, using enumeration does help fill in gaps in the term
-rewriting system for simple-but-useful rules, as long as we heavily constrain the enumeration.
+match any real-world code. 
 
 \paragraph{Generating LHS Patterns} For a given input expression, the first step
-is to construct all left-hand-side patterns that match some portion of the expression.
+is to construct all lefthand-side patterns that match some portion of the expression.
 We constrain the maximum length of a pattern to be five operations, to ensure fast matching
 during term rewriting. At this stage, patterns preserve any constant values, and subtrees
 that exactly match syntactically are assigned the same wildcard. For
@@ -917,7 +918,7 @@ size.
 \paragraph{Synthesizing Right-Hand Sides} Given a candidate lefthand side, we 
 synthesize a righthand side that is semantically equivalent and respects the reduction
 order such that $\mathit{LHS} > \mathit{RHS}$.  We utilize two strategies for synthesizing
-right-hand sides: reassociating and applying a known rewrite, or counter-example guided
+righthand sides: reassociating and applying a known rewrite, and counter-example guided
 inductive synthesis (CEGIS).
 
 The first strategy comes from the insight that in many cases existing rewrite rules would apply
@@ -943,20 +944,20 @@ then iteratively increase the number of operations, in order to find shorter seq
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
 operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the op-code count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
 
-\paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, we must take care to avoid
-undecidable theories, in which case Z3 nearly always fails during the CEGIS process.
+\paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, there are certain types of expressions 
+ Z3 nearly always fails to reason about during the CEGIS process.
 Therefore we limit the use of division and modulo in our op-codes to be division
 or modulo by 2 only, and rely on the generalization step described next to
 widen the set of denominators for which a rule applies.  Because of this
 restriction, our synthesized rules cannot contain non-constants in denominators
-or the right hand side of a modulo.  As a result, our synthesis system cannot
+or the righthand side of a modulo.  As a result, our synthesis system cannot
 construct all rules a human can.
 
 \subsection{Generalizing Constants}
 
 At this point in the synthesis pipeline, we have constructed a candidate rewrite
 rule that contains concrete constants.  To make the rule as general as possible,
-we replace each constant with a fresh \emph{symbolic constant}. A symbolic constant
+we replace each constant with a fresh \emph{symbolic constant}. A symbolic constant, unlike a variable,
  matches only terms with constant values known at compile time. We first query Z3
 again to see if the equivalence still holds; if it does, the rule is valid. If
 it is not, we will need to find a \textit{predicate} to guard
@@ -981,7 +982,7 @@ a large number of simpler cases, then applies variable elimination to each case.
 
 \paragraph{Dividing into Subclauses} We begin by subdividing a negated rewrite $l \neq r$ into
 the cases $l \wedge \neg r$ and $\neg l \wedge r$.  We then further subdivide each case based
-on the sign of any variables used in multiplication, division, or modulus, constructing
+on the sign of any variables used in multiplication, division, or modulo, constructing
 a case for negative, zero, or positive values of the variable (we skip the zero case for
 division and modulo, because we assume no undefined behavior exists in the original expression).
 For our example, we subdivide into three cases each for each of $c0$, $c1$, and $x$, yielding
@@ -1031,16 +1032,16 @@ with the largest negative coefficient was the number of unconstrained variables,
 these must be eliminated in order to make progress on the system overall.
 
 The tree search logs all constraints found that only use symbolic constants.  Combining
-these constraints and negating gives us the predicate $P$ we're searching for.
+these constraints and negating gives us the predicate $P$ that guarantees the candidate rule will hold.
 
 \subsection{Final Simplification \& Filtering} At this stage, we now have a candidate
-rule and predicate over its symbolic constants.  However, the predicate is often quite
+rule and a predicate over its symbolic constants.  However, the predicate is often quite
 large and full of redundant clauses, which could make compile-time checks too slow.
 We simplify the predicate by converting to conjunctive normal form (CNF) and applying
 ad-hoc simplification rules that remove redundant terms.
 
 After simplification, the predicate may still contain constraints on symbolic constants
-that appear \textit{only on the right hand side}, since we never restricted which symbolic constants
+that appear \textit{only on the right hand side}, since we never restricted where symbolic constants
  can appear.  Thus, we must further transform the predicate to eliminate
 constraints of this form.  Our strategy is to first try to transform a symbolic constant
 $c$ into a form $c > Q$, $c < Q$, or $c = Q$ where $Q$ contains only symbolic constants
@@ -1049,14 +1050,14 @@ searching for any clause where $c$ is compared with any expression not containin
 symbolic constants.  If such a clause is found, we can rewrite $c$, but if not, the rule
 cannot be checked at compile time and must be discarded.
 
-Once we have a candidate rule guarded by a predicate, we perform three final checks.
+Once we have a candidate rule guarded by an acceptable predicate, we perform three final checks.
 First, we query Z3 to ensure the
 predicate is satisfiable; if not, we discard the rule.  About 10\% of all rules fail
 this filter.  Secondly, we check that the rule is not redundant.  For every pair of
 rules $R_1$ and $R_2$, if $R_1$ matches every left hand side that $R_2$ matches,
 and the predicate for $R_1$ implies the predicate for $R_2$, then we can discard $R_2$
 as $R_1$ is at least as general. Finally, we check that the candidate rule obeys our
-reduction order in order to preserve our termination guarantee. If the candidate rule passes all three filters, the rule can be added to the simplifier ruleset automatically without any human auditing.
+reduction order in order to preserve our termination guarantee. If the candidate rule passes all three filters, the rule can be added to the TRS ruleset automatically without any human auditing.
 
 \section{Evaluation}
 In this section, we describe experiments to evaluate the improvements made to the Halide term rewriting system.  Specifically, we
@@ -1108,18 +1109,15 @@ that the augmented TRS may fail to simplify an expression that would
 previously succeed if the new rules move the expression into a local
 minimum). We test the robustness of the enhanced TRS empirically by
 compiling the existing example applications in the Halide repository
-using randomly-generated schedules with the original and enhanced TRS
-and reporting the number of proof failures.
+using randomly-generated schedules with the original and enhanced TRS.
 Note that these applications were not used as a source of expressions for synthesizing new rules.
 
-Table~\ref{tab:simplifierfailures} summarizes the results.  The new rules
+To show that the TRS is more robust as a prover, we record the number of proof failures with and without the new rules. As a metric for evaluating the success of the TRS as a simplifier, we record the number of rewritten expressions that are non-monotonic. Interval arithmetic is exact for monotonic expressions; reducing the number of non-monotonic expressions can allow the
+compiler to correctly reason about regions in more cases. Table~\ref{tab:simplifierfailures} summarizes the results.  The new rules
 reduce the number of proof failures by 23\% and the number of non-monotonic expressions
-by 44\%, showing significant impact from the synthesized rules.  Halide tracks
-which expressions are provably monotonic, as interval arithmetic is exact for
-such cases; reducing the number of non-monotonic expressions can allow the
-compiler to correctly reason about regions in more cases.
+by 44\%, showing significant impact from the synthesized rules.
 
-Interestingly, none of existing proof failures caused the overall compilation process to fail, and none of the cases we corrected improved the performance of the generated code. %In that sense we have a qualified negative result for this hypothesis.
+Interestingly, none of the existing proof failures caused the overall compilation process to fail, and none of the cases we corrected improved the performance of the generated code. %In that sense we have a qualified negative result for this hypothesis.
 We found that the Halide compiler is already robust to any weaknesses of its TRS over the example application suite included with the compiler. Anecdotally, Halide users report that this is not the case over novel applications or for the less well-exercised compiler backends. We believe there are two main reasons for this surprising robustness. First, most loop optimizations in Halide (such as vectorization) are explicitly directed by the programmer, not enabled heuristically by the compiler as with C compilers, so changes to internal compiler analysis should never result in optimizations turning on or off. Second, for the optimizations which \emph{do} require analysis (such as sliding window optimizations), the Halide compiler employs fall-back strategies when the TRS fails. For example, proofs can be attempted in multiple ways, or low-overhead dynamic checks can be injected when static proofs fail. These fall-back strategies have been tuned to the same application suite we use as our test set.
 
 % could also report calls to can_prove and successful calls to can_prove; this is more meaningful as a ratio
@@ -1159,9 +1157,9 @@ would give a termination guarantee without incurring a performance penalty.
 
 The existence of rewrite rules that violate the ordering can lead
 to infinite loops: in one case, we synthesized an ordering-obeying rule that interacted
-with a one of the order-violating rules.  As a result, the compiler
-would loop until running out of stack space, resulting in a crash
-during compilation.
+with one of the order-violating rules.  As a result, the compiler
+looped until running out of stack space, resulting in a crash
+during compilation. This validates the rules' removal; even if the current version of the ruleset happens not to contain cycles, adding new rules could inadvertently ``close the circuit'' and cause compilation failures.
 
 % We also use this rule ordering to ensure we never create rules that violate the ordering, preventing infinite loops.
 %We checked the existing Halide ruleset against our reduction order and found \NumOrderingProblems rules that were not properly ordered. We use the reduction order to ensure that the simplifier will always terminate by using the order to filter newly synthesized rules.
@@ -1174,9 +1172,9 @@ compilation times.
 
 We tested this by recording compilation times for the random schedules
 used in the robustness experiment above. Surprisingly, we found that
-adding the new rules /emph{decreases} compile times. While more time
+adding the new rules \emph{decreases} compile times. While more time
 is spent rewriting expressions, the simpler expressions make later
-passes cheaper (particularly those inside of LLVM), and then net
+passes cheaper (particularly those inside of LLVM), and the net
 effect is a decrease in compile-times of 3.6\%.
 
 %We need empirical results to confirm this hypothesis, since
@@ -1253,7 +1251,7 @@ and automation to such rules could be done in future work.
 
 One major limitation of the synthesis process we use is that our oracle
 for rules, Z3, cannot reason about expressions with divisions or modulo
-where the right hand side is a variable.  Though we work around this to
+where the right operand is a variable.  Though we work around this to
 synthesize rules with generalized predicates on right hand side constants,
 the overall synthesis machinery cannot generalize these to non-constants.
 Extending the synthesizer may be more easily possible for rules that operate
@@ -1277,7 +1275,7 @@ performance implications, but evaluation and tuning is left as future work, and
 may require modifying our ordering or creating different orderings for different
 uses of the term rewriting system.
 
-Finally, while enhancing the Halide TRS was not able to improve the performance of the mature Halide compiler, we suspect this may not be the case for other, less well-exercised compiler backends. In future work we plan to use this technique to enhance the ruleset used to compile to GPU code or to the Hexagon ISA.
+Finally, while enhancing the Halide TRS was not able to improve the performance of the mature Halide compiler, we suspect this may not be the case for other, less well-exercised compiler backends. In future work we plan to use this technique to enhance the ruleset used to compile Halide applications to GPU code or to the Hexagon ISA.
 
 \section{Related Work}
 
@@ -1303,7 +1301,7 @@ rewrite rules and demonstrating that our system can be used to automatically fix
 user-reported compiler bugs.
 
 Our improvements guarantee the soundness of the term rewriting system
-and increase its robustness and coverage, while (counter-intuitively)
+and increase its robustness and coverage, while (counterintuitively)
 decreasing total compile times. There are no significant costs or
 downsides we could identify. Indeed, augmenting this part of the
 Halide compiler using verification and synthesis seems to constitute a
