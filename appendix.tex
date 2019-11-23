@@ -1,0 +1,360 @@
+%% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
+\documentclass[sigplan,10pt,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+%% For double-blind review submission, w/ CCS and ACM Reference
+%\documentclass[sigplan,review,anonymous]{acmart}\settopmatter{printfolios=true}
+%% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
+%\documentclass[sigplan,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+%% For single-blind review submission, w/ CCS and ACM Reference
+%\documentclass[sigplan,review]{acmart}\settopmatter{printfolios=true}
+%% For final camera-ready submission, w/ required CCS and ACM Reference
+%\documentclass[sigplan]{acmart}\settopmatter{}
+\usepackage{amsmath}
+\usepackage{xspace}
+\usepackage{natbib}
+\usepackage{csvsimple}
+\usepackage{microtype}
+\usepackage{tikz}
+\usepackage{tikz-qtree}
+\usepackage{tabularx}
+\usepackage{makecell}
+\usetikzlibrary{hobby,arrows,backgrounds,calc,trees}
+
+\pgfdeclarelayer{background}
+\pgfsetlayers{background,main}
+
+\newcommand{\convexpath}[2]{
+[   
+    create hullnodes/.code={
+        \global\edef\namelist{#1}
+        \foreach [count=\counter] \nodename in \namelist {
+            \global\edef\numberofnodes{\counter}
+            \node at (\nodename) [draw=none,name=hullnode\counter] {};
+        }
+        \node at (hullnode\numberofnodes) [name=hullnode0,draw=none] {};
+        \pgfmathtruncatemacro\lastnumber{\numberofnodes+1}
+        \node at (hullnode1) [name=hullnode\lastnumber,draw=none] {};
+    },
+    create hullnodes
+]
+($(hullnode1)!#2!-90:(hullnode0)$)
+\foreach [
+    evaluate=\currentnode as \previousnode using \currentnode-1,
+    evaluate=\currentnode as \nextnode using \currentnode+1
+    ] \currentnode in {1,...,\numberofnodes} {
+  let
+    \p1 = ($(hullnode\currentnode)!#2!-90:(hullnode\previousnode)$),
+    \p2 = ($(hullnode\currentnode)!#2!90:(hullnode\nextnode)$),
+    \p3 = ($(\p1) - (hullnode\currentnode)$),
+    \n1 = {atan2(\y3,\x3)},
+    \p4 = ($(\p2) - (hullnode\currentnode)$),
+    \n2 = {atan2(\y4,\x4)},
+    \n{delta} = {-Mod(\n1-\n2,360)}
+  in 
+    {-- (\p1) arc[start angle=\n1, delta angle=\n{delta}, radius=#2] -- (\p2)}
+}
+-- cycle
+}
+\tikzset{
+  leaf/.style={sibling distance=5mm}
+}
+
+%\definecolor{uwpurple}{RGB}{128,0,128}
+%\newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
+%\newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
+%\newcommand{\aba}[1]{\textcolor{red}{\textit{[{#1} --AA]}}}
+\usepackage{syntax}
+%% Conference information
+%% Supplied to authors by publisher for camera-ready submission;
+%% use defaults for review submission.
+%\acmConference[PLDI'20]{ACM SIGPLAN Conference on Programming Language Design and Implementation}{June 2020}{London, UK}
+%\acmYear{2020}
+\acmISBN{} % \acmISBN{978-x-xxxx-xxxx-x/YY/MM}
+\acmDOI{} % \acmDOI{10.1145/nnnnnnn.nnnnnnn}
+\startPage{1}
+
+%% Macros for quantities
+\newcommand{\NumApps}{{\color{black} 10}\xspace}
+\newcommand{\NumRulesFixed}{{\color{black} 4}\xspace}
+\newcommand{\NumPredicatesRelaxed}{{\color{black} 17}\xspace}
+\newcommand{\NumOrderingProblems}{{\color{black} 46}\xspace}
+\newcommand{\NumRulesSynthesized}{{\color{black} 2632}\xspace}
+\newcommand{\NumOpSequences}{{\color{black} 6246}\xspace}
+\newcommand{\NumFailureExamples}{{\color{black} 61000}\xspace}
+\newcommand{\NumSimplifiedExpressions}{{\color{black} 195371}\xspace} 
+\newcommand{\NumBugsAutomated}{{\color{black} 5}\xspace}
+\newcommand{\NumOriginalRules}{{\color{black} 999}\xspace}
+
+
+%% Copyright information
+%% Supplied to authors (based on authors' rights management selection;
+%% see authors.acm.org) by publisher for camera-ready submission;
+%% use 'none' for review submission.
+\setcopyright{none}
+%\setcopyright{acmcopyright}
+%\setcopyright{acmlicensed}
+%\setcopyright{rightsretained}
+%\copyrightyear{2018}           %% If different from \acmYear
+
+%% Bibliography style
+\bibliographystyle{ACM-Reference-Format}
+%% Citation style
+%\citestyle{acmauthoryear}  %% For author/year citations
+%\citestyle{acmnumeric}     %% For numeric citations
+%\setcitestyle{nosort}      %% With 'acmnumeric', to disable automatic
+                            %% sorting of references within a single citation;
+                            %% e.g., \cite{Smith99,Carpenter05,Baker12}
+                            %% rendered as [14,5,2] rather than [2,5,14].
+%\setcitesyle{nocompress}   %% With 'acmnumeric', to disable automatic
+                            %% compression of sequential references within a
+                            %% single citation;
+                            %% e.g., \cite{Baker12,Baker14,Baker16}
+                            %% rendered as [2,3,4] rather than [2-4].
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Note: Authors migrating a paper from traditional SIGPLAN
+%% proceedings format to PACMPL format must update the
+%% '\documentclass' and topmatter commands above; see
+%% 'acmart-pacmpl-template.tex'.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%% Some recommended packages.
+\usepackage{booktabs}   %% For formal tables:
+                        %% http://ctan.org/pkg/booktabs
+\usepackage{subcaption} %% For complex figures with subfigures/subcaptions
+                        %% http://ctan.org/pkg/subcaption
+
+
+\begin{document}
+
+%% Title information
+\title{Verifying and Improving Halide’s Term Rewriting System with Program Synthesis}         %% [Short Title] is optional;
+                                        %% when present, will be used in
+                                        %% header instead of Full Title.
+%\titlenote{with title note}             %% \titlenote is optional;
+                                        %% can be repeated if necessary;
+                                        %% contents suppressed with 'anonymous'
+\subtitle{Appendix}                     %% \subtitle is optional
+%\subtitlenote{with subtitle note}       %% \subtitlenote is optional;
+                                        %% can be repeated if necessary;
+                                        %% contents suppressed with 'anonymous'
+
+
+%% Author information
+%% Contents and number of authors suppressed with 'anonymous'.
+%% Each author should be introduced by \author, followed by
+%% \authornote (optional), \orcid (optional), \affiliation, and
+%% \email.
+%% An author may have multiple affiliations and/or emails; repeat the
+%% appropriate command.
+%% Many elements are not rendered, but should be provided for metadata
+%% extraction tools.
+
+%% Author with single affiliation.
+\author{First1 Last1}
+\authornote{with author1 note}          %% \authornote is optional;
+                                        %% can be repeated if necessary
+\orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
+\affiliation{
+  \position{Position1}
+  \department{Department1}              %% \department is recommended
+  \institution{Institution1}            %% \institution is required
+  \streetaddress{Street1 Address1}
+  \city{City1}
+  \state{State1}
+  \postcode{Post-Code1}
+  \country{Country1}                    %% \country is recommended
+}
+\email{first1.last1@inst1.edu}          %% \email is recommended
+
+%% Author with two affiliations and emails.
+\author{First2 Last2}
+\authornote{with author2 note}          %% \authornote is optional;
+                                        %% can be repeated if necessary
+\orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
+\affiliation{
+  \position{Position2a}
+  \department{Department2a}             %% \department is recommended
+  \institution{Institution2a}           %% \institution is required
+  \streetaddress{Street2a Address2a}
+  \city{City2a}
+  \state{State2a}
+  \postcode{Post-Code2a}
+  \country{Country2a}                   %% \country is recommended
+}
+\email{first2.last2@inst2a.com}         %% \email is recommended
+\affiliation{
+  \position{Position2b}
+  \department{Department2b}             %% \department is recommended
+  \institution{Institution2b}           %% \institution is required
+  \streetaddress{Street3b Address2b}
+  \city{City2b}
+  \state{State2b}
+  \postcode{Post-Code2b}
+  \country{Country2b}                   %% \country is recommended
+}
+\email{first2.last2@inst2b.org}         %% \email is recommended
+
+
+
+
+
+%% Keywords
+%% comma separated list
+%\keywords{keyword1, keyword2, keyword3}  %% \keywords are mandatory in final camera-ready submission
+
+
+%% \maketitle
+%% Note: \maketitle command must come after title commands, author
+%% commands, abstract environment, Computing Classification System
+%% environment and commands, and keywords command.
+\maketitle
+
+\appendix
+\section{Appendix}
+
+\subsection{Halide expression grammar}
+\label{ss:appendixA}
+
+
+\begin{grammar}
+<Expr> ::= <BoolExpr> 
+\alt <IntExpr> 
+\alt <VectorExpr>
+
+<BoolExpr> ::= `true'
+\alt `false'
+\alt <IntExpr> `<' <IntExpr>
+\alt <IntExpr> `>' <IntExpr>
+\alt <IntExpr> `<=' <IntExpr>
+\alt <IntExpr> `>=' <IntExpr>
+\alt <IntExpr> `=' <IntExpr>
+\alt <IntExpr> `!=' <IntExpr>
+\alt <VectorExpr> `<' <VectorExpr>
+\alt <VectorExpr> `>' <VectorExpr>
+\alt <VectorExpr> `<=' <VectorExpr>
+\alt <VectorExpr> `>=' <VectorExpr>
+\alt <VectorExpr> `=' <VectorExpr>
+\alt <VectorExpr> `!=' <VectorExpr>
+\alt <BoolExpr> `&&' <BoolExpr>
+\alt <BoolExpr> `||' <BoolExpr>
+\alt `!' <BoolExpr>
+
+<IntExpr> ::= <IntExpr> `+' <IntExpr>
+\alt <IntExpr> `-' <IntExpr>
+\alt <IntExpr> `*' <IntExpr>
+\alt <IntExpr> `/' <IntExpr>
+\alt <IntExpr> `\%' <IntExpr>
+\alt `max' <IntExpr> <IntExpr>
+\alt `min' <IntExpr> <IntExpr>
+\alt `select' <BoolExpr> <IntExpr> <IntExpr>
+\alt integers
+
+<VectorExpr> ::= `broadcast' <IntExpr>
+\alt `ramp' <IntExpr> <IntExpr>
+\alt <VectorExpr> `+' <VectorExpr>
+\alt <VectorExpr> `-' <VectorExpr>
+\alt <VectorExpr> `*' <VectorExpr>
+\alt <VectorExpr> `/' <VectorExpr>
+\alt <VectorExpr> `\%' <VectorExpr>
+\alt `max' <VectorExpr> <VectorExpr>
+\alt `min' <VectorExpr> <VectorExpr>
+\alt `select' <BoolExpr> <VectorExpr> <VectorExpr>
+\end{grammar}
+
+\subsection{The full Halide reduction order}
+\label{a:reductionorder}
+
+For some term $s \in T(\Sigma, V)$ and some variable $x \in V$, let $|s|_x$ be the number occurrences of the variable $x$ in the term $s$.
+
+Let $\mathcal{P}os(t)$ be the set of indexes to the subterms in the term $t$, and let $t|_p$ be a subterm of the term $t$ at the position $p$. Then, $s >_{vec} t$ iff the number of occurrences of \texttt{ramp} and \texttt{broadcast} in $s$ are greater than the number of occurrences in $t$ and that for every variable contained by $t$, if it is present in some subterm $t|_p$ and that subterm does not start with a \texttt{ramp} or \texttt{broadcast}, then the number of occurrences of that variable must be greater or equal in $s$ than in $t$.
+
+\begin{equation*}
+\begin{split}
+s >_{vec} t \iff & (|s|_{\texttt{ramp}} + |s|_{\texttt{broadcast}} > |t|_{\texttt{ramp}} + |t|_{\texttt{broadcast}} \wedge \\
+& \forall x \in V, (\exists p \in \mathcal{P}os(t), x \in t|_p \wedge \\
+& (t|_p \neq \texttt{ramp}(v_1,v_2) \wedge t|_p \neq \texttt{broadcast}(v)))) \\
+& \implies |s|_x \geq |t|_x
+\end{split}
+\end{equation*}
+
+Next, $s >_{var} t$ iff for every variable that occurs in $t$, it occurs strictly more times in $s$.
+
+\begin{equation*}
+s >_{var} t \iff \forall x \in \mathcal{V}ar(t), |s|_x > |t|_x
+\end{equation*}
+
+We say $s >_{nonlinear} t$ if the total number of multiplications, divisions, and moduluses in $s$ is greater than that of $t$, while all variables in $t$ occur an equal or greater number of times in $s$.
+
+\begin{equation*}
+\begin{split}
+s >_{nonlinear} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
+& \sum_{op \in \{*,/,\%\}} |s|_{op} > \sum_{op \in \{*,/,\%\}} |t|_{op}
+\end{split}
+\end{equation*}
+
+We say $s >_{op} t$ if the total number of all operations in $s$ is greater than that of $t$, while all variables in $t$ occur an equal or greater number of times in $s$.
+
+\begin{equation*}
+\begin{split}
+s >_{op} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
+& \sum_{op \in \Sigma} |s|_{op} > \sum_{op \in \Sigma} |t|_{op}
+\end{split}
+\end{equation*}
+
+The next order is itself a lexicographic composition of a series of orders over total counts of each type of operation, using the order specified in ~\ref{symbolstrength}; first terms are compared by the number of \texttt{ramp} occurrences; if those are equal they are compared by the number of \texttt{broadcast} operators, and so on. 
+
+\begin{equation*}
+\begin{split}
+s >_{histo} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
+& |s|_{\texttt{ramp}} > |t|_{\texttt{ramp}} \vee \\
+& |s|_{\texttt{ramp}} = |t|_{\texttt{ramp}} \wedge |s|_{\texttt{broadcast}} > |t|_{\texttt{broadcast}} \vee \\
+& \dots \\
+& \dots \wedge |s|_{\texttt{=}} > |t|_{\texttt{=}} 
+\end{split}
+\end{equation*}
+
+The last two orders are recursive multiset path orders, defined in general as:
+
+\begin{equation*}
+\begin{split}
+s >_{mpo} t \iff & t \in \mathcal{V}ar(s) \vee \\
+              &  s = f(s_1,\dots,s_m), t = g(t_1,...,t_n), f > g \vee \\
+               & \{s_1, \dots, s_m\} >_{mpo} \{t_1,\dots,t_n\}
+\end{split}
+\end{equation*}
+
+First, $s >_{mpo^+} t$ where $>_{mpo^+}$ is a multiset path order defined on the strict order $>_+$ over all Halide operators.
+
+\begin{equation*}
+f >_+ g \iff (f \neq \texttt{+} \wedge f \neq \texttt{-}) \wedge (g = \texttt{+} \vee g = \texttt{-})
+\end{equation*}
+
+Finally, $s >_{mpo^{op}} t$ where $>_{mpo^{op}}$ is a multiset path order defined on a strict order over the Halide operators as defined in ~\ref{symbolstrength}.
+
+\subsection{Halide symbol strength} \label{symbolstrength}
+
+The function symbols in the Halide expression signature, in order by strength, greatest to least.
+
+\begin{enumerate}
+  \item \texttt{ramp}
+  \item \texttt{broadcast}
+  \item \texttt{select}
+  \item \texttt{/}
+  \item \texttt{*}
+  \item \texttt{$\%$}
+  \item \texttt{+, -} (equal strength)
+  \item \texttt{max, min} (equal strength)
+  \item \texttt{!}
+  \item \texttt{||}
+  \item \texttt{$\&\&$}
+  \item \texttt{$>=$}
+  \item \texttt{$>$}
+  \item \texttt{$<=$}
+  \item \texttt{$<$}
+  \item \texttt{$!=$}
+  \item \texttt{=}
+\end{enumerate}
+
+\end{document}
