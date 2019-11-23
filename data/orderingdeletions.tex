@@ -1,0 +1,12 @@
+{
+\setlength\tabcolsep{2.5pt}
+  \begin{tabular}{l|cc|cc|cc|cc|cc|cc|cc}
+& \multicolumn{2}{c|}{}  & \multicolumn{2}{c|}{local}  & \multicolumn{2}{c|}{}  & \multicolumn{2}{c|}{bilateral}  & \multicolumn{2}{c|}{camera}  & \multicolumn{2}{c|}{nl}  & \multicolumn{2}{c}{stencil} \\
+& \multicolumn{2}{c|}{harris}  & \multicolumn{2}{c|}{laplacian}  & \multicolumn{2}{c|}{unsharp}  & \multicolumn{2}{c|}{grid}  & \multicolumn{2}{c|}{pipe}  & \multicolumn{2}{c|}{means}  & \multicolumn{2}{c}{chain}  \\
+& new & old & new & old & new & old & new & old & new & old & new & old & new & old \\\hline
+Proof failures & 3 & 3 & 1119 & 683 & 11 & 11 & 76 & 79 & 1562 & 1726 & 30 & 50 & 7 & 9\\
+\makecell[l]{Non-monotonic\\ expr} & 8 & 527 & 7500 & 11763 & 270 & 570 & 874 & 1006 & 4430 & 7184 & 97 & 1642 & 555 & 6901\\\hline
+\makecell[l]{Compile\\ time (min)} & 2.6 & 2.3 & 175.5 & 167.9 & 2.5 & 2.3 & 3.0 & 2.9 & 14.2 & 13.5 & 8.3 & 7.5 & 20.4 & 19.1\\
+\makecell[l]{Runtime \\ (sec)} & 1.1 & 1.1 & 21.4 & 21.6 & 1.3 & 1.3 & 3.6 & 3.7 & 2.9 & 2.9 & 17.7 & 18.0 & 13.9 & 13.9
+\end{tabular}
+}
