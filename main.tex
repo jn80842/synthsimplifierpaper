@@ -1,13 +1,15 @@
 %% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
-\documentclass[sigplan,10pt,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For double-blind review submission, w/ CCS and ACM Reference
-%\documentclass[sigplan,review,anonymous]{acmart}\settopmatter{printfolios=true}
+%\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true}
 %% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
-%\documentclass[sigplan,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+%\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For single-blind review submission, w/ CCS and ACM Reference
-%\documentclass[sigplan,review]{acmart}\settopmatter{printfolios=true}
+%\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true}
 %% For final camera-ready submission, w/ required CCS and ACM Reference
-%\documentclass[sigplan]{acmart}\settopmatter{}
+%\documentclass[acmsmall]{acmart}\settopmatter{}
+
+
 \usepackage{amsmath}
 \usepackage{xspace}
 \usepackage{natbib}
@@ -63,12 +65,15 @@
 \newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
 \newcommand{\aba}[1]{\textcolor{red}{\textit{[{#1} --AA]}}}
 \usepackage{syntax}
-%% Conference information
+%% Journal information
 %% Supplied to authors by publisher for camera-ready submission;
 %% use defaults for review submission.
-%\acmConference[PLDI'20]{ACM SIGPLAN Conference on Programming Language Design and Implementation}{June 2020}{London, UK}
-%\acmYear{2020}
-\acmISBN{} % \acmISBN{978-x-xxxx-xxxx-x/YY/MM}
+\acmJournal{PACMPL}
+\acmVolume{1}
+\acmNumber{CONF} % CONF = POPL or ICFP or OOPSLA
+\acmArticle{1}
+\acmYear{2018}
+\acmMonth{1}
 \acmDOI{} % \acmDOI{10.1145/nnnnnnn.nnnnnnn}
 \startPage{1}
 
@@ -98,7 +103,7 @@
 %% Bibliography style
 \bibliographystyle{ACM-Reference-Format}
 %% Citation style
-%\citestyle{acmauthoryear}  %% For author/year citations
+\citestyle{acmauthoryear}  %% For author/year citations
 %\citestyle{acmnumeric}     %% For numeric citations
 %\setcitestyle{nosort}      %% With 'acmnumeric', to disable automatic
                             %% sorting of references within a single citation;
@@ -860,7 +865,7 @@ full details are described in Section~\ref{sec:eval-correctness}.
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \begin{figure*}
-\includegraphics[width=1.9\columnwidth]{figures/synthesis-flow.pdf}
+\includegraphics[width=1.\columnwidth]{figures/synthesis-flow.pdf}
 \caption{Overall flow of the synthesis pipeline.}
 \label{fig:synthesis-flow}
 \end{figure*}
