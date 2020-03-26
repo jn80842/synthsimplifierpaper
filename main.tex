@@ -19,6 +19,7 @@
 \usepackage{tikz-qtree}
 \usepackage{tabularx}
 \usepackage{makecell}
+\usepackage{algorithm2e}
 \usetikzlibrary{hobby,arrows,backgrounds,calc,trees}
 
 \pgfdeclarelayer{background}
@@ -870,13 +871,20 @@ full details are described in Section~\ref{sec:eval-correctness}.
 \label{fig:synthesis-flow}
 \end{figure*}
 
+\begin{algorithm}[htbp]
+  \SetAlgoLined
+  \KwIn{$e$, an expression}
+  \KwOut{$r$, a rewrite rule}
+  \caption{\label{alg:synthesis-algorithm} Pseudocode of the synthesis algorithm.}
+\end{algorithm}
 
 The Halide term rewriting system is not complete: there
 exist expressions checked by the compiler running on real-world pipelines that
 the TRS cannot resolve, but which are known to be true. 
 In this section, we describe a workflow for automatically augmenting the Halide
 TRS using program synthesis.
-A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
+A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow},
+and Algorithm~\ref{alg:synthesis-algorithm} shows the corresponding pseudocode.
 We begin by synthesizing candidate rules that contain concrete constants,
 then generalize those rules by replacing concrete constants with wildcards that
 match any compile-time constants, along with predicates checkable at compile-time
@@ -1083,10 +1091,10 @@ reduction order in order to preserve our termination guarantee. If the candidate
 In this section, we describe experiments to evaluate the improvements made to the Halide term rewriting system.  Specifically, we
 test the following hypotheses:
 \begin{enumerate}
+\item Our rule synthesis can be used to automate the effort of crafting new rules in response to bugs.
 \item The new Halide TRS increases the robustness of the compiler and reduces compilation failures.
 \item The improved TRS is verifiably sound.
 \item This improved robustness and correctness does not come at the cost of slower compilation speed.
-\item Our rule synthesis can be used to automate the effort of crafting new rules in response to bugs.
 %\item Improving the TRS increases performance of generated code.
 \end{enumerate}
 
@@ -1110,6 +1118,46 @@ Overall, we add \NumRulesSynthesized rewrite rules to the Halide term rewriting 
 from \NumFailureExamples unique failed proofs from random pipelines with random schedules, \NumSimplifiedExpressions
 unique already-rewritten expressions from random pipelines, and \NumOpSequences unique 3-op sequences
 that the original term rewriting system could not transform.  Table~\ref{tab:samplerules} lists a few of the rules synthesized by our process.
+
+\subsection{Synthesizing Rules for Bugfixes}
+\begin{table}
+  \caption{Synthesizing rules for previous bugfixes.}
+  \label{tab:prbugfixes}
+  \begin{tabular}{lccc}
+    PR ID & Rules Added & Synth. & Synth. Weaker\\
+          & By Orig.    & Rules  & Rules\\\hline
+    3780 & 2 & 0 & 2\\
+    3770 & 5 & 3 & 1\\
+    3765 & 10 & 9 & 0\\
+    3761 & 8 & 8 & 0\\
+    3719 & 1 & 0 & 0\\
+  \end{tabular}
+\end{table}
+Many modifications to the term rewriting system occur in response to user-reported
+miscompilations or other bugs.  Crafting rewrite rules for fixing a specific misbehavior
+is tedious and error-prone; comments from commits to the Halide repository include
+``Proving these rules on paper is a pain.''  Hand-crafting these rewrite rules requires
+at least two developers to examine each rule: one to carefully craft the rule, and another to
+review and approve the changes.  For this experiment, we explore whether
+our automated rule synthesis can replace the human effort.  We look at the last 5 pull
+requests in the Halide git repository\footnote{https://github.com/halide/Halide} that add rules.  Then, we remove
+the added rules and use either tests from the PR or hand-crafted failures (in rules
+not exercised by the added tests) and pass them to our system.
+Table~\ref{tab:prbugfixes} summarizes results from the experiment.
+
+Our automated system derives 23 new rules, while humans added 26 rules.  Of the three
+rules the synthesizer failed to create, two were due to being outside the search scope
+of the synthesizer: one (PR 3719) only operated on vectors, and the other (in PR 3770) was $x \% x = 0$, which
+performs modulo without a constant so is not within our grammar.  Of the 23 successful
+rules, two (from PR 3780) were less general because the synthesized rule only allowed division
+or modulo by a constant, while the original bugfix applies to constants or variables.
+In that specific case, a rule that pulls a division out of a select statement
+is synthesized so that the divisor is a non-zero constant, and similarly for modulo.
+
+Overall, the experiment shows that real-world bugfixes can be synthesized by
+our system, replacing much of the tedious human effort required when crafting
+new rules by hand.
+
 
 \subsection{Robustness}
 \begin{table*}[!ht]
@@ -1233,46 +1281,6 @@ effect is a decrease in compile-times of 3.6\%.
 %% \subsection{Generated Code Performance}
 
 %% By increasing the robustness of the simplifier, we hypothesize that we increase the likelihood that the compiler will return more performant code. Halide ships with X sample applications; we compiled these applications with and without the newly synthesized rules and measured their runtime performance.
-
-\subsection{Synthesizing Rules for Bugfixes}
-\begin{table}
-  \caption{Synthesizing rules for previous bugfixes.}
-  \label{tab:prbugfixes}
-  \begin{tabular}{lccc}
-    PR ID & Rules Added & Synth. & Synth. Weaker\\
-          & By Orig.    & Rules  & Rules\\\hline
-    3780 & 2 & 0 & 2\\
-    3770 & 5 & 3 & 1\\
-    3765 & 10 & 9 & 0\\
-    3761 & 8 & 8 & 0\\
-    3719 & 1 & 0 & 0\\
-  \end{tabular}
-\end{table}
-Many modifications to the term rewriting system occur in response to user-reported
-miscompilations or other bugs.  Crafting rewrite rules for fixing a specific misbehavior
-is tedious and error-prone; comments from commits to the Halide repository include
-``Proving these rules on paper is a pain.''  Hand-crafting these rewrite rules requires
-at least two developers to examine each rule: one to carefully craft the rule, and another to
-review and approve the changes.  For this experiment, we explore whether
-our automated rule synthesis can replace the human effort.  We look at the last 5 pull
-requests in the Halide git repository\footnote{https://github.com/halide/Halide} that add rules.  Then, we remove
-the added rules and use either tests from the PR or hand-crafted failures (in rules
-not exercised by the added tests) and pass them to our system.
-Table~\ref{tab:prbugfixes} summarizes results from the experiment.
-
-Our automated system derives 23 new rules, while humans added 26 rules.  Of the three
-rules the synthesizer failed to create, two were due to being outside the search scope
-of the synthesizer: one (PR 3719) only operated on vectors, and the other (in PR 3770) was $x \% x = 0$, which
-performs modulo without a constant so is not within our grammar.  Of the 23 successful
-rules, two (from PR 3780) were less general because the synthesized rule only allowed division
-or modulo by a constant, while the original bugfix applies to constants or variables.
-In that specific case, a rule that pulls a division out of a select statement
-is synthesized so that the divisor is a non-zero constant, and similarly for modulo.
-
-Overall, the experiment shows that real-world bugfixes can be synthesized by
-our system, replacing much of the tedious human effort required when crafting
-new rules by hand.
-
 \section{Limitations \& Future Work}
 For this work, we considered only the subset of the term rewriting system that
 is used to prove properties over infinite integers; the full TRS includes rules
@@ -1310,6 +1318,7 @@ uses of the term rewriting system.
 Finally, while enhancing the Halide TRS was not able to improve the performance of the mature Halide compiler, we suspect this may not be the case for other, less well-exercised compiler backends. In future work we plan to use this technique to enhance the ruleset used to compile Halide applications to GPU code or to the Hexagon ISA.
 
 \section{Related Work}
+Perhaps the closest related work is the Alive project~\cite{lopes2015alive, menendez2017aliveinfer}.  The fundamental difference between Alive and this work is that Alive works within the decidable theory of bitvectors, while (because of Halide semantics) we must use the undecidable theory of integers; this constraint is the major reason for many of our design choices.  In addition: Alive verifies optimizations, while we both verify and synthesize them; Alive contends with more types of undefined behavior, which the Halide expression language need not consider; and Alive is able to use a simple reduction order in which all optimizations reduce program size, where our termination proof is more complex. We originally tried synthesizing rule predicates with the approach used by Alive-Infer but were not successful: using Z3 to generate positive and negative examples did not scale for us, due in part to the use of division/modulo over the integers in the Halide expression language.
 
 An \textit{equivalence graph} or egraph, as introduced by Nelson~\cite{nelson1980techniques}, is a data structure used to compute applications of the rules of a term rewriting system. The algorithm builds up equivalence classes by successively applying all rules to all expressions within those classes, then queries to see if two expressions are equivalent by checking if they are present in the same class. Like our algorithm, it does not backtrack, but the egraph can require significant amounts of memory, which our algorithm avoids.
 
