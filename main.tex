@@ -89,6 +89,11 @@
 \newcommand{\NumSimplifiedExpressions}{{\color{black} 195371}\xspace} 
 \newcommand{\NumBugsAutomated}{{\color{black} 5}\xspace}
 \newcommand{\NumOriginalRules}{{\color{black} 999}\xspace}
+\newcommand{\NumZdivRules}{{\color{black} 1139}\xspace}
+\newcommand{\NumZdivZThreeProvedRules}{{\color{black} 988}\xspace}
+\newcommand{\NumZdivCoqProvedRules}{{\color{black} 141}\xspace}
+\newcommand{\NumZdivFalseRules}{{\color{black} 10}\xspace}
+\newcommand{\NumZdivRelaxedPredicates}{{\color{black} 37}\xspace}
 
 
 %% Copyright information
@@ -708,6 +713,10 @@ terms on the LHS side are not required to appear in the RHS; if a divisor is
 factored out, then it is possible that the input expression would have caused a
 divide-by-zero fault but the simplified expression will not.
 
+\subsubsection{Evolving semantics}
+
+After our initial work in verifying Halide's TRS, the Halide definition of division was altered; previously any value divided by zero was undefined, but now returns zero, with similar semantics for modulus. Since we had already modeled Halide semantics in SMT2, it was a simple matter to alter the definitions of division and modulus and run the verification scripts again. At the time we ran our second verification, there were \NumZdivRules in the Halide TRS ruleset, and \NumZdivZThreeProvedRules were proven true in Z3. We proved \NumZdivCoqProvedRules rules to be true manually in Coq; since in the previous round all Coq proofs included the assumption that all divisors were nonzero, in most cases we had only to add a case to show that the rule was true both when the divisor was zero and when it was nonzero. In the course of reviewing these proofs, we identified \NumZdivRelaxedPredicates rules whose predicates including the condition that a divisor be nonzero and where that condition could safely be lifted. We found that \NumZdivFalseRules rules were not correct under the new semantics and submitted a patch to amend them.
+
 Overall results of verifying rule correctness are described in Section~\ref{sec:eval-correctness}.
 
 \subsection{Termination}
@@ -866,7 +875,7 @@ full details are described in Section~\ref{sec:eval-correctness}.
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \begin{figure*}
-\includegraphics[width=1.\columnwidth]{figures/synthesis-flow.pdf}
+\includegraphics[width=1.\columnwidth,natwidth=610,natheight=642]{figures/synthesis-flow.pdf}
 \caption{Overall flow of the synthesis pipeline.}
 \label{fig:synthesis-flow}
 \end{figure*}
