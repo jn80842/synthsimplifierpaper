@@ -220,17 +220,22 @@
   in both time and memory usage to keep compile times low.
   In this work, we apply formal techniques to prove the correctness of existing
   rewrite rules and provide a guarantee of termination. Then,
-  we build an automatic program synthesis system that learns new, provably
-  correct rules from failure cases where the compiler was unable to prove properties. We
-  identify and fix \NumRulesFixed incorrect rules as well as \NumOrderingProblems rules
-  which could give rise to infinite rewriting loops. We run our synthesis process against 
-  a large suite of failed proofs from compiler output, synthesizing a new body
-  of rules that improves the system's proving power as evaluated on realistic
-  benchmarks.
-  The automated system can replace tedious human effort required to craft new rules
-  in response to user-reported bugs.  We demonstrate that the new
-  term rewriting system is provably sound, more robust, and more general, without
-  slowing down the compiler.
+  we build an automatic program synthesis system that operates over the undecidable theory
+  of integers in order to craft new, provably correct rules from failure cases
+  where the compiler was unable to prove properties. We identify and fix
+  \NumRulesFixed incorrect rules as well as \NumOrderingProblems rules which
+  could give rise to infinite rewriting loops.
+  %% We run our synthesis process against 
+  %% a large suite of failed proofs from compiler output, synthesizing a new body
+  %% of rules that improves the system's proving power as evaluated on realistic
+  %% benchmarks.
+  %% The automated system can replace tedious human effort required to craft new rules
+  %% in response to user-reported bugs.  We demonstrate that the new
+  %% term rewriting system is provably sound, more robust, and more general, without
+  %% slowing down the compiler.
+  We then demonstrate the utility of our verification and synthesis framework using XX case studies,
+  including automatically fixing term rewriting bugs and verifying and assisting developers
+  when making large-scale changes to the Halide compiler.
 \end{abstract}
 
 
@@ -347,28 +352,36 @@ rules that mitigate the problems without causing new errors, which is a process
 that is notoriously difficult and the subject of numerous complaints from
 Halide developers.
 
-Verification and synthesis
-of Halide term rewriting rules poses significant challenges. We verify
-existing rules using a combination of the Z3~\cite{de2008z3} satisfiability
-modulo theory (SMT) solver and the Coq~\cite{coq19} interactive theorem prover. 
-New rules are constructed by combining Z3 and a hand-written solver that uses beam
-search with a learned cost model. As a dataset from which to learn new rewriting rules,
- we use a combination of failed proofs and integer expressions
-from a randomized pipeline generator designed to produce plausible image processing
-pipelines with randomized schedules, as well as carefully targeted enumeration
-of expressions.
+Verification and synthesis of Halide term rewriting rules poses significant
+challenges. For example, while prior work~\cite{lopes2015alive,menendez2017aliveinfer}
+considered verification and synthesis over the decidable theory of bitvectors,
+Halide's semantics require our machinery to operate over the undecidable theory
+of integers.
+We verify existing rules using a combination of the Z3~\cite{de2008z3}
+satisfiability modulo theory (SMT) solver and the Coq~\cite{coq19} interactive
+theorem prover. New rules are constructed by combining Z3 and a hand-written
+solver that uses beam search with a learned cost model. As a dataset from which
+to learn new rewriting rules, we use a combination of failed proofs and integer
+expressions from a randomized pipeline generator designed to produce plausible
+image processing pipelines with randomized schedules, as well as carefully
+targeted enumeration of expressions.
 
 We make three main contributions:
 \begin{itemize}
   \item We guarantee soundness by verifying the existing Halide TRS.
   \item We guarantee termination by defining a rule strategy that prevents rewriter cycles.
-  \item We strengthen the TRS by developing a synthesis algorithm to learn new rewrite rules from expressions the current rewriter cannot make progress on.
+  \item We develop a novel synthesis algorithm over the undecidable theory of integers to learn new rewrite rules from
+    expressions the current rewriter cannot make progress on.
+  \item We demonstrate the utility of our framework by using it to assist in
+    fixing bugs and performing large-scale changes in the Halide compiler, which would otherwise require massive
+    investment of human effort to ensure correctness.
 \end{itemize}
 
 Overall, we discover \NumRulesFixed bugs in hand-written Halide rewrite rules, and discover \NumOrderingProblems
-potential issues in the rule rewrite strategy.  We then synthesize \NumRulesSynthesized new rules 
-and further demonstrate the utility of our synthesizer by attempting to
-automatically reproduce the \NumBugsAutomated latest code changes that add new
+potential issues in the rule rewrite strategy.  We then synthesize \NumRulesSynthesized new rules, use the
+synthesis framework to maintain correctness when modifying compiler semantics,
+and further demonstrate the utility of our synthesizer by 
+automatically reproducing the \NumBugsAutomated latest code changes that add new
 rules based on compiler misbehavior.
 %We additionally craft a strategy for grouping
 %new rules that prevents compile times from increasing linearly with the number
@@ -856,6 +869,7 @@ The lexicographic product of two terminating relations is again terminating.
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \begin{figure*}
 %\includegraphics[width=1.\columnwidth,natwidth=610,natheight=642]{figures/synthesis-flow.pdf}
+\includegraphics[width=1.\columnwidth]{figures/synthesis-flow.pdf}
 \caption{Overall flow of the synthesis pipeline.}
 \label{fig:synthesis-flow}
 \end{figure*}
@@ -864,6 +878,26 @@ The lexicographic product of two terminating relations is again terminating.
   \SetAlgoLined
   \KwIn{$e$, an expression}
   \KwOut{$r$, a rewrite rule}
+  \BlankLine
+  Generate $P=\{p_0,..,p_n\}$ patterns that match subexpressions of $e$\;
+  Remove $p_i \in P$ if $p_i$ does not include a repeated wildcard\;
+  \ForEach{$p_i \in P$}{
+    \tcp{First try reassociation \& applying existing rules}
+    Flatten pattern into $p_{flat}$\;
+    \ForEach{$p_{reassoc}$}{
+      \If{\texttt{rewrite($p_{reassoc}$) $\neq$ $p_{reassoc}$}}{
+          \tcp{Found a candidate rewrite}
+          $r_{cand}$ = $p_i$ $\rightarrow$ \texttt{rewrite($p_{reassoc}$)}\;
+          break\;
+      }
+    }
+    \tcp{If no candidate found yet, use CEGIS}
+    \If{\texttt{superoptimize($p_i$) $\neq$ $p_i$}}{
+      $r_{cand}$ = $p_i$ $\rightarrow$ \texttt{superoptimize($p_i$)}\;
+      break\;
+    }
+   }
+  \tcp{We now have a candidate rule containing constants $c_i$}
   \caption{\label{alg:synthesis-algorithm} Pseudocode of the synthesis algorithm.}
 \end{algorithm}
 
