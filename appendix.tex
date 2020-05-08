@@ -1,5 +1,5 @@
 %% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
-\documentclass[sigplan,10pt,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For double-blind review submission, w/ CCS and ACM Reference
 %\documentclass[sigplan,review,anonymous]{acmart}\settopmatter{printfolios=true}
 %% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
@@ -266,95 +266,117 @@
 \subsection{The full Halide reduction order}
 \label{a:reductionorder}
 
-For some term $s \in T(\Sigma, V)$ and some variable $x \in V$, let $|s|_x$ be the number occurrences of the variable $x$ in the term $s$.
+\begin{equation}
+s >_{\mathcal{V}ar} t \textrm{ iff } \exists x . |s|_{x} > |t|_{x} \wedge \lnot \exists \sigma . \sigma(x) = \emptyset
+\end{equation}
 
-Let $\mathcal{P}os(t)$ be the set of indexes to the subterms in the term $t$, and let $t|_p$ be a subterm of the term $t$ at the position $p$. Then, $s >_{vec} t$ iff the number of occurrences of \texttt{ramp} and \texttt{broadcast} in $s$ are greater than the number of occurrences in $t$ and that for every variable contained by $t$, if it is present in some subterm $t|_p$ and that subterm does not start with a \texttt{ramp} or \texttt{broadcast}, then the number of occurrences of that variable must be greater or equal in $s$ than in $t$.
+The order $>_{\mathcal{V}ar}$ holds if there is one variable with strictly fewer occurrences in $s$ than in $t$, and if that variable cannot be a ground term. 
 
-\begin{equation*}
-\begin{split}
-s >_{vec} t \iff & (|s|_{\texttt{ramp}} + |s|_{\texttt{broadcast}} > |t|_{\texttt{ramp}} + |t|_{\texttt{broadcast}} \wedge \\
-& \forall x \in V, (\exists p \in \mathcal{P}os(t), x \in t|_p \wedge \\
-& (t|_p \neq \texttt{ramp}(v_1,v_2) \wedge t|_p \neq \texttt{broadcast}(v)))) \\
-& \implies |s|_x \geq |t|_x
-\end{split}
-\end{equation*}
+\begin{equation}
+s >_{vec} t \textrm{ iff } |s|_{vec} > |t|_{vec} \wedge \forall x \in \mathcal{V}ar . |s|_x \geq |t|_x
+\end{equation}
 
-Next, $s >_{var} t$ iff for every variable that occurs in $t$, it occurs strictly more times in $s$.
+The order $>_{vec}$ holds if there are strictly more vector operations in $s$ than in $t$.
 
-\begin{equation*}
-s >_{var} t \iff \forall x \in \mathcal{V}ar(t), |s|_x > |t|_x
-\end{equation*}
+\begin{equation}
+s >_{\textrm{dmm}} t \textrm{ iff } |s|_{\textrm{dmm}} > |t|_{\textrm{dmm}} \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
 
-We say $s >_{nonlinear} t$ if the total number of multiplications, divisions, and moduluses in $s$ is greater than that of $t$, while all variables in $t$ occur an equal or greater number of times in $s$.
+The order $>_{\textrm{dmm}}$ holds if the total count of division, modulus, and multiplication operations is strictly greater in $s$ than in $t$.
 
-\begin{equation*}
-\begin{split}
-s >_{nonlinear} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
-& \sum_{op \in \{*,/,\%\}} |s|_{op} > \sum_{op \in \{*,/,\%\}} |t|_{op}
-\end{split}
-\end{equation*}
+\begin{equation}
+s >_{\textrm{leaf}} t \textrm{ iff } |s|_{\textrm{leaf}} > |t|_{\textrm{leaf}} \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
 
-We say $s >_{op} t$ if the total number of all operations in $s$ is greater than that of $t$, while all variables in $t$ occur an equal or greater number of times in $s$.
+We define the measure function $|s|_{\textrm{leaf}}$ as the number of leaves or terminals in the term $s$ represented as an abstract syntax tree. Thus $>_{\textrm{leaf}}$ holds if $s$ has more leaves than $t$.
 
-\begin{equation*}
-\begin{split}
-s >_{op} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
-& \sum_{op \in \Sigma} |s|_{op} > \sum_{op \in \Sigma} |t|_{op}
-\end{split}
-\end{equation*}
+\begin{equation}
+s >_{\textrm{op}} t \textrm{ iff } \sum_{f \in \Sigma} |s|_f > \sum_{f \in \Sigma} |t|_f \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
 
-The next order is itself a lexicographic composition of a series of orders over total counts of each type of operation, using the order specified in ~\ref{symbolstrength}; first terms are compared by the number of \texttt{ramp} occurrences; if those are equal they are compared by the number of \texttt{broadcast} operators, and so on. 
+The order $>_{\textrm{op}}$ holds if the count of all operations (all symbols in $\Sigma$ that are not zero-arity) in term $s$ is strictly greater that of $t$.
 
-\begin{equation*}
-\begin{split}
-s >_{histo} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
-& |s|_{\texttt{ramp}} > |t|_{\texttt{ramp}} \vee \\
-& |s|_{\texttt{ramp}} = |t|_{\texttt{ramp}} \wedge |s|_{\texttt{broadcast}} > |t|_{\texttt{broadcast}} \vee \\
-& \dots \\
-& \dots \wedge |s|_{\texttt{=}} > |t|_{\texttt{=}} 
-\end{split}
-\end{equation*}
+\begin{equation}
+s >_{0/1} t \textrm{ iff } |s|_0 + |s|_1 < |t|_0 + |t|_1 \wedge \forall x \in \mathcal{V}ar(s) . \lnot \exists \sigma . (\sigma(x) \neq 0 \wedge \sigma(x) \neq 1)
+\end{equation}
 
-The last two orders are recursive multiset path orders, defined in general as:
+The order $>_{0/1}$ holds if there are strictly more occurrences of the constants 0 and 1 in $t$ than in $s$ and if for all variables in $s$, there is no substitution such that $x$ can be substituted with the constants 0 or 1.
 
-\begin{equation*}
-\begin{split}
-s >_{mpo} t \iff & t \in \mathcal{V}ar(s) \vee \\
-              &  s = f(s_1,\dots,s_m), t = g(t_1,...,t_n), f > g \vee \\
-               & \{s_1, \dots, s_m\} >_{mpo} \{t_1,\dots,t_n\}
-\end{split}
-\end{equation*}
+\begin{equation}
+s >_{f} t \textrm{ iff } |s|_{f} > |t|_{f} \wedge \forall x \in \mathcal{V}ar . |s|_x \geq |t|_x
+\end{equation} 
 
-First, $s >_{mpo^+} t$ where $>_{mpo^+}$ is a multiset path order defined on the strict order $>_+$ over all Halide operators.
-
-\begin{equation*}
-f >_+ g \iff (f \neq \texttt{+} \wedge f \neq \texttt{-}) \wedge (g = \texttt{+} \vee g = \texttt{-})
-\end{equation*}
-
-Finally, $s >_{mpo^{op}} t$ where $>_{mpo^{op}}$ is a multiset path order defined on a strict order over the Halide operators as defined in ~\ref{symbolstrength}.
-
-\subsection{Halide symbol strength} \label{symbolstrength}
-
-The function symbols in the Halide expression signature, in order by strength, greatest to least.
+This order represents a composition of orders over each operation in the Halide expression grammar. The operations are checked in this order:
 
 \begin{enumerate}
   \item \texttt{ramp}
   \item \texttt{broadcast}
   \item \texttt{select}
-  \item \texttt{/}
-  \item \texttt{*}
-  \item \texttt{$\%$}
-  \item \texttt{+, -} (equal strength)
-  \item \texttt{max, min} (equal strength)
-  \item \texttt{!}
-  \item \texttt{||}
-  \item \texttt{$\&\&$}
-  \item \texttt{$>=$}
-  \item \texttt{$>$}
-  \item \texttt{$<=$}
-  \item \texttt{$<$}
-  \item \texttt{$!=$}
-  \item \texttt{=}
+  \item division
+  \item multiply
+  \item modulus
+  \item subtraction
+  \item addition
+  \item \texttt{min}, \texttt{max}
+  \item or
+  \item and
+  \item $\geq$
+  \item $>$
+  \item $\leq$
+  \item $<$
+  \item $\neq$
+  \item $=$
+  \item not
 \end{enumerate}
+
+\begin{equation}
+s >_{lpo} t
+\end{equation}
+The order $>_{lpo}$ is a lexicographic path order induced by an order defined over the Halide operations. We further refine the Halide operations by distinguishing addition, multiplication, select, min, and max where both arguments must not be ground terms from their counterparts whose arguments may be a ground term. We also separate subtraction where the left operand is the constant 0 from substractions where the left operand cannot be the constant 0.
+
+\begin{itemize}
+  \item add by constant <
+  \item multiply by constant <
+  \item \{subtract from 0, select from constant \} < 
+  \item max with constant <
+  \item \{min with constant, max, min, add, mul, subtract \} <
+  \item all other operators
+\end{itemize}
+
+\begin{equation}
+s >_{str} t \textrm{ iff } \phi_{str}(s) < \phi_{str}(t) \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
+
+The order $>_{str}$ is checked by calculating the function $\phi_{str}$, which traverses the input term depth-first and replaces each constant with "b" and each variable with "a". The resulting strings are then compared lexicographically.
+
+\begin{equation}
+s >_{negc} t \textrm{ iff } |s|_{negc} > |t|_{negc}  \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
+
+The order $>_{negc}$ holds when $s$ contains strictly more negative constants than $t$.
+
+\begin{equation}
+s >_{nmodc} t \textrm{ iff } |s|_{nmodc} > |t|_{nmodc}  \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
+
+The order $>_{nmodc}$ holds when $s$ contains strictly more constants that are not within the range $0 \leq c < |c_m|$, for some constant $c_m$. 
+
+\begin{equation}
+s >_{uniq} t \textrm{ iff } |s|_{uniq} > |t|_{uniq}  \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
+
+The order $>_{uniq}$ holds when $s$ contains strictly more unique subtrees than $t$.
+
+Finally, these two rules are well-ordered because they associate min and max to the left.
+
+\begin{equation}
+\tag{max106}
+\texttt{max}(\texttt{max}(x,y), \texttt{max}(z,w)) \rightarrow_R \texttt{max}(\texttt{max}(\texttt{max}(x,y),z),w)
+\end{equation}
+
+\begin{equation}
+\tag{min106}
+\texttt{min}(\texttt{min}(x,y), \texttt{min}(z,w)) \rightarrow_R \texttt{min}(\texttt{min}(\texttt{min}(x,y),z),w)
+\end{equation}
 
 \end{document}

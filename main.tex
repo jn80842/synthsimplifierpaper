@@ -724,150 +724,130 @@ Overall results of verifying rule correctness are described in Section~\ref{sec:
 Term rewriting systems are not guaranteed to terminate. Consider a term
 rewriting system containing only one rule: $x + y \rightarrow y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
-be matched to the rule and rewritten to $3 + 5$, and so on. To guarantee
-termination regardless of the rule application algorithm, we can define some strategy
-every rule should follow, so that every application of a rule will cause the rewritten expression to
-decrease monotonically in some fixed direction. Then, we show that for every rule $l \rightarrow_R r$ in our
-term rewriting system, $l > r$. This will suffice to guarantee termination if $>$ is a \emph{reduction
-  order}. We take the definition of a reduction order and the next two theorems from Baader and Nipkow~\cite{baader1999term}.
+be matched to the rule and rewritten to $3 + 5$, and so on. The Halide TRS has failed to terminate in the past, which manifests as a segfault when running the compiler. These issues are tricky to debug, and are presumably not always reported by users, since the error is fairly opaque. To guarantee the Halide TRS must always terminate, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some set of rules that form a cycle.
+
+We can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rewrite rule always rewrites expressions such that they move monotonically in some direction, then it will be impossible for any sequence of rules to form a cycle. This corresponds to our intuition about why certain rules are useful: we may want to write rules that cancel expressions and make them smaller, replace expensive operations with cheaper ones, or canonicalize expressions so we can more easily prove an equivalence. If we can formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
+
+We prove that the Halide term rewriting system must terminate by constructing a \emph{reduction order}, a strict order with properties that ensure that, for an order $>$ and a rule $l \rightarrow_R r$, if $l > r$, then any expression $e_1$ that matches $l$ and is rewritten by $l \rightarrow r$ into $e_2$, it must be true that $e_1 > e_2$. This will allow us to reason only about rule terms, and not all expressions that a term may match.
+We take the definition of a reduction order and the next two theorems from~\cite{baader1999term}.
 
 \begin{theorem}\label{theorem:terminates}
 A term rewriting system $R$ terminates iff there exists a reduction order $>$ that satisfies $l > r$ for all $l \rightarrow_R r \in R$.
 \end{theorem}
 
-A reduction order is defined as follows.
+A reduction order is a strict order that must be well-founded, meaning that every non-empty set has a least element with regard to the order, to prevent infinitely descending chains. It must be \emph{compatible with $\Sigma$-operations}: for all expressions $s_1, s_2$, all $n \geq 0$, and all $f \in \Sigma$:
 
-\begin{definition}
-A strict order on terms $T(\Sigma, V)$ is a reduction order iff it is: 
-\begin{enumerate}
-    \item well-founded, meaning that every non-empty set has a least element with regard to the order,
-    \item compatible with $\Sigma$-operations: for all $s_1, s_2 \in T(\Sigma,V)$, all $n \geq 0$, and all $f \in \Sigma^{(n)}$, $s_1 > s_2$ implies
-    \[ f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n) > f(t_1,...t_{i-1},s_2,t_{i+1},...,t_n)
-    \]
-    for all $i, 1 \leq i \leq n$ and all $t_1,...t_{i-1},t_{i+1},...,t_n \in T(\Sigma,V)$.
-    \item closed under substitution: for all $s_1, s_2 \in T(\Sigma,V)$ and all substitutions $\sigma \in \mathcal{S}ub(T(\Sigma,V))$, $s_1 > s_2$ implies $\sigma(s_1) > \sigma(s_2)$.
-\end{enumerate}
-\end{definition}
+\[
+s_1 > s_2 \implies f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n) > f(t_1,...t_{i-1},s_2,t_{i+1},...,t_n)
+\]
 
-We provide a guarantee that the Halide TRS will always terminate by fixing a
-reduction order over the existing ruleset. To choose our reduction order, we
-need to consider the two purposes of the Halide TRS. When using the TRS
-as a prover, to determine if two expressions are equivalent, we want
-the output expressions to be as close to some normal form as possible, but it
-doesn't particularly matter what that form is. When we use the Halide TRS
-to reduce the size of an expression, however, the form of the output expression
-can have strong performance implications.
-Simplifying an expression in a way that
-improves performance could mean canceling correlated subexpressions, using
-fewer expensive operations such as vector operations, or clustering constants
-that can be pre-computed into a single constant.
+for all $i, 1 \leq i \leq n$ and all expressions $t_1,...t_{i-1},t_{i+1},...,t_n$. This property means that if a rewrite rule is used to transform a subtree in some expression $e$, the $>$ relation is preserved between the original expression $e$ and the rewritten expression $e'$. Finally, a reduction order is \emph{closed under substitution}: for all expressions $s_1, s_2$ and all substitutions $\sigma \in \mathcal{S}ub(T(\Sigma,V))$, 
+$s_1 > s_2 \implies \sigma(s_1) > \sigma(s_2)$. When we match some lefthand side term $l$ to some expression $e$, we are defining a substitution for each of the variables in $l$ with some subtree in $e$; we then use that substitution to rewrite $e$ to $e'$. If our order is closed under substitutions, we know that for any expression we match to $l$, the resulting rewritten expression will obey the ordering.
 
-Consider the space of all possible Halide expressions, in which our starting
-expression is a point. If all rewrite rules follow the strategy defined by a reduction order, applying any
-rewrite rule will move the expression through the expression space monotonically
-in some direction, preventing cycles and ensuring termination. Our reduction
-order guides the rewritten expression to some desirable part of the
-expression space, but defining that desirable space is quite complex. In order
-to do this, we make use of the following fact~\cite{baader1999term}:
+Choosing a single monotonic direction in which to rewrite expressions can be overly restrictive. The Halide TRS is used both to prove expressions true and to simplify them; when using it as a prover, we want to put both sides of an equality into some normal form, but it doesn't particularly matter what that form is. When using the TRS to simplify expressions, on the other hand, reducing the size of an expression can have large performance implifications. Since we must devise an ordering that covers the existing ruleset, we make use of the following theorem:
 
 \begin{theorem}
 The lexicographic product of two terminating relations is again terminating.
 \end{theorem}
 
-Our reduction order is thus a composition of several reduction orders, each of
-which moves the expression in some desirable direction. Let $>_a$ and $>_b$ be
-two reduction orders; the lexicographic product of those orders $>_{a \times b}$
-is:
-
-\[
-s >_{a \times b} t \iff s >_a t \vee (s \geq_a t \wedge s >_b t)
-\] 
-
-In other words, given an order $>_{a \times b}$, our rewrite system is allowed
-to move the expression monotonically in the direction of $>_a$, and
-monotonically in the direction of $>_b$ only as long as the $>_a$ order is not
-violated.
-
-Using this lexicographic composition, the full Halide reduction order is made up of a set of strategies for moving expressions toward more desirable forms. The strategy first tries to reduce the number of vector operations, then prefers rules that decrease the number of variable occurrences. If those two metrics are equal, it tries to decrease the number of nonlinear expressions (multiplication, division, and modulo); if all those are equal, it prefers expressions that contain fewer operations in total. Finally, it prefers rules which move certain operations higher toward the root of the expression. For example,
-leaving operations distributed over additions ($a*c + b*c$ rather than
-$c*(a +b)$) can facilitate some compiler optimizations; moving constants higher in the
-AST can help cluster and fold them (i.e. statically compute them), reducing the overall size of the expression.
-
-The orders that comprise our strategy have three main types: orders over variable
-occurrence counts, orders over operation occurrence counts, and recursive
-multiset path orders. We sketch the proof that the orders have the required
-properties for reduction orders in the remainder of this section; a full
-definition of the reduction order is given in Supplemental Material.
-
-First, orders over variable or operation occurrence counts are well-founded 
-because they are defined using a measure function that maps terms to the natural
-numbers. Let the function $|s|_x$ represent the number of occurrences of the
-variable $x$ in the term $s$. Similarly, let $|s|_f$ represent the number of
-occurrences of some symbol $f \in \Sigma$ in the term $s$. Then, we can define a reduction order such that for every variable present in some term $s$, that variable occurs strictly more times in $s$ then in term $t$.
-
-\begin{equation*}
-s >_{var} t \iff \forall x \in V, |s|_x > |t|_x
-\end{equation*}
-
-The order is compatible with $\Sigma$-operations, as is any order based on the number of occurrences of variables or operations. For terms $s$ and $t$, let $s' = f(u_1,...u_{i-1},s,u_{i+1},...,u_n)$ and $t' = f(u_1,...u_{i-1},t,u_{i+1},...,u_n)$. Then, 
-
-\begin{gather*}
-|s'|_x = \sum_{u_j}^{0<j \leq (i-1)} |u_j|_x + |s|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x \\
-|t'|_x = \sum_{u_j}^{0<j \leq (i-1)} |u_j|_x + |t|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x
-\end{gather*}
-
-As the summations are the same for $|s'|_x$ and $|t'|_x$, it must be true that if $|s|_x > |t|_x$, then $|s'|_x > |t'|_x$.
-
-To see why the order is closed under substitution, consider the terms 
-
-\begin{gather*}
-s = f(v_1,v_1) \\
- t = g(v_1)
-\end{gather*}
-
- Clearly $|s|_{v_1} > |t|_{v_1}$, so $s >_{var} t$. Now consider a substitution $\sigma = \{v_1 \mapsto h(v_2,v_2)\}$, such that 
-\begin{gather*}
-\sigma(s) = f(h(v_2,v_2),h(v_2,v_2)) \\
- \sigma(t) = g(h(v_2,v_2))
-\end{gather*}
-
- The application of $\sigma$ to any term will increase the number of occurrences of $v_2$ by 2. Since the original variable $v_1$ appears more frequently in $s$ than $t$, it is impossible to find a substitution that will increase the count of a variable more in $t$ than it does in $s$. Therefore, it must be true that $\sigma(s) >_{var} \sigma(t)$ if $s >_{var} t$.
 
 
-We use similar orders defined using the number of occurrences of function symbols in terms. As an example consider an order $>_{\texttt{\%}}$ which states that $s >_{\texttt{\%}} t$ if $s$ contains strictly more modulo operations than $t$. This order is compatible with $\Sigma$-operations by the same argument as above. We need to add one more condition to make sure this order is closed under substitution:
 
-\begin{equation*}
-s >_{\texttt{\%}} t \iff |s|_{\texttt{\%}} > |t|_{\texttt{\%}} \wedge \forall x \in V, |s|_x \geq |t|_x
-\end{equation*}
 
-If $t$ contains more occurrences of some variable $x$ than $s$, some substitution $x \mapsto u$ such that $|u|_{\texttt{\%}} > 0$ would increase the size of $|\sigma(t)|_{\texttt{\%}}$ more than it would the size of $|\sigma(s)|_{\texttt{\%}}$. By fixing this additional condition, $\sigma(s) >_{\texttt{\%}} \sigma(t)$ for any substitution $\sigma$ if $s >_{\texttt{\%}} t$.
+% Our reduction order is thus a composition of several reduction orders, each of
+% which moves the expression in some desirable direction. Let $>_a$ and $>_b$ be
+% two reduction orders; the lexicographic product of those orders $>_{a \times b}$
+% is:
 
-The TRS's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Supplemental Material for a full formalization.
+% \[
+% s >_{a \times b} t \iff s >_a t \vee (s \geq_a t \wedge s >_b t)
+% \] 
 
-The final reduction order type is intended to favor rules that bring certain
-types of operations closer to the root of the expression AST.
+% In other words, given an order $>_{a \times b}$, our rewrite system is allowed
+% to move the expression monotonically in the direction of $>_a$, and
+% monotonically in the direction of $>_b$ only as long as the $>_a$ order is not
+% violated.
+
+% Using this lexicographic composition, the full Halide reduction order is made up of a set of strategies for moving expressions toward more desirable forms. The strategy first tries to reduce the number of vector operations, then prefers rules that decrease the number of variable occurrences. If those two metrics are equal, it tries to decrease the number of nonlinear expressions (multiplication, division, and modulo); if all those are equal, it prefers expressions that contain fewer operations in total. Finally, it prefers rules which move certain operations higher toward the root of the expression. For example,
+% leaving operations distributed over additions ($a*c + b*c$ rather than
+% $c*(a +b)$) can facilitate some compiler optimizations; moving constants higher in the
+% AST can help cluster and fold them (i.e. statically compute them), reducing the overall size of the expression.
+
+% The orders that comprise our strategy have three main types: orders over variable
+% occurrence counts, orders over operation occurrence counts, and recursive
+% multiset path orders. We sketch the proof that the orders have the required
+% properties for reduction orders in the remainder of this section; a full
+% definition of the reduction order is given in Supplemental Material.
+
+% First, orders over variable or operation occurrence counts are well-founded 
+% because they are defined using a measure function that maps terms to the natural
+% numbers. Let the function $|s|_x$ represent the number of occurrences of the
+% variable $x$ in the term $s$. Similarly, let $|s|_f$ represent the number of
+% occurrences of some symbol $f \in \Sigma$ in the term $s$. Then, we can define a reduction order such that for every variable present in some term $s$, that variable occurs strictly more times in $s$ then in term $t$.
+
+% \begin{equation*}
+% s >_{var} t \iff \forall x \in V, |s|_x > |t|_x
+% \end{equation*}
+
+% The order is compatible with $\Sigma$-operations, as is any order based on the number of occurrences of variables or operations. For terms $s$ and $t$, let $s' = f(u_1,...u_{i-1},s,u_{i+1},...,u_n)$ and $t' = f(u_1,...u_{i-1},t,u_{i+1},...,u_n)$. Then, 
+
+% \begin{gather*}
+% |s'|_x = \sum_{u_j}^{0<j \leq (i-1)} |u_j|_x + |s|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x \\
+% |t'|_x = \sum_{u_j}^{0<j \leq (i-1)} |u_j|_x + |t|_x + \sum_{u_j}^{(i+1)<j \leq n} |u_j|_x
+% \end{gather*}
+
+% As the summations are the same for $|s'|_x$ and $|t'|_x$, it must be true that if $|s|_x > |t|_x$, then $|s'|_x > |t'|_x$.
+
+% To see why the order is closed under substitution, consider the terms 
+
+% \begin{gather*}
+% s = f(v_1,v_1) \\
+%  t = g(v_1)
+% \end{gather*}
+
+%  Clearly $|s|_{v_1} > |t|_{v_1}$, so $s >_{var} t$. Now consider a substitution $\sigma = \{v_1 \mapsto h(v_2,v_2)\}$, such that 
+% \begin{gather*}
+% \sigma(s) = f(h(v_2,v_2),h(v_2,v_2)) \\
+%  \sigma(t) = g(h(v_2,v_2))
+% \end{gather*}
+
+%  The application of $\sigma$ to any term will increase the number of occurrences of $v_2$ by 2. Since the original variable $v_1$ appears more frequently in $s$ than $t$, it is impossible to find a substitution that will increase the count of a variable more in $t$ than it does in $s$. Therefore, it must be true that $\sigma(s) >_{var} \sigma(t)$ if $s >_{var} t$.
+
+
+% We use similar orders defined using the number of occurrences of function symbols in terms. As an example consider an order $>_{\texttt{\%}}$ which states that $s >_{\texttt{\%}} t$ if $s$ contains strictly more modulo operations than $t$. This order is compatible with $\Sigma$-operations by the same argument as above. We need to add one more condition to make sure this order is closed under substitution:
+
+% \begin{equation*}
+% s >_{\texttt{\%}} t \iff |s|_{\texttt{\%}} > |t|_{\texttt{\%}} \wedge \forall x \in V, |s|_x \geq |t|_x
+% \end{equation*}
+
+% If $t$ contains more occurrences of some variable $x$ than $s$, some substitution $x \mapsto u$ such that $|u|_{\texttt{\%}} > 0$ would increase the size of $|\sigma(t)|_{\texttt{\%}}$ more than it would the size of $|\sigma(s)|_{\texttt{\%}}$. By fixing this additional condition, $\sigma(s) >_{\texttt{\%}} \sigma(t)$ for any substitution $\sigma$ if $s >_{\texttt{\%}} t$.
+
+% The TRS's first priority is to decrease the number of vector operations; here we take advantage of the fact that the Halide expression language cannot contain nested vectors. We call a pair of terms $s, t$ well ordered if $t$ contains fewer vector operations than $s$ and contains equal or fewer occurrences of every variable that appears outside of a vector operation; if a variable appears inside an argument to a vector operation, we know it must be scalar and thus cannot add to the count of vector operations no matter how many times it occurs. See Supplemental Material for a full formalization.
+
+% The final reduction order type is intended to favor rules that bring certain
+% types of operations closer to the root of the expression AST.
 % Following is repetitive from above:
 %For example,
 %leaving operations distributed over additions ($a*c + b*c$ rather than
 %$c*(a +b)$) can facilitate some compiler optimizations; moving constants higher in the
 %AST can help cluster and fold them, reducing the overall size of the expression.
-We define this preference using a \emph{recursive multiset path order}, shown to be a type of reduction in~\cite{baader1999term}. The order compares terms recursively starting with the root of the expression AST. First we
-fix an ordering over the function symbols, then compare terms by their root
-symbol. If the symbols are equal, we recursively order the multiset of the left
-term's child terms and that of the right term's; we say that for multisets $M,
-N$, $M >_{mul} N$ if $M \neq N$ and for every element $n$ of $N$ that is not in
-$M$, there is some element $m$ in $M$ such that $m > n$.
+% We define this preference using a \emph{recursive multiset path order}, shown to be a type of reduction in~\cite{baader1999term}. The order compares terms recursively starting with the root of the expression AST. First we
+% fix an ordering over the function symbols, then compare terms by their root
+% symbol. If the symbols are equal, we recursively order the multiset of the left
+% term's child terms and that of the right term's; we say that for multisets $M,
+% N$, $M >_{mul} N$ if $M \neq N$ and for every element $n$ of $N$ that is not in
+% $M$, there is some element $m$ in $M$ such that $m > n$.
 
-\begin{equation*}
-\begin{split}
-s >_{mpo} t \iff & t \in \mathcal{V}ar(s) \vee \\
-              &  s = f(s_1,\dots,s_m), t = g(t_1,...,t_n), f > g \vee \\
-               & \{s_1, \dots, s_m\} >_{mpo} \{t_1,\dots,t_n\}
-\end{split}
-\end{equation*}
+% \begin{equation*}
+% \begin{split}
+% s >_{mpo} t \iff & t \in \mathcal{V}ar(s) \vee \\
+%               &  s = f(s_1,\dots,s_m), t = g(t_1,...,t_n), f > g \vee \\
+%                & \{s_1, \dots, s_m\} >_{mpo} \{t_1,\dots,t_n\}
+% \end{split}
+% \end{equation*}
 
-We find that almost all existing Halide rewrite rules conform to our defined order;
-full details are described in Section~\ref{sec:eval-correctness}.
+% We find that almost all existing Halide rewrite rules conform to our defined order;
+% full details are described in Section~\ref{sec:eval-correctness}.
 %We find that all but \NumOrderingProblems of the existing Halide TRS rules conform to our defined order. We benchmark after removing these non-compliant rules and find no appreciable decrease in performance; we describe the results of our ordering experiment in Section~\ref{sec:eval-correctness}.
 
 
@@ -875,7 +855,7 @@ full details are described in Section~\ref{sec:eval-correctness}.
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \begin{figure*}
-\includegraphics[width=1.\columnwidth,natwidth=610,natheight=642]{figures/synthesis-flow.pdf}
+%\includegraphics[width=1.\columnwidth,natwidth=610,natheight=642]{figures/synthesis-flow.pdf}
 \caption{Overall flow of the synthesis pipeline.}
 \label{fig:synthesis-flow}
 \end{figure*}
