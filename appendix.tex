@@ -297,7 +297,7 @@ s >_{\textrm{op}} t \textrm{ iff } \sum_{f \in \Sigma} |s|_f > \sum_{f \in \Sigm
 The order $>_{\textrm{op}}$ holds if the count of all operations (all symbols in $\Sigma$ that are not zero-arity) in term $s$ is strictly greater that of $t$.
 
 \begin{equation}
-s >_{0/1} t \textrm{ iff } |s|_0 + |s|_1 < |t|_0 + |t|_1 \wedge \forall x \in \mathcal{V}ar(s) . \lnot \exists \sigma . (\sigma(x) \neq 0 \wedge \sigma(x) \neq 1)
+s >_{0/1} t \textrm{ iff } |s|_{leaf} - |s|_0 + |s|_1 > |t|_{leaf} - |t|_0 - |t|_1  \wedge |s|_{leaf} = |t|_{leaf} \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x \wedge \forall x \in \mathcal{V}ar(s) . \lnot \exists \sigma . (\sigma(x) \neq 0 \wedge \sigma(x) \neq 1)
 \end{equation}
 
 The order $>_{0/1}$ holds if there are strictly more occurrences of the constants 0 and 1 in $t$ than in $s$ and if for all variables in $s$, there is no substitution such that $x$ can be substituted with the constants 0 or 1.
