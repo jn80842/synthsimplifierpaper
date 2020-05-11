@@ -1272,15 +1272,37 @@ uses of the term rewriting system.
 Finally, while enhancing the Halide TRS was not able to improve the performance of the mature Halide compiler, we suspect this may not be the case for other, less well-exercised compiler backends. In future work we plan to use this technique to enhance the ruleset used to compile Halide applications to GPU code or to the Hexagon ISA.
 
 \section{Related Work}
-Perhaps the closest related work is the Alive project~\cite{lopes2015alive, menendez2017aliveinfer}.  The fundamental difference between Alive and this work is that Alive works within the decidable theory of bitvectors, while (because of Halide semantics) we must use the undecidable theory of integers; this constraint is the major reason for many of our design choices.  In addition: Alive verifies optimizations, while we both verify and synthesize them; Alive contends with more types of undefined behavior, which the Halide expression language need not consider; and Alive is able to use a simple reduction order in which all optimizations reduce program size, where our termination proof is more complex. We originally tried synthesizing rule predicates with the approach used by Alive-Infer but were not successful: using Z3 to generate positive and negative examples did not scale for us, due in part to the use of division/modulo over the integers in the Halide expression language.
+Perhaps the closest related work is the Alive project~\cite{lopes2015alive,menendez2017aliveinfer}.
+The fundamental difference between Alive and this
+work is that Alive works within the decidable theory of bitvectors, while
+(because of Halide semantics) we must use the undecidable theory of integers;
+this constraint is the major reason for many of our design choices. In addition:
+Alive verifies optimizations (and Alive-Infer synthesizes preconditions), while
+we synthesize rewrites and predicates, as well as verify them; Alive must contend
+with more types of undefined behavior, which the Halide expression
+language need not consider; and Alive uses a simple reduction order in
+which all optimizations reduce program size, while our termination proof is more
+complex. We originally tried synthesizing rule predicates with the approach used
+by Alive-Infer but were not successful: using Z3 to generate positive and
+negative examples did not scale for us, due in part to the use of
+division/modulo over the integers in the Halide expression language.
+
+Most recently, leveraging a TRS along with synthesized rules has been applied
+to optimizing fully-homomorphic encryption (FHE) circuits~\cite{lee2020fhe}.  This
+system synthesizes equivalent circuits with lower cost from small example circuits,
+then applies the equivalences in a divide-and-conquer manner; the rewrites do
+not contain preconditions. In further contrast to our work, the domain of FHE yields a
+simple cost function (the depth of nested multiplications in the circuit), and
+the underlying theory of boolean circuits is decidable.
+
 
 An \textit{equivalence graph} or egraph, as introduced by Nelson~\cite{nelson1980techniques}, is a data structure used to compute applications of the rules of a term rewriting system. The algorithm builds up equivalence classes by successively applying all rules to all expressions within those classes, then queries to see if two expressions are equivalent by checking if they are present in the same class. Like our algorithm, it does not backtrack, but the egraph can require significant amounts of memory, which our algorithm avoids.
 
 Herbie~\cite{panchekha2015automatically}, a tool for improving the accuracy of floating point arithmetic, uses an egraph term rewriting system made up of a small library of axioms to find repairs once a fault has been localized. Herbie assures termination by bounding the number of rewrites their system may apply, and achieves good performance by pruning the expression search space and applying rewrites only to particular expression nodes. 
 
-Program synthesis has been applied to term rewriting systems in several domains. Swapper~\cite{singh2016swapper} synthesizes a set of rewrite rules to transform SMT formulas into forms that can be more easily solved by theory solvers, similar to the use of the Halide TRS as a simplifier, using the SKETCH tool. Butler 2017~\cite{butler2017synthesizing} learns human-interpretable strategies (essentially rewrite rules) for puzzle games such as Sudoku or Nonograms and Butler 2018~\cite{butler2018framework} finds tactics for solving K-12 algebra problems, both using a CEGIS loop similar to our synthesis process. None of these address termination, although Swapper likely screens out non-terminating rulesets through its autotuning step. The Butler works both focus on synthesizing small, highly general rulesets that are similar to human rewriting strategies, unlike the Halide TRS which tolerates very large rulesets.
+Besides the closely-related projects described above, program synthesis has been applied to term rewriting systems in several domains. Swapper~\cite{singh2016swapper} synthesizes a set of rewrite rules to transform SMT formulas into forms that can be more easily solved by theory solvers, similar to the use of the Halide TRS as a simplifier, using the SKETCH tool. Butler 2017~\cite{butler2017synthesizing} learns human-interpretable strategies (essentially rewrite rules) for puzzle games such as Sudoku or Nonograms and Butler 2018~\cite{butler2018framework} finds tactics for solving K-12 algebra problems, both using a CEGIS loop similar to our synthesis process. None of these address termination, although Swapper likely screens out non-terminating rulesets through its autotuning step. The Butler works both focus on synthesizing small, highly general rulesets that are similar to human rewriting strategies, unlike the Halide TRS which tolerates very large rulesets.
 
-Superoptimization, a process of finding a shorter or more desirable program that is semantically equivalent to a larger one, is similar to our work synthesizing right-hand side terms for candidate LHSs. STOKE~\cite{schkufza2013stochastic} uses Monte Carlo Markov Chain sampling to explore the space of x86 assembly programs, while Phothilimthana et al.~\cite{phothilimthana2016scaling} describes a cooperative superoptimizer that searches for better programs using multiple techniques in a way that allows them to learn from each other. 
+Superoptimization, a process of finding a shorter or more desirable program that is semantically equivalent to a larger one, is similar to our work synthesizing right-hand side terms for candidate LHSs. STOKE~\cite{schkufza2013stochastic} uses Monte Carlo Markov Chain sampling to explore the space of x86 assembly programs, while Phothilimthana et al.~\cite{phothilimthana2016scaling} describes a cooperative superoptimizer that searches for better programs using multiple techniques in a way that allows them to learn from each other.  Souper~\cite{sasnauskas2017souper} is a recent synthesis-based superoptimizer for LLVM, which was used as the basis for evaluating the effectiveness of Alive-Infer's precondition synthesis.
 
 SMT solvers seek to achieve practical results in theoretically challenging problems, such as the theory of non-linear integer arithmetic. For example, Jovanovic~\cite{jovanovic2017solving} describes a satisfiability procedure for NLIA that is effective in practice and implements it in the Yices2 solver. In this work we leverage Z3's NLIA solving abilities and extend synthesis to include certain types of non-linear expressions by using constants as operands and later generalizing.
 
