@@ -858,16 +858,6 @@ integer expressions present in the final Halide IR, at the point just before
 lowering to LLVM IR. These expressions have been reduced as far as the current rewriter can, so we attempt
 to learn rules that could reduce them even further. 
 
-In addition to concrete expressions, we enumerate all sequences of up to three operations (that is,
-using four variables) that the rewriter does not reduce. Although in general our synthesis strategy is data-driven,
-it proved helpful to use this bounded space of expressions to fill in gaps and find simple but useful rules.
-  Further, we aggressively restrict
-this corpus: we avoid symmetries (our synthesis strategy already generates all commutations
-of a rule, as described below), we do not include division or modulo, the variables must occur
-in canonical order, and we do not include constants. The latter constraint
-especially avoids generating a large number of useless rules, which are unlikely to
-match any real-world code. 
-
 \paragraph{Generating LHS Patterns} For a given input expression, the first step
 is to construct all left-hand-side patterns that match some portion of the expression.
 We constrain the maximum length of a pattern to be five operations, to ensure fast matching
