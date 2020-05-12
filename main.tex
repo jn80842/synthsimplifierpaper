@@ -937,95 +937,76 @@ applications of the rule in the term rewriting system. We attempt to synthesize 
 such that $pred \rightarrow LHS = RHS$ and all variables appearing in the
 predicate are symbolic constants.
 
-Consider the synthesized rule $c0 \cdot x > c1 \cdot x \equiv x > c2$, where $c0$, $c1$,
-$c2$ are symbolic constants. We want to find some term $P$ such that
-$P \rightarrow c0 \cdot x > c1 \cdot x \equiv x > c2$ and
-$\mathcal{V}ar(P) \subseteq \{c0, c1, c2\}$. More generally, for a rule $R$, we begin by
-negating $R$ and deriving as many facts from it as possible that refer only to
-the symbolic constants. Once we have found $\neg R \rightarrow \neg P$, with $P$ containing
-no non-symbolic constant variables, we know that $P \rightarrow R$, so $P$ serves as a
-valid predicate for the rule.  For example, for the rule above, we derive implications
-from $c0 \cdot x > c1 \cdot x \neq x > c2$, and then negate those implications to
-construct the predicate.
+The ideal predicate would be one which is true for all cases in which
+the $LHS = RHS$ and false for all cases where $LHS \neq RHS$. More
+precisely, for a vector of variables $\vec{x} \in Z^n$ and a vector of
+symbolic constants $\vec{c} \in Z^m$, let $LHS(\vec{x}, \vec{c})$ be the left-hand-side
+of the rewrite rule, and $RHS(\vec{x}, \vec{c})$ be our synthesized
+right-hand-size. The ideal predicate is then exactly:
 
-Deriving facts that only contain symbolic constants requires applying variable
-elimination to get rid of non-symbolic constant variables.  Our approach breaks up $\neg P$ into
-a large number of simpler cases, then applies variable elimination to each case.
+\[
+P_{ideal}(\vec{c}) = \bigwedge\limits_{\vec{x} \in Z^n} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )
+\]
 
-\paragraph{Dividing into Subclauses} We begin by subdividing a negated rewrite $l \neq r$ into
-the cases $l \wedge \neg r$ and $\neg l \wedge r$.  We then further subdivide each case based
-on the sign of any variables used in multiplication, division, or modulo, constructing
-a case for negative, zero, or positive values of the variable (we skip the zero case for
-division and modulo, because we assume no undefined behavior exists in the original expression).
-For our example, we subdivide into three cases each for each of $c0$, $c1$, and $x$, yielding
-54 cases.  We then further subdivide using any explicit conditionals in the expression (max,
-min, and select), considering each branch separately.
+This is of course not a predicate we can use in practice, because it
+involves an infinite conjunction over $Z^n$. We can however, unroll
+the conjunction over any finite subset $S \subset Z^n$ and use that as
+our predicate:
 
-Next, we introduce positive auxiliary variables ($k0..kn$ in our notation) to convert
-inequalities into equalities, and remove all division and modulo operations using
-variable substitutions.  After all these steps, we end up with a large number of simple
-clauses in a conjuction.  For our example, one set of resulting clauses is:
-\begin{align*}
-c0 \cdot x = c1 \cdot x + k0  \wedge x + k1 = c2 & & \wedge \\
-x > 0 \wedge
-c0 > 0 \wedge 
-c1 < 0 & & \wedge  \\
-k0 \geq 1 \wedge k1 \geq 0 & &
-\end{align*}
+\[
+P_S(\vec{c}) = \bigwedge\limits_{\vec{x} \in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )
+\]
 
-\paragraph{Variable Elimination} We employ three main strategies for eliminating
-variables: traditional variable elimination, in which one equation is rewritten and
-used to eliminate a variable in another equation; using reasoning over the signs in products;
-and using Halide's bounds analysis machinery to find facts about the clauses.  Reasoning about signs
-is especially powerful; for example, given $a \times b == c$, knowing the signs of any
-two terms tells us the sign of the third. This converts the non-linear equality constraint into a linear inequality.
+This predicate can be evaluated at compile time (with one caveat
+below). If we set $S$ to the zero vector plus the standard basis for
+$Z^n$ then many of the terms in the conjunction are either trivially
+true or equivalent, and the unrolled conjunction often simplifies
+(using the TRS itself) to a single equality.
 
-The possible
-set of manipulations is very large, and the non-linear nature of the systems prevent most
-tools from robustly reasoning about the expressions.  To tractably eliminate variables and discover
-facts about the systems, we use beam search~\cite{beamsearch} in order to avoid applying
-all possible actions at each step.  Beam search uses a cost model to prune states, exploring
-only the top $k$ scoring steps, and we hash states to avoid exploring the same state multiple
-times.
+Because we dropped terms from the infinite conjunction, $P_S$
+is now necessary but not sufficient. While it does recognize all the
+cases in which the rule applies, it also captures cases in which it
+should not. However, for any given choice of $S$ we can improve it by
+finding one of these incorrect cases using Z3, adding the
+counterexample $\vec{x}$ to $S$, and iterating this until convergence in a
+CEGIS-like loop.
 
-We learn a cost model by featurizing systems of equations using a number of hand-crafted
-features\footnote{The full set of features is: the number of constraints, number of variables,
-  number of symbolic constants, the number of variables with known constant upper or lower bounds,
-  the number of variables with known constant upper \textit{and} lower bounds, and finally the number of
-  equality constraints where one side has a known (but potentially non-constant) upper bound and other side has a lower bound.},
-and assigning a cost based on a linear combination of weights for each feature.  Initially,
-we assign weights by hand, and then run on random systems of equations while keeping track
-of which states led to eliminating a non-symbolic constant variable.  Then, we retrain the weights
-as a logistic regressor that predicts which states will lead to successful elimination
-by minimizing cross-entropy loss.  Interestingly, the regressor learned that the most
-important feature is the one counting the number of symbolic constants, as our goal
-is to eliminate only non-symbolic constant variables.  Perhaps unsurprisingly, the feature
-with the largest negative coefficient was the number of unconstrained variables, as
-these must be eliminated in order to make progress on the system overall.
+If the loop terminates with $Z3$ definitively stating that there are
+no counterexamples, then $P_S$ is necessary \emph{and} sufficient, so
+we have found our ideal predicate. If the loop does not terminate
+after a small number of iterations (we use four) then we simplify our
+$P_s$ expression using the TRS, convert it to disjunctive normal
+form \footnote{While $P_S$ is initially a conjunction of equalities,
+  disjunctions appear after simplification due to rewrites such as
+  $c_1 \times c_2 = 0 \rightarrow c_1 = 0 \vee c_2 = 0$}, and test
+each clause in turn to see if it is a sufficient condition, if not a
+necessary one. If we find one, we return this single clause. If the
+loop terminates with Z3 timing out or returning ``unknown'', we return
+the current $P_S$, but flag it for human attention as something that
+needs a manual proof. We exclude all such cases from our experiments
+below.
 
-The tree search logs all constraints found that only use symbolic constants.  Combining
-these constraints and negating gives us the predicate $P$ that guarantees the candidate rule will hold.
+Our resulting $P_S(\vec{c})$ may still not be possible to evaluate at
+compile-time in the case where some of the symbolic constants that
+make up $c$ appear only on the right-hand side. For example, in $(x_1
++ c_1) + c_2 \rightarrow x_1 + c_3$ we have no value for $c_3$ to use
+in testing a predicate or constructing the right-hand side
+expression. Fortunately, using the algorithm above, the only term in
+this predicate is $c_1 + c_2 = c_3$, so we can simply substitute out
+$c_3$ using the constant-folded left-hand side of this equality,
+giving the unpredicated rule $(x_1 + c_1) + c_2 \rightarrow x_1 +
+fold(c_1 + c_2)$. In general we eliminate each symbolic constant that
+only appears on the right-hand side of a rewrite rule by iterating
+over the clauses in the predicate, attempting to solve each for the
+symbolic constant, and substituting it for its constant-folded value
+if successful. This variable elimination simplifies the predicate, so
+we do it eagerly inside the predicate-synthesis loop described above.
 
-\subsection{Final Simplification \& Filtering} At this stage, we now have a candidate
-rule and a predicate over its symbolic constants.  However, the predicate is often quite
-large and full of redundant clauses, which could make compile-time checks too slow.
-We simplify the predicate by converting to conjunctive normal form (CNF) and applying
-ad-hoc simplification rules that remove redundant terms.
+\subsection{Final Simplification \& Filtering}
 
-After simplification, the predicate may still contain constraints on symbolic constants
-that appear \textit{only on the right hand side}, since we never restricted where symbolic constants
- can appear.  Thus, we must further transform the predicate to eliminate
-constraints of this form.  Our strategy is to first try to transform a symbolic constant
-$c$ into a form $c > Q$, $c < Q$, or $c = Q$ where $Q$ contains only symbolic constants
-that appear on the LHS of the rule.  If this fails, we attempt further rewrites by
-searching for any clause where $c$ is compared with any expression not containing RHS
-symbolic constants.  If such a clause is found, we can rewrite $c$, but if not, the rule
-cannot be checked at compile time and must be discarded.
+<bunch of stuff we no longer do cut>
 
-Once we have a candidate rule guarded by an acceptable predicate, we perform three final checks.
-First, we query Z3 to ensure the
-predicate is satisfiable; if not, we discard the rule.  About 10\% of all rules fail
-this filter.  Secondly, we check that the rule is not redundant.  For every pair of
+Secondly, we check that the rule is not redundant.  For every pair of
 rules $R_1$ and $R_2$, if $R_1$ matches every left hand side that $R_2$ matches,
 and the predicate for $R_1$ implies the predicate for $R_2$, then we can discard $R_2$
 as $R_1$ is at least as general. Finally, we check that the candidate rule obeys our
