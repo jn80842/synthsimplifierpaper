@@ -1004,14 +1004,31 @@ we do it eagerly inside the predicate-synthesis loop described above.
 
 \subsection{Final Simplification \& Filtering}
 
-TODO: Talk about adding every commuted/reassociated variant of the LHS, except for the non-canonical ones. Searching over every (canonical) commuted/reassociated variant of the RHS to minimize the edit distance (ignoring ops) vs the LHS, to avoid pointless shuffling of terms.
-<bunch of stuff we no longer do cut>
+Now that we have a list of rules with predicates, we augment the list
+by enumerating all variants of the left-hand side with commutative
+operations reordered. For each variant we search over all commutations
+and reassociations of the right-hand side, and select the one most
+similar to the left-hand side. We measure similarity by serializing
+the expression and computing the Levenshtein distance on the resulting
+strings considering only the parentheses and the leaves. This is done
+to avoid pointlessly shuffling subexpressions. Variables in each rule
+are then renamed to appear in a consistent order.
 
-Secondly, we check that the rule is not redundant.  For every pair of
-rules $R_1$ and $R_2$, if $R_1$ matches every left hand side that $R_2$ matches,
-and the predicate for $R_1$ implies the predicate for $R_2$, then we can discard $R_2$
-as $R_1$ is at least as general. Finally, we check that the candidate rule obeys our
-reduction order in order to preserve our termination guarantee. If the candidate rule passes all three filters, the rule can be added to the TRS ruleset automatically without any human auditing.
+For example, from a synthesized rule $y - max(x, y - z) \rightarrow min(y - x, z)$ we would generate the following two
+output rules by commuting the max operation:
+\[
+x - max(y, x - z) \rightarrow min(z, x - y) \qquad x - max(x - y, z) \rightarrow min(y, x - z)
+\]
+
+Next, we check that the rule is not redundant. For every pair of rules
+$R_1$ and $R_2$, if $R_1$ matches every left hand side that $R_2$
+matches, and the predicate for $R_1$ implies the predicate for $R_2$,
+then we can discard $R_2$ as $R_1$ is at least as general. Finally, we
+check that the candidate rule obeys our reduction order in order to
+preserve our termination guarantee. If the candidate rule passes these
+filters, and the predicate has not been flagged for human review, the
+rule can be added to the TRS ruleset automatically without any human
+auditing.
 
 \section{Evaluation}
 
