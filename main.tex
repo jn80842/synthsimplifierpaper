@@ -296,7 +296,7 @@ the loop has a constant extent.
 Many of these properties relate regions of computation with one another,
 which, within Halide, are represented as intervals over the integers.
 Reasoning about these regions uses a \textit{term rewriting system}
-(TRS) on integers: the compiler applies simplification rules to an expression relating
+(TRS): the compiler applies simplification rules to an expression relating
 the regions until no more rewrites apply.  The final expression may be
 true, false, or some more complex expression. If an expression is semantically equivalent to true,
 but the TRS cannot rewrite it to that form, the compiler may be unable to apply a valid optimization,
@@ -393,11 +393,10 @@ term rewriting system.
 
 \section{Background \& Overview}
 \subsection{Term Rewriting Systems}
-Term rewriting systems~\cite{gorn1967} successively apply \textit{rewrite rules} to transform a given
-expression into a simpler form, until no further simplifications are possible.  Such systems are widely
+Term rewriting systems~\cite{gorn1967} successively apply \textit{rewrite rules} to transform expressions into a new form.  Such systems are widely
 used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{cousot1977abstract, cousot1979systematic}.
 
-Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
+Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. (Constants are considered zero-arity functions.) We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
 
 A \emph{rewrite rule} is a directed binary relation $l \rightarrow_R r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
 
@@ -545,7 +544,7 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 The Halide compiler contains a term rewriting system, currently composed of
 nearly a thousand rules, that operates over the space of Halide
 expressions\footnote{See Supplemental Material for the full Halide
-  expression grammar}. While the term rewriting system is used for multiple
+  expression grammar}, a relatively small language of integer, boolean, and vector functions. While the term rewriting system is used for multiple
 purposes within the compiler, the two most important
 uses are when the TRS serves as a proof engine to determine if
 some equality or inequality holds, or when the rewriter attempts to find tight
@@ -598,8 +597,8 @@ LHS of a rule matches an expression, its predicate is evaluated and only if it
 is true will the rewrite be applied.
 
 We limit ourselves to expressions over the set of infinite precision integers in
-this work, although Halide expressions can contain floats and fixed-width
-integers. However, the uses of the TRS we consider in this work all operate
+this work. Although Halide expressions can contain floats and fixed-width
+integers, the uses of the TRS we consider in this work all operate
 on infinite integers.
 
 \subsection{Why a Custom Algorithm?}
@@ -642,8 +641,7 @@ Finally, although Z3 can be used to simplify expressions, simply reducing the si
 
 \subsection{Program Synthesis}
 Our pipeline for automatically generating new rules relies on program synthesis.
-Syntax-guided synthesis (SyGuS)~\cite{sygus} has been used
-to search over a space of possible programs in order to find one that meets
+Syntax-guided synthesis (SyGuS)~\cite{sygus} searches a space of possible programs in order to find one that meets
 a semantic specification.  One of the most popular techniques is counterexample-guided
 inductive synthesis (CEGIS), which leverages the power of satisfiability modulo theories
 (SMT) and SAT solvers to make search over a large space of programs more intelligent.
@@ -710,8 +708,7 @@ and can be run for the current set of rewrite rules via script.
 
 However, for 123
 rules, Z3 either timed out or returned unknown. Nearly all of these rules used
-either division or modulo. We used the proof assistant Coq to manually prove or
-disprove the correctness of these remaining rules. In the course of these proofs, we discovered we
+either division or modulo. We used the proof assistant Coq to manually prove the correctness of these remaining rules. In the course of these proofs, we discovered we
 were also able to relax the predicates of \NumPredicatesRelaxed rules; for example, in some cases a rule
 with a predicate requiring some constant to be positive would be equally valid
 if the constant was non-zero.
@@ -719,7 +716,7 @@ if the constant was non-zero.
 We further want to guarantee that, given an input expression with well-defined
 behavior, the term rewriting system will never rewrite it into an expression that has
 undefined behavior. Thus, if an input expression never divides by zero, then the
-TRS output must never divide by zero. We check this by
+TRS output must also never divide by zero. We check this by
 verifying that all terms used as divisors or moduluses in the RHS of a
 rewrite rule also appear as a divisor in the rule's LHS. Note that all divisor
 terms on the LHS side are not required to appear in the RHS; if a divisor is
@@ -728,7 +725,7 @@ divide-by-zero fault but the simplified expression will not.
 
 \subsubsection{Evolving semantics}
 
-After our initial work in verifying Halide's TRS, the Halide definition of division was altered; previously any value divided by zero was undefined, but now returns zero, with similar semantics for modulus. Since we had already modeled Halide semantics in SMT2, it was a simple matter to alter the definitions of division and modulus and run the verification scripts again. At the time we ran our second verification, there were \NumZdivRules in the Halide TRS ruleset, and \NumZdivZThreeProvedRules were proven true in Z3. We proved \NumZdivCoqProvedRules rules to be true manually in Coq; since in the previous round all Coq proofs included the assumption that all divisors were nonzero, in most cases we had only to add a case to show that the rule was true both when the divisor was zero and when it was nonzero. In the course of reviewing these proofs, we identified \NumZdivRelaxedPredicates rules whose predicates including the condition that a divisor be nonzero and where that condition could safely be lifted. We found that \NumZdivFalseRules rules were not correct under the new semantics and submitted a patch to amend them.
+After our initial work in verifying Halide's TRS, the Halide definition of division was altered. Previously any value divided by zero was undefined, but it now returns zero, with similar semantics for modulo. Since we had already modeled Halide semantics in SMT2, it was a simple matter to alter the definitions of division and modulo and run the verification scripts again. At the time we ran our second verification, there were \NumZdivRules in the Halide TRS ruleset, and \NumZdivZThreeProvedRules were proven true in Z3. We proved \NumZdivCoqProvedRules rules to be true manually in Coq; since in the previous round all Coq proofs included the assumption that all divisors were non-zero, in most cases we had only to add a case to show that the rule was true both when the divisor was zero and when it was non-zero. In the course of reviewing these proofs, we identified \NumZdivRelaxedPredicates rules whose predicates included the condition that a divisor be non-zero and where that condition could safely be lifted. We found that \NumZdivFalseRules rules were not correct under the new semantics and submitted a patch to amend them.
 
 Overall results of verifying rule correctness are described in Section~\ref{sec:eval-correctness}.
 
@@ -739,7 +736,7 @@ rewriting system containing only one rule: $x + y \rightarrow y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
 be matched to the rule and rewritten to $3 + 5$, and so on. The Halide TRS has been observed to fail to terminate in the past, leading the compiler to enter an infinite loop and eventually segfault. This issue is tricky to debug, and has presumably not always reported by users, since the error is fairly opaque. To show that this type of error has been eliminated, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some sequence of rules that form a cycle.
 
-We can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rule always rewrites expressions such that they move monotonically in some direction, then it will be impossible for any sequence of rules to form a cycle. This corresponds to our intuition about why certain rules are useful: we may want to write rules that cancel expressions and make them smaller, replace expensive operations with cheaper ones, or canonicalize expressions so we can more easily prove an equivalence. We can consider each of these properties as a dimension in the expression space, in which rewrites should move expressions in the desired direction. If we can formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
+We can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rule always rewrites expressions such that they move monotonically in some direction through expression space, then it will be impossible for any sequence of rules to form a cycle. These directions correspond to our intuition about why certain rules are useful: we may want to write rules that cancel expressions and make them smaller, replace expensive operations with cheaper ones, or canonicalize expressions so we can more easily prove an equivalence. We can consider each of these properties as a dimension in the expression space, in which rewrites should move expressions in the desired direction. If we can formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
 
 We provide this formalism and prove that the Halide term rewriting system must terminate by constructing a \emph{reduction order}, a strict order with properties that ensure that, for an order $>$ and a rule $l \rightarrow_R r$, if $l > r$, then for any expression $e_1$ that matches $l$ and is rewritten by $l \rightarrow r$ into $e_2$, it must be true that $e_1 > e_2$. Crucially, this order is evaluated over rule terms, and not over all expressions that those terms may match. We take the definition of a reduction order and the next two theorems from~\cite{baader1999term}.
 
@@ -754,7 +751,7 @@ s_1 > s_2 \implies f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n) > f(t_1,...t_{i-1},s_2,
 \]
 
 for all $i, 1 \leq i \leq n$ and all expressions $t_1,...t_{i-1},t_{i+1},...,t_n$. This property means that if a rewrite rule is used to transform a subtree in some expression $e$, the $>$ relation is preserved between the original expression $e$ and the rewritten expression $e'$. Finally, a reduction order is \emph{closed under substitution}: for all expressions $s_1, s_2$ and all substitutions $\sigma \in \mathcal{S}ub(T(\Sigma,V))$, 
-$s_1 > s_2 \implies \sigma(s_1) > \sigma(s_2)$. When we match some lefthand side term $l$ to some expression $e$, we are defining a substitution for each of the variables in $l$ with some subtree in $e$; we then use that substitution to rewrite $e$ to $e'$. If our order is closed under substitutions, we know that for any expression we match to $l$, the resulting rewritten expression will obey the ordering.
+$s_1 > s_2 \implies \sigma(s_1) > \sigma(s_2)$. When we match some left-hand side term $l$ to some expression $e$, we are defining a substitution for each of the variables in $l$ with some subtree in $e$; we then use that substitution to rewrite $e$ to $e'$. If our order is closed under substitutions, we know that for any expression we match to $l$, the resulting rewritten expression will obey the ordering.
 
 Choosing a single monotonic direction in which to rewrite expressions would be overly restrictive, since there are many reasons why a given rule may be useful. The Halide TRS is used both to prove expressions true and to simplify them; when using it as a prover, we want to put both sides of an equality into some normal form, but it doesn't particularly matter what that form is. When using the TRS to simplify expressions, on the other hand, reducing the size of an expression can have large performance implications. Since we must devise an ordering that covers the existing ruleset, we make use of the following theorem:
 
@@ -764,11 +761,11 @@ The lexicographic product of two terminating relations is again terminating.
 
 Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rightarrow_R r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rightarrow_R r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.
 
-Many of our component orders are defined using a measure function that counts the number of particular operations or other features in a term. We say that $s > t$ when $s$ has more vector operations than $t$, then when $s$ has more division, modulus and multiplications operations, and so on. As a sample proof sketch, consider an order $s_1 >_* s_2$ that holds when the number of multiplication operations is greater in $s_1$ than in $s_2$. We represent this through a measure function $|s_1|_*$ that returns the count of addition operations in $s_1$; since this function maps a term to a natural number, the order is clearly well-founded. The order is also compatible with $\Sigma$-operations; we compute our measure function as follows:
+Many of our component orders are defined using a measure function that counts the number of particular operations or other features in a term. We say that $s > t$ when $s$ has more vector operations than $t$, then when $s$ has more division, modulo and multiplications operations, and so on. As a sample proof sketch of this flavor of order, consider an order $s_1 >_* s_2$ that holds when the number of multiplication operations is greater in $s_1$ than in $s_2$. We represent this through a measure function $|s_1|_*$ that returns the count of multiplication operations in $s_1$; since this function maps a term to a natural number, the order is clearly well-founded. The order is also compatible with $\Sigma$-operations; we compute our measure function as follows:
 
 
 \[
-|f(t_1,...,t_n)|_* = \sum_i^n |t_i|_+ + \begin{cases} 1 & \textrm{if } f = * \\
+|f(t_1,...,t_n)|_* = \sum_i^n |t_i|_* + \begin{cases} 1 & \textrm{if } f = * \\
                                                       0 & \textrm{otherwise}
                                         \end{cases}
 \]
@@ -779,7 +776,7 @@ It clearly follows that given $|s_1|_* > |s_2|_*$, it must be true that:
 |f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n)|_* > |f(t_1,...t_{i-1},s_2,t_{i+1},...,t_n)|_*
 \]
 
-To ensure the order is closed under substitution, we need to add one more constraint. Imagine a rule $x * 2 \rightarrow_R x + x$. Although there are fewer $*$ symbols in the righthand term than on the left, that would not be true for a substitution $\sigma = \{x \mapsto (z * z)\}$. We add a constraint that for every variable present in $s_1$, it must occur either fewer or an equal number of times in $s_2$. With this constraint there is no possible substitution that increases the value of the measure function in $s_2$ that would not increase by an equivalent or greater amount in $s_1$. This gives us the order:
+To ensure the order is closed under substitution, we need to add one more constraint. Imagine a rule $x * 2 \rightarrow_R x + x$. Although there are fewer $*$ symbols in the righthand term than on the left, that would not be true for a substitution $\sigma = \{x \mapsto (z * z)\}$. We add a condition that for every variable present in $s_1$, it must occur either fewer or an equal number of times in $s_2$. With this constraint there is no possible substitution that increases the value of the measure function in $s_2$ that would not result in an increase by an equivalent or greater amount in $s_1$. This gives us the order:
 
 \[
 s_1 >_* s_2 \textrm{ iff } |s_1|_* > |s_2|_* \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x
@@ -795,7 +792,7 @@ For the rule $\texttt{max}(x + y, x) \rightarrow_R \texttt{max}(y, 0) + x$, the 
 
 Besides giving a termination guarantee, the reduction order will also aid us in synthesizing new rewrite rules. The Halide simplifier algorithm picks one deterministically chosen rule to apply to an input expression. When we synthesize new rules, we are choosing which potential rule to apply next from the space of previously unknown semantic equivalences. The reduction order is a formal encoding of the types of transformations we find desirable, so it can be used to limit synthesis to rules that rewrite expressions in a useful direction.
 
-In constructing the reduction order, we found 4 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. A full description of the reduction order, with proof sketches for its validity, is given in the appendix.
+In constructing the reduction order, we found 4 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. A full description of the reduction order, with proof sketches for its validity, is given in the appendix. \jln{add proof sketches to appendix}
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \begin{figure*}
@@ -1021,7 +1018,7 @@ x - max(y, x - z) \rightarrow min(z, x - y) \qquad x - max(x - y, z) \rightarrow
 \]
 
 Next, we check that the rule is not redundant. For every pair of rules
-$R_1$ and $R_2$, if $R_1$ matches every left hand side that $R_2$
+$R_1$ and $R_2$, if $R_1$ matches every left-hand side that $R_2$
 matches, and the predicate for $R_1$ implies the predicate for $R_2$,
 then we can discard $R_2$ as $R_1$ is at least as general. Finally, we
 check that the candidate rule obeys our reduction order in order to
@@ -1038,15 +1035,15 @@ Note for reviewers: For the purposes of this anonymous submission, we will refer
 
 \subsection{Could the synthesizer have fixed previous bugs automatically?}
 
-We searched through Halide’s change history and selected the five pull requests that addressed issues by adding new rewrite rules to Halide’s TRS. These pull requests occurred before the Halide developers started routinely using the verifier and synthesizer when changing the TRS. These can be found as diffs A-E in supplemental material. Creating these rewrite rules as a human is an amount of work disproportionate to the size of the change. To avoid checking in a bug, the author of the rules must prove them correct on paper, and a second reviewer must check their work. As we will see, bugs can slip through despite this review. 
+We searched through Halide’s change history and selected the five pull requests that addressed issues by adding new rewrite rules to Halide’s TRS. These pull requests occurred before the Halide developers started routinely using the verifier and synthesizer when changing the TRS. These can be found as diffs A-E in supplemental material. Creating these rewrite rules as a human is an amount of work disproportionate to the size of the change. The author of the rules must prove them correct on paper, and a second reviewer must check their work. As we will see, bugs can slip through despite this review. 
 
-In each case we take the test expressions committed as part of the change and feed them to our synthesizer to see if it would have produced the same rewrite rules as the humans did. In cases where humans did not check in tests for their new rules (tsk tsk), we wrote our own. In total across these cases humans added 24 new rules. The synthesizer generated 42, covering all but one of the human rules, while correcting and generalizing others. In cases A, C, and E, the rules generated by the synthesizer are an exact match to the human-generated rules. In case B the synthesizer matched the human, and also output 8 commuted variants of the human rules. As an example, for the human-written rule:
+In each case we take the test expressions committed as part of the change and feed them to our synthesizer to see if it would have produced the same rewrite rules as the humans did. In cases where humans did not check in tests for their new rules, we wrote our own. In total, across these cases humans added 24 new rules. The synthesizer generated 42, covering all but one of the human rules, while correcting and generalizing others. In cases A, C, and E, the rules generated by the synthesizer are an exact match to the human-generated rules. In case B the synthesizer matched the human, and also output 8 commuted variants of the human rules. As an example, for the human-written rule:
 
 \[
 rewrite(max(max(x, y) + c0, x), max(x, y + c0), c0 < 0)
 \]
 
-The synthesizer output effectively the same rule~\footnote{c0 can’t possibly be zero because it would have already constant folded, so while it may appear superior at first c <= 0 is not actually more general than c0 < 0.}:
+The synthesizer produced effectively the same rule~\footnote{c0 can’t possibly be zero because it would have already constant folded, so while it may appear superior at first c <= 0 is not actually more general than c0 < 0.}:
 
 \[
 rewrite(max((max(x, y) + c0), x), max((y + c0), x), (c0 <= 0))
@@ -1075,7 +1072,7 @@ The second human rule was:
 \[
 rewrite(min(x, c0) < min(x, c1), false, c0 >= c1) 
 \]
-The synthesizer output a more general rule, along with three other commuted variants of it:
+The synthesizer found a more general rule, along with three other commuted variants of it:
 \[
 rewrite((min(x, y) < min(x, z)), (y < min(x, z)))
 \]
@@ -1131,7 +1128,7 @@ rewrite(min(y + c0, z) < min(y, x), min(z, y + c0) < x, c0 < 0)
 
 \subsubsection{Redefining division by zero}
 
-Case H is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by (cite Alex’s paper on formalizing Halide). Existing tests and real uses of Halide were useless as a test of this change, as it was all carefully written to never divide by zero! Within the TRS, this change required rechecking every rewrite rule that involves the div and mod operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now we must ensure that the rule was still correct in the case where a denominator is zero, or constrain the rule to only trigger when the denominator is known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 141 rules were reverified with a human in the loop by revisiting and modifying existing coq proofs. In this process, 44 existing rules were found to be incorrect in the new semantics and fixed. Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case D above. The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of newly-incorrect rules were:
+Case H is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by \aba{(cite Alex’s paper on formalizing Halide)}. Existing tests and real uses of Halide were useless as a test of this change, as it was all carefully written to never divide by zero! Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now we must ensure that the rule was still correct in the case where a denominator is zero, or constrain the rule to only trigger when the denominator is known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 141 rules were reverified with a human in the loop by revisiting and modifying existing coq proofs. In this process, 44 existing rules were found to be incorrect in the new semantics and fixed. Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case D above. The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of newly-incorrect rules were:
 
 \begin{align*}
 & rewrite((x/y)*y + x\%y, x) \\
@@ -1161,7 +1158,7 @@ However, Halide scheduling directives can expand the bounds computed of a stage.
 \[
 \texttt{tmp.compute_root().vectorize(x, 8)}
 \]
-Then in order to compute 5 values of the output, we must compute an entire 8-lane vector of the intermediate tmp (due to the vectorize directive). Three lanes of this vector will go unused, but they are still computed, which means *10* distinct values are loaded from the input. While none of these three additional values loaded can possibly affect an output pixel, the load still occurs, and could for example cause a segmentation fault if the addresses happen to cross a page boundary. \aba{if we include this detail at all, it might work better as a figure that shows the true and spurious data dependencies}
+Then in order to compute 5 values of the output, we must compute an entire 8-lane vector of the intermediate tmp (due to the vectorize directive). Three lanes of this vector will go unused, but they are still computed, which means 10 distinct values are loaded from the input. While none of these three additional values loaded can possibly affect an output pixel, the load still occurs, and could for example cause a segmentation fault if the addresses happen to cross a page boundary. \aba{if we include this detail at all, it might work better as a figure that shows the true and spurious data dependencies}
 
 In case I, Halide was changed such that instead of asserting that no output value has a dependency on any out-of-bounds input values, it now asserts the stricter condition that no out-of-bounds loads occur on the input, even if those loaded values cannot possibly affect an output.
 
@@ -1182,6 +1179,7 @@ During this process a large number of bugs were found in human-written early ver
 Generalizing from these four cases, we have found that having the verifier and synthesizer available as tools reduces the number of bugs committed, uncovers and fixes old bugs, and helps developers work more quickly by not only mechanizing correctness checking but also by synthesizing correct code. We also found that the guarantees these tools provide mean that the developers can make large changes to the compiler such as those above with confidence. Anecdotally, developers also report that eliminating these classes of bug makes triaging new issues simpler, because they could now not possibly be due to an incorrect simplifier rule or an infinite loop in the simplifier.
 
 \subsection{Finding and fixing undiscovered issues automatically}
+\label{ssec:compilationspeed}
 The cases above all concern fixing existing problems while not introducing new ones. By verifying that the simplifier is correct and that the rules are cycle-free, we also remove two entire classes of future bugs. Anecdotally, the Halide maintainers report that over the life of the project, bugs due to cycles in the simplifier have appeared 5-10 times, and bugs due to incorrect rules in the simplifier have appeared 10-20 times.
 
 Even with these classes of bug eliminated, there are still unknown unknowns. There are probably compilations in which the Halide compiler does a bad job in a way that a new simplifier rule or two could fix, but we don’t know what they are because no human has encountered them yet (or more likely, no human has been sufficiently motivated to submit a bug report for them yet). 
@@ -1234,12 +1232,12 @@ must also reason about whether overflow can occur.  Extending our improvements
 and automation to such rules could be done in future work.
 
 One major limitation of the synthesis process we use is that our oracle
-for rules, Z3, cannot reason about expressions with divisions or modulo
+for rules, Z3, often cannot reason about expressions with divisions or modulo
 where the right operand is a variable.  Though we work around this to
 synthesize rules with generalized predicates on right hand side constants,
 the overall synthesis machinery cannot generalize these to non-constants.
 Extending the synthesizer may be more tractable for rules that operate
-on integers with finite bit widths.
+on integers with finite bitwidths.
 
 The Halide TRS is used both to prove expressions true or false and to
 simplify expressions to more easily optimizable forms, but these two use cases
@@ -1250,7 +1248,7 @@ otherwise be a very human-effort intensive task.
 
 Although we do not currently synthesize rules that contain vector operators,
 they are not incompatible with our approach. Since our reduction of Halide
-expressions to SMT formulas models vector expressions as integers, we would need
+expressions to SMT2 formulas models vector expressions as integers, we would need
 to add a typechecking step to ensure correctness in the synthesis process, which
 we leave as future work.
 
@@ -1336,153 +1334,5 @@ inclusion of this work into the compiler.
 
 %% Bibliography
 \bibliography{bib}
-
-\pagebreak
-%%% Appendix
-%\appendix
-%\section{Appendix}
-%
-%\subsection{Halide expression grammar}
-%\label{ss:appendixA}
-%
-%
-%\begin{grammar}
-%<Expr> ::= <BoolExpr> 
-%\alt <IntExpr> 
-%\alt <VectorExpr>
-%
-%<BoolExpr> ::= `true'
-%\alt `false'
-%\alt <IntExpr> `<' <IntExpr>
-%\alt <IntExpr> `>' <IntExpr>
-%\alt <IntExpr> `<=' <IntExpr>
-%\alt <IntExpr> `>=' <IntExpr>
-%\alt <IntExpr> `=' <IntExpr>
-%\alt <IntExpr> `!=' <IntExpr>
-%\alt <VectorExpr> `<' <VectorExpr>
-%\alt <VectorExpr> `>' <VectorExpr>
-%\alt <VectorExpr> `<=' <VectorExpr>
-%\alt <VectorExpr> `>=' <VectorExpr>
-%\alt <VectorExpr> `=' <VectorExpr>
-%\alt <VectorExpr> `!=' <VectorExpr>
-%\alt <BoolExpr> `&&' <BoolExpr>
-%\alt <BoolExpr> `||' <BoolExpr>
-%\alt `!' <BoolExpr>
-%
-%<IntExpr> ::= <IntExpr> `+' <IntExpr>
-%\alt <IntExpr> `-' <IntExpr>
-%\alt <IntExpr> `*' <IntExpr>
-%\alt <IntExpr> `/' <IntExpr>
-%\alt <IntExpr> `\%' <IntExpr>
-%\alt `max' <IntExpr> <IntExpr>
-%\alt `min' <IntExpr> <IntExpr>
-%\alt `select' <BoolExpr> <IntExpr> <IntExpr>
-%\alt integers
-%
-%<VectorExpr> ::= `broadcast' <IntExpr>
-%\alt `ramp' <IntExpr> <IntExpr>
-%\alt <VectorExpr> `+' <VectorExpr>
-%\alt <VectorExpr> `-' <VectorExpr>
-%\alt <VectorExpr> `*' <VectorExpr>
-%\alt <VectorExpr> `/' <VectorExpr>
-%\alt <VectorExpr> `\%' <VectorExpr>
-%\alt `max' <VectorExpr> <VectorExpr>
-%\alt `min' <VectorExpr> <VectorExpr>
-%\alt `select' <BoolExpr> <VectorExpr> <VectorExpr>
-%\end{grammar}
-%
-%\subsection{The full Halide reduction order}
-%\label{a:reductionorder}
-%
-%For some term $s \in T(\Sigma, V)$ and some variable $x \in V$, let $|s|_x$ be the number occurrences of the variable $x$ in the term $s$.
-%
-%Let $\mathcal{P}os(t)$ be the set of indexes to the subterms in the term $t$, and let $t|_p$ be a subterm of the term $t$ at the position $p$%. Then, $s >_{vec} t$ iff the number of occurrences of \texttt{ramp} and \texttt{broadcast} in $s$ are greater than the number of %occurrences in $t$ and that for every variable contained by $t$, if it is present in some subterm $t|_p$ and that subterm does not start %with a \texttt{ramp} or \texttt{broadcast}, then the number of occurrences of that variable must be greater or equal in $s$ than in $t$.
-%
-%\begin{equation*}
-%\begin{split}
-%s >_{vec} t \iff & (|s|_{\texttt{ramp}} + |s|_{\texttt{broadcast}} > |t|_{\texttt{ramp}} + |t|_{\texttt{broadcast}} \wedge \\
-%& \forall x \in V, (\exists p \in \mathcal{P}os(t), x \in t|_p \wedge \\
-%& (t|_p \neq \texttt{ramp}(v_1,v_2) \wedge t|_p \neq \texttt{broadcast}(v)))) \\
-%& \implies |s|_x \geq |t|_x
-%\end{split}
-%\end{equation*}
-%
-%Next, $s >_{var} t$ iff for every variable that occurs in $t$, it occurs strictly more times in $s$.
-%
-%\begin{equation*}
-%s >_{var} t \iff \forall x \in \mathcal{V}ar(t), |s|_x > |t|_x
-%\end{equation*}
-%
-%We say $s >_{nonlinear} t$ if the total number of multiplications, divisions, and moduluses in $s$ is greater than that of $t$, while all %variables in $t$ occur an equal or greater number of times in $s$.
-%
-%\begin{equation*}
-%\begin{split}
-%s >_{nonlinear} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
-%& \sum_{op \in \{*,/,\%\}} |s|_{op} > \sum_{op \in \{*,/,\%\}} |t|_{op}
-%\end{split}
-%\end{equation*}
-%
-%We say $s >_{op} t$ if the total number of all operations in $s$ is greater than that of $t$, while all variables in $t$ occur an equal or %greater number of times in $s$.
-%
-%\begin{equation*}
-%\begin{split}
-%s >_{op} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
-%& \sum_{op \in \Sigma} |s|_{op} > \sum_{op \in \Sigma} |t|_{op}
-%\end{split}
-%\end{equation*}
-%
-%The next order is itself a lexicographic composition of a series of orders over total counts of each type of operation, using the order %specified in ~\ref{symbolstrength}; first terms are compared by the number of \texttt{ramp} occurrences; if those are equal they are %compared by the number of \texttt{broadcast} operators, and so on. 
-%
-%\begin{equation*}
-%\begin{split}
-%s >_{histo} t \iff & \forall x \in \mathcal{V}ar(t), |s|_x \geq |t|_x \wedge \\
-%& |s|_{\texttt{ramp}} > |t|_{\texttt{ramp}} \vee \\
-%& |s|_{\texttt{ramp}} = |t|_{\texttt{ramp}} \wedge |s|_{\texttt{broadcast}} > |t|_{\texttt{broadcast}} \vee \\
-%& \dots \\
-%& \dots \wedge |s|_{\texttt{=}} > |t|_{\texttt{=}} 
-%\end{split}
-%\end{equation*}
-%
-%The last two orders are recursive multiset path orders, defined in general as:
-%
-%\begin{equation*}
-%\begin{split}
-%s >_{mpo} t \iff & t \in \mathcal{V}ar(s) \vee \\
-%              &  s = f(s_1,\dots,s_m), t = g(t_1,...,t_n), f > g \vee \\
-%               & \{s_1, \dots, s_m\} >_{mpo} \{t_1,\dots,t_n\}
-%\end{split}
-%\end{equation*}
-%
-%First, $s >_{mpo^+} t$ where $>_{mpo^+}$ is a multiset path order defined on the strict order $>_+$ over all Halide operators.
-%
-%\begin{equation*}
-%f >_+ g \iff (f \neq \texttt{+} \wedge f \neq \texttt{-}) \wedge (g = \texttt{+} \vee g = \texttt{-})
-%\end{equation*}
-%
-%Finally, $s >_{mpo^{op}} t$ where $>_{mpo^{op}}$ is a multiset path order defined on a strict order over the Halide operators as defined in ~%\ref{symbolstrength}.
-%
-%\subsection{Halide symbol strength} \label{symbolstrength}
-%
-%The function symbols in the Halide expression signature, in order by strength, greatest to least.
-%
-%\begin{enumerate}
-%  \item \texttt{ramp}
-%  \item \texttt{broadcast}
-%  \item \texttt{select}
-%  \item \texttt{/}
-%  \item \texttt{*}
-%  \item \texttt{$\%$}
-%  \item \texttt{+, -} (equal strength)
-%  \item \texttt{max, min} (equal strength)
-%  \item \texttt{!}
-%  \item \texttt{||}
-%  \item \texttt{$\&\&$}
-%  \item \texttt{$>=$}
-%  \item \texttt{$>$}
-%  \item \texttt{$<=$}
-%  \item \texttt{$<$}
-%  \item \texttt{$!=$}
-%  \item \texttt{=}
-%\end{enumerate}
 
 \end{document}
