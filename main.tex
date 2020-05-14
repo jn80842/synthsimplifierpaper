@@ -1155,9 +1155,9 @@ Generalizing from these four cases, we have found that having the verifier and s
 
 \subsection{Finding and fixing undiscovered issues automatically}
 \label{ssec:compilationspeed}
-The cases above all concern fixing existing problems while not introducing new ones. By verifying that the simplifier is correct and that the rules are cycle-free, we also remove two entire classes of future bugs. Anecdotally, the Halide maintainers report that over the life of the project, bugs due to cycles in the simplifier have appeared 5-10 times, and bugs due to incorrect rules in the simplifier have appeared 10-20 times.
+The cases above all concern fixing existing problems while not introducing new ones. By verifying that the simplifier is correct and that the rules are cycle-free, we also remove two entire classes of future bugs. For reference, over the life of the Halide project there have been 14 pull requests that fix incorrect simplifier rules, and 3 pull requests that modify rules in order to avoid cycles. 
 
-Even with these classes of bug eliminated, there are still unknown unknowns. There are probably compilations in which the Halide compiler does a bad job in a way that a new simplifier rule or two could fix, but we don’t know what they are because no human has encountered them yet (or more likely, no human has been sufficiently motivated to submit a bug report for them yet). 
+Even with these classes of bug now eliminated, there are still unknown unknowns. There are probably compilations in which the Halide compiler does a bad job in a way that a new simplifier rule or two could fix, but we don’t know what they are because no human has encountered them yet (or more likely, no human has been sufficiently motivated to submit a bug report for them yet). 
 
 We probed the compiler for issues of this nature using fuzzing. We selected the 12 most complex example applications in the open source repository, and generated 64 random schedules for each using the autoscheduler~\cite{Adams2019}, which can be configured to generate random likely-good schedules. This produced 768 separate compilations.
 
