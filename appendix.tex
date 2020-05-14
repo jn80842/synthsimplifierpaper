@@ -267,7 +267,7 @@
 \label{a:reductionorder}
 
 \begin{equation}
-s >_{\mathcal{V}ar} t \textrm{ iff } \exists x . |s|_{x} > |t|_{x} \wedge \lnot \exists \sigma . \sigma(x) = \emptyset
+s >_{\mathcal{V}ar} t \textrm{ iff } \exists x . |s|_{x} > |t|_{x} \wedge \forall c \in \Sigma^0 . \lnot \exists \sigma . \sigma(x) = c
 \end{equation}
 
 The order $>_{\mathcal{V}ar}$ holds if there is one variable with strictly fewer occurrences in $s$ than in $t$, and if that variable cannot be a ground term. 
@@ -297,7 +297,12 @@ s >_{\textrm{op}} t \textrm{ iff } \sum_{f \in \Sigma} |s|_f > \sum_{f \in \Sigm
 The order $>_{\textrm{op}}$ holds if the count of all operations (all symbols in $\Sigma$ that are not zero-arity) in term $s$ is strictly greater that of $t$.
 
 \begin{equation}
-s >_{0/1} t \textrm{ iff } |s|_{leaf} - |s|_0 + |s|_1 > |t|_{leaf} - |t|_0 - |t|_1  \wedge |s|_{leaf} = |t|_{leaf} \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x \wedge \forall x \in \mathcal{V}ar(s) . \lnot \exists \sigma . (\sigma(x) \neq 0 \wedge \sigma(x) \neq 1)
+\begin{split}
+s >_{0/1} t \textrm{ iff } & |s|_{leaf} - |s|_0 + |s|_1 > |t|_{leaf} - |t|_0 - |t|_1 \\
+&  \wedge |s|_{leaf} = |t|_{leaf} \\
+& \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x \\ 
+& \wedge \forall x \in \mathcal{V}ar(s) . \lnot \exists \sigma . (\sigma(x) \neq 0 \wedge \sigma(x) \neq 1)
+\end{split}
 \end{equation}
 
 The order $>_{0/1}$ holds if there are strictly more occurrences of the constants 0 and 1 in $t$ than in $s$ and if for all variables in $s$, there is no substitution such that $x$ can be substituted with the constants 0 or 1.
