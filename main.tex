@@ -817,7 +817,6 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
   $r_{cand} = \{\}$\;
   \ForEach{$p_i \in P$}{
     \tcp{First try reassociation \& applying existing rules}
-    Flatten pattern into $p_{flat}$\;
     \ForEach{$p_{reassoc}$}{
       \If{\texttt{rewrite($p_{reassoc}$) $\neq$ $p_{reassoc}$}}{
           \tcp{Found a candidate rewrite}
@@ -834,13 +833,15 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
   \tcp{Generalize constants (\S\ref{sec:generalizing-constants})}
   \ForEach{$r_i \in r_{cand}$}{
     Replace concrete constants in $r_i$ with symbolic constants $c_i$\;
-    $m =$ number of non-constant wildcards in $r_i$\;
-    $S$ = standard basis vectors for $Z^m \cup \vec{0}$\;
-    $P_{cand} = \bigwedge\limits_{\vec{x} \in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )$\;
-    \Repeat{$iter > 4$ or Z3 confirms $P_{cand}$ sufficient}{
-      Add counterexample to $S$ and add new clause to $P_{cand}$\;
+    $n =$ number of non-constant wildcards in $r_i$\;
+    $S$ = standard basis vectors for $Z^n \cup \vec{0}$\;
+    \Repeat{$iter > 4$, $P_{cand}(\vec{c})$ is sufficient, or Z3 times out}{
+      $P_{cand}(\vec{c}) = \bigwedge\limits_{\vec{x} \in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )$\;
+      Find $\hat{x}, \hat{c}$ s.t. $P_{cand}(\hat{c}) \wedge LHS(\hat{x}, \hat{c}) \neq RHS(\hat{x}, \hat{c})$\;
+      \uIf{No such $\hat{x}, \hat{c}$ exists}{$P_{cand}(\vec{c})$ is sufficient}
+      \Else{$S \leftarrow S \cup \{\hat{x}\}$}
     }
-    \If{still not sufficient}{break $P_{cand}$ into disjunctive normal form and check if any clause is sufficient\;}
+    \If{still not sufficient}{break $P_{cand}(\vec{c})$ into disjunctive normal form and check if any clause is sufficient\;}
     \uIf{sufficient}{Perform final filtering and add to $r$\;}
     \Else{Reject candidate\;}
   }
