@@ -862,37 +862,79 @@ that encode constraints on those constants.
 
 \subsection{Synthesizing Candidate Rules With Constants}
 \label{sec:synthesizing-candidate-rules}
-The aim of the synthesis pipeline is to learn new rules useful for reasoning about input expressions.
-We obtain scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compile
- random but realistic Halide pipelines with random schedules for
-training the Halide autoscheduler, and instrument the compiler to gather our dataset.
-Since the rewriter works as both a prover and a simplifier, we need a dataset that reflects both usages.
-For the prover usecase,  the compiler was instrumented to print
-expressions that the TRS was unable to prove true, but that fuzz
-testing was not able to find to be false, a good indicator of a weak spot in the
-rewriter's reasoning power. For the simplifier usecase, we capture all
-integer expressions present in the final Halide IR, at the point just before 
-lowering to LLVM IR. These expressions have been reduced as far as the current rewriter can, so we attempt
-to learn rules that could reduce them even further. 
 
-\paragraph{Generating LHS Patterns} For a given input expression, the first step
-is to construct all left-hand-side patterns that match some portion of the expression.
-We constrain the maximum length of a pattern to be five operations, to ensure fast matching
-during term rewriting. At this stage, patterns preserve any constant values, and subtrees
-that exactly match syntactically are assigned the same wildcard. For
-example, given the expression $(a*b + c/b)$, where all nodes are non-constant,
-we extract the following LHS patterns: $x + y$, $x * y$, $x / y$, $x * y + z$,
-$x + y/z$, and $x*y + z/y$.  We then filter out any patterns that do not either contain
-a repeated wildcard or more than one constant. Such patterns are unlikely to result in a useful general
-rewrite.  Thus, of the set above, we would only consider the last pattern, since
-it contains a repeated $y$.  Although the set of candidate LHS patterns is exponential
-in the size of the original expression, our filtering reduces the set to a tractable
-size.
+The aim of the synthesis pipeline is to learn new rules useful for
+reasoning about a corpus of input expressions. Depending on the task,
+these expressions might be gathered from a bug report, or gathered
+from compiler logs. With logging enabled, the compiler records two
+kinds of problematic expression for which new TRS rules may be helpful.
+
+\paragraph{Non-monotonic expressions}
+First, Halide relies on symbolic interval arithmetic for determining
+how much memory to allocate and how many values to compute. Symbolic
+interval arithmetic is exact in cases where an expression
+monotonically increases or decreases over a loop. For example, if $x
+\in [0, 100]$, then symbolic interval arithmetic states that $max(x,
+x/2 + 20) \in [20, 100]$, which is the tightest correct
+bound. However, in the presence of anti-correlated subexpressions
+interval arithmetic becomes inexact, and is prone to overestimating
+bounds. The expression $min(x, 100 - x)$ is bounded above by 50, but
+symbolic interval arithmetic makes the weaker claim that it is bounded
+above by 100, by setting the first instance of $x$ to 100 and the
+second instance of $x$ to zero. The compiler therefore logs all
+instances of expressions which are non-monotonic in some containing
+loop, to make it easier to find inefficiencies caused by this
+overestimation. Any new TRS rule which reduces a non-monotonic
+expression to a monotonic one will help the compiler avoid these
+inefficiencies.
+
+\paragraph{Failed proofs}
+Second, Halide uses the TRS as a prover, to check the legality of
+certain transformations. For example, if a user asks to parallelize a
+loop that scatters values to memory, the compiler constructs a
+boolean-typed expression that encodes the claim that there is no race
+condition and passes this expression to the TRS. If it reduces to the
+constant ``true'', the loop can be parallelized. Otherwise the code is
+rejected. When logging is enabled, in cases where the expression is
+not reduced to a constant the compiler substitutes random values for
+any remaining wildcards to check for counterexamples. If none are
+found after 100 attempts, the expression is logged as something which
+might be reducible to true with more rewrite rules.
+
+%We obtain scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compile
+% random but realistic Halide pipelines with random schedules for
+%training the Halide autoscheduler, and instrument the compiler to gather our dataset.
+%Since the rewriter works as both a prover and a simplifier, we need a dataset that reflects both usages.
+%For the prover usecase,  the compiler was instrumented to print
+%expressions that the TRS was unable to prove true, but that fuzz
+%testing was not able to find to be false, a good indicator of a weak spot in the
+%rewriter's reasoning power. For the simplifier usecase, we capture all
+%integer expressions present in the final Halide IR, at the point just before 
+%lowering to LLVM IR. These expressions have been reduced as far as the current rewriter can, so we attempt
+%to learn rules that could reduce them even further. 
+
+\paragraph{Generating LHS Patterns}
+Whatever their source, for each given input expression the first step
+is to construct all left-hand-side patterns that match some portion of
+the expression.  We constrain the maximum length of a pattern to be
+seven leaf nodes, to ensure fast matching during term rewriting. At
+this stage, patterns preserve any constant values, and subtrees that
+exactly match syntactically are assigned the same wildcard. For
+example, given the expression $(a*b + c/b)$, where all nodes are
+non-constant, we extract the following LHS patterns: $x + y$, $x * y$,
+$x / y$, $x * y + z$, $x + y/z$, and $x*y + z/y$.  We then filter out
+any patterns that do not either contain a repeated wildcard or more
+than one constant. Such patterns are unlikely to result in a useful
+general rewrite.  Thus, of the set above, we would only consider the
+last pattern, since it contains a repeated $y$.  Although the set of
+candidate LHS patterns is exponential in the size of the original
+expression, our filtering reduces the set to a tractable size.
 
 \paragraph{Synthesizing Right-Hand Sides} Given a candidate left-hand side, we 
-synthesize a right-hand side that is semantically equivalent and respects the reduction
-order such that $\mathit{LHS} > \mathit{RHS}$.  We utilize two strategies for synthesizing
-right-hand sides: reassociating and applying a known rewrite, and counter-example guided
+synthesize a right-hand side that is semantically equivalent and
+respects the reduction order such that $\mathit{LHS} > \mathit{RHS}$.
+We employ two strategies for synthesizing right-hand sides:
+reassociating and applying a known rewrite, and counter-example guided
 inductive synthesis (CEGIS).
 
 The first strategy comes from the insight that in many cases existing rewrite rules would apply
@@ -916,7 +958,7 @@ to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016
 We first search for a single-op sequence,
 then iteratively increase the number of operations, in order to find shorter sequences
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
-operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the op-code count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
+operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the leaf node count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
 
 \paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, there are certain types of expressions 
 containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
