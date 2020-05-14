@@ -653,18 +653,21 @@ applications of rules, on any input expression, that can form a cycle.
 
 \subsection{Rule verification}
 
-We verify each individual rule is correct by modeling Halide expressions in SMT2
-and using the SMT solver Z3~\cite{de2008z3} to prove that the rule equivalences must hold.
-Most Halide expression semantics map cleanly
-to SMT2 formulas. The functions \texttt{max} and \texttt{min} are defined in
-the usual way, and \texttt{select} in Halide is equivalent to the SMT2 operator
-\texttt{ite}. Division and modulo are given the Euclidean definitions in both
-Halide and SMT2~\cite{boute1992euclidean}. If a variable appears in the LHS of a rule as a divisor in a
-division or modulo operation, it is assumed to be non-zero. %The Halide
+We verify each individual rule is correct by modeling Halide
+expressions in SMT2 and using the SMT solver Z3~\cite{de2008z3} to
+prove that the rule equivalences must hold.  Most Halide expression
+semantics map cleanly to SMT2 formulas. The functions \texttt{max} and
+\texttt{min} are defined in the usual way, and \texttt{select} in
+Halide is equivalent to the SMT2 operator \texttt{ite}. Division and
+modulo are given the Euclidean definitions in both Halide and
+SMT2~\cite{boute1992euclidean}, though division by zero is handled
+differently (in Halide both evaluate to zero).
+%If a variable appears in the LHS of a rule as a divisor in a
+%division or modulo operation, it is assumed to be non-zero. %The Halide
 %expressions do not have a true boolean type (true and false are represented by
 %unsigned integers of 1 bitwidth), so expressions must be typed as either
 %\texttt{Int} or \texttt{Bool} when translated into SMT2. The Halide expression
-Halide contains two vector-only operators, \texttt{broadcast} and \texttt{ramp}; all
+Halide's TRS uses two vector-only operators, \texttt{broadcast} and \texttt{ramp}; all
 other integer operators can be coerced to vector operators. 
 \texttt{broadcast} projects some value $x$ to a vector of length $l$; because of
 the type coercion, we can simply represent \texttt{broadcast(x)} as the variable
@@ -688,19 +691,37 @@ were also able to relax the predicates of \NumPredicatesRelaxed rules; for examp
 with a predicate requiring some constant to be positive would be equally valid
 if the constant was non-zero.
 
-We further want to guarantee that, given an input expression with well-defined
-behavior, the term rewriting system will never rewrite it into an expression that has
-undefined behavior. Thus, if an input expression never divides by zero, then the
-TRS output must also never divide by zero. We check this by
-verifying that all terms used as divisors or moduluses in the RHS of a
-rewrite rule also appear as a divisor in the rule's LHS. Note that all divisor
-terms on the LHS side are not required to appear in the RHS; if a divisor is
-factored out, then it is possible that the input expression would have caused a
-divide-by-zero fault but the simplified expression will not.
+%
+%We further want to guarantee that, given an input expression with well-defined
+%behavior, the term rewriting system will never rewrite it into an expression that has
+%undefined behavior. Thus, if an input expression never divides by zero, then the
+%TRS output must also never divide by zero. We check this by
+%verifying that all terms used as divisors or moduluses in the RHS of a
+%rewrite rule also appear as a divisor in the rule's LHS. Note that all divisor
+%terms on the LHS side are not required to appear in the RHS; if a divisor is
+%factored out, then it is possible that the input expression would have caused a
+%divide-by-zero fault but the simplified expression will not.
 
 \subsubsection{Evolving semantics}
 
-After our initial work in verifying Halide's TRS, the Halide definition of division was altered. Previously any value divided by zero was undefined, but it now returns zero, with similar semantics for modulo. Since we had already modeled Halide semantics in SMT2, it was a simple matter to alter the definitions of division and modulo and run the verification scripts again. At the time we ran our second verification, there were \NumZdivRules in the Halide TRS ruleset, and \NumZdivZThreeProvedRules were proven true in Z3. We proved \NumZdivCoqProvedRules rules to be true manually in Coq; since in the previous round all Coq proofs included the assumption that all divisors were non-zero, in most cases we had only to add a case to show that the rule was true both when the divisor was zero and when it was non-zero. In the course of reviewing these proofs, we identified \NumZdivRelaxedPredicates rules whose predicates included the condition that a divisor be non-zero and where that condition could safely be lifted. We found that \NumZdivFalseRules rules were not correct under the new semantics and submitted a patch to amend them.
+This mostly-automated approach to verification assists with changing
+the language semantics. Our initial work on verification was not on
+the semantics descibed above. It used to be the case that division or
+modulo by zero was considered undefined behavior. Since we had already
+modeled Halide semantics in SMT2, it was a simple matter to alter the
+definitions of division and modulo and run the verification scripts
+again. At the time we ran our second verification, there were
+\NumZdivRules in the Halide TRS ruleset, and \NumZdivZThreeProvedRules
+were proven true in Z3. We proved \NumZdivCoqProvedRules rules to be
+true manually in Coq; since in the previous round all Coq proofs
+included the assumption that all divisors were non-zero, in most cases
+we had only to add a case to show that the rule was true both when the
+divisor was zero and when it was non-zero. In the course of reviewing
+these proofs, we identified \NumZdivRelaxedPredicates rules whose
+predicates included the condition that a divisor be non-zero and where
+that condition could safely be lifted. We found that
+\NumZdivFalseRules rules were not correct under the new semantics and
+submitted a patch to amend them.
 
 Overall results of verifying rule correctness are described in Section~\ref{sec:eval-correctness}.
 
@@ -709,7 +730,7 @@ Overall results of verifying rule correctness are described in Section~\ref{sec:
 Term rewriting systems are not guaranteed to terminate. Consider a term
 rewriting system containing only one rule: $x + y \rightarrow y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
-be matched to the rule and rewritten to $3 + 5$, and so on. The Halide TRS has been observed to fail to terminate in the past, leading the compiler to enter an infinite loop and eventually segfault. This issue is tricky to debug, and has presumably not always reported by users, since the error is fairly opaque. To show that this type of error has been eliminated, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some sequence of rules that form a cycle.
+be matched to the rule and rewritten to $3 + 5$, and so on. The Halide TRS has been observed to fail to terminate in the past\footnote{See for example https://github.com/halide/Halide/pull/1525}, causing unbounded recursion and eventually a stack overflow in the compiler. This issue is tricky to debug, and has presumably not always reported by users, since the error is fairly opaque. To show that this type of error has been eliminated, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some sequence of rules that form a cycle.
 
 We can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rule always rewrites expressions such that they move monotonically in some direction through expression space, then it will be impossible for any sequence of rules to form a cycle. These directions correspond to our intuition about why certain rules are useful: we may want to write rules that cancel expressions and make them smaller, replace expensive operations with cheaper ones, or canonicalize expressions so we can more easily prove an equivalence. We can consider each of these properties as a dimension in the expression space, in which rewrites should move expressions in the desired direction. If we can formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
 
@@ -728,7 +749,7 @@ s_1 > s_2 \implies f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n) > f(t_1,...t_{i-1},s_2,
 for all $i, 1 \leq i \leq n$ and all expressions $t_1,...t_{i-1},t_{i+1},...,t_n$. This property means that if a rewrite rule is used to transform a subtree in some expression $e$, the $>$ relation is preserved between the original expression $e$ and the rewritten expression $e'$. Finally, a reduction order is \emph{closed under substitution}: for all expressions $s_1, s_2$ and all substitutions $\sigma \in \mathcal{S}ub(T(\Sigma,V))$, 
 $s_1 > s_2 \implies \sigma(s_1) > \sigma(s_2)$. When we match some left-hand side term $l$ to some expression $e$, we are defining a substitution for each of the variables in $l$ with some subtree in $e$; we then use that substitution to rewrite $e$ to $e'$. If our order is closed under substitutions, we know that for any expression we match to $l$, the resulting rewritten expression will obey the ordering.
 
-Choosing a single monotonic direction in which to rewrite expressions would be overly restrictive, since there are many reasons why a given rule may be useful. The Halide TRS is used both to prove expressions true and to simplify them; when using it as a prover, we want to put both sides of an equality into some normal form, but it doesn't particularly matter what that form is. When using the TRS to simplify expressions, on the other hand, reducing the size of an expression can have large performance implications. Since we must devise an ordering that covers the existing ruleset, we make use of the following theorem:
+Choosing a single monotonic direction in which to rewrite expressions would be overly restrictive, since there are many reasons why a given rule may be useful. The Halide TRS is used both to prove expressions true and to simplify them; when using it as a prover, we want to put both sides of an equality into some normal form, but it doesn't particularly matter what that form is. When using the TRS to simplify expressions, on the other hand, reducing the size of an expression can have performance benefits. Since we must devise an ordering that covers the existing ruleset, we make use of the following theorem:
 
 \begin{theorem}
 The lexicographic product of two terminating relations is again terminating.
@@ -757,15 +778,23 @@ To ensure the order is closed under substitution, we need to add one more constr
 s_1 >_* s_2 \textrm{ iff } |s_1|_* > |s_2|_* \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x
 \]
 
-Most of the component orders in the full reduction order take the form above. These orders guarantee termination no matter what sequence rewrite rules are applied to an expression. However for part of the existing ruleset, we were obliged to take into account the order in which rules are applied in the Halide TRS algorithm. The handwritten ruleset had many rules that eliminated the occurrence of a variable, such as $x + x \rightarrow_R x * 2$. It seems natural to define an order based on the measure function $|s_1|_x$, but for a substitution $\sigma = \{x \mapsto 3\}$, $|3 + 3|_x \not > |3 * 2|_x$. However, the simplifier algorithm always attempts constant folding before any other rule, so we know that the rule $x + x \rightarrow_R x * 2$ can only be invoked if $x$ is not a ground term. Similarly, we have several rules that factor out an occurrence of a variable and introduce the constant 0 into the expression. We define an order on the occurrences of the constant 0 by defining a measure function that takes the count of terminals or leaves in the expression and subtracts the count of the constant 0; if terms $s_1$ and $s_2$ have the same number of leaves, but more of the leaves of $s_2$ are the constant 0, then $s_1 > s_2$.
+Most of the component orders in the full reduction order take the form above. These orders guarantee termination no matter what sequence rewrite rules are applied to an expression. However for part of the existing ruleset, we were obliged to take into account the order in which rules are applied in the Halide TRS algorithm.
 
-\[
-s_1 >_0 s_2 \textrm { iff } |s_1|_{leaf} - |s_1|_0 > |s_2|_{leaf} - |s_2|_0 \wedge |s_1|_{leaf} = |s_2|_{leaf} \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x
-\]
+For example, one existing rule is the canonicalization $\(c_0 - x) + y \rightarrow (y - x) + c_0$ where $c_0$ is a constant. If $y$ is also a constant, this rule forms a cycle with itself, and could not possibly obey any reduction order. Fortunately, the rule immediately before it in the TRS handles that specific case ($((c_0 - x) + c_1 \rightarrow fold(c_0 + c_1) - x)$), so by this sort of non-local reasoning we know that $y$ is not a constant, and therefore the rule strictly decreases a measure which counts the number of constants on the right-hand side of an addition.
 
-For the rule $\texttt{max}(x + y, x) \rightarrow_R \texttt{max}(y, 0) + x$, the order will not hold for the substitution $\sigma = \{x \mapsto 0\}$. However, we know the rule $0 + x \rightarrow_R x$ will be invoked before this one, so the rule cannot be evaluated on the expression $\texttt{max}(0 + y, 0)$. Relying on non-local reasoning makes our order more brittle; if the simplifier algorithm were to be changed, the termination guarantee could be lost. However, we use only a small number of basic rules in this way, which are unlikely to be changed.
+%The handwritten ruleset had many rules that eliminated the occurrence of a variable, such as $x + x \rightarrow_R x * 2$. It seems natural to define an order based on the measure function $|s_1|_x$, but for a substitution $\sigma = \{x \mapsto 3\}$, $|3 + 3|_x \not > |3 * 2|_x$. However, the simplifier algorithm always attempts constant folding before any other rule, so we know that the rule $x + x \rightarrow_R x * 2$ can only be invoked if $x$ is not a ground term.
 
-Besides giving a termination guarantee, the reduction order will also aid us in synthesizing new rewrite rules. The Halide simplifier algorithm picks one deterministically chosen rule to apply to an input expression. When we synthesize new rules, we are choosing which potential rule to apply next from the space of previously unknown semantic equivalences. The reduction order is a formal encoding of the types of transformations we find desirable, so it can be used to limit synthesis to rules that rewrite expressions in a useful direction.
+%Similarly, we have several rules that factor out an occurrence of a variable and introduce the constant 0 into the expression. We define an order on the occurrences of the constant 0 by defining a measure function that takes the count of terminals or leaves in the expression and subtracts the count of the constant 0; if terms $s_1$ and $s_2$ have the same number of leaves, but more of the leaves of $s_2$ are the constant 0, then $s_1 > s_2$.
+
+%\[
+%s_1 >_0 s_2 \textrm { iff } |s_1|_{leaf} - |s_1|_0 > |s_2|_{leaf} - |s_2|_0 \wedge |s_1|_{leaf} = |s_2|_{leaf} \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x
+%\]
+
+% For the rule $\texttt{max}(x + y, x) \rightarrow_R \texttt{max}(y, 0) + x$, the order will not hold for the substitution $\sigma = \{x \mapsto 0\}$. However, we know the rule $0 + x \rightarrow_R x$ will be invoked before this one, so the rule cannot be evaluated on the expression $\texttt{max}(0 + y, 0)$.
+
+Relying on non-local reasoning makes our order more brittle; if the simplifier algorithm were to be changed, the termination guarantee could be lost. However, we use only a small number of basic rules in this way, which are unlikely to be changed.
+
+Besides giving a termination guarantee, the reduction order is necessary if we want to synthesizing new rewrite rules. If we do not constrain newly-synthesized rules to obey a consistent reduction order with the existing human-written ones, they form cycles with the existing rules and cause infinite recursion in the TRS. Additionally, the reduction order is the formal encoding of the types of transformations we find desirable, so the reduction order limits synthesis to rules that rewrite expressions in a useful direction.
 
 In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. \jln{add reference to eval section that discusses this} With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. A full description of the reduction order is given in the appendix.
 
