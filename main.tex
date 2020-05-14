@@ -670,13 +670,14 @@ differently (in Halide both evaluate to zero).
 Halide's TRS uses two vector-constructing operators, \texttt{broadcast} and \texttt{ramp}; all
 other integer operators can be coerced to vector operators. 
 \texttt{broadcast(x, l)} projects some value $x$ to a vector of length $l$; because of
-the type coercion, we can simply represent \texttt{broadcast(x)} as the variable
+the type coercion, we can simply represent \texttt{broadcast(x, l)} as the variable
 \texttt{x} in SMT2. \texttt{ramp(x, s, l)} creates a vector of length $l$
 whose initial entry has the value $x$ and all subsequent entries increase with
 stride $s$. In SMT2, we represent this term as the symbolic expression $x + l *
 s$, where $l$ must be zero or positive.
 
 Given this modeling, for each rule, we assert any assumptions are true, then
+\sak{by assumption, do we mean predicate?  We need to talk about predicates in Sec 2}
 ask Z3 to search for a variable assignment such that the LHS and RHS are not
 equivalent.  If Z3 indicates no such assignment exists, the LHS must be equivalent to
 the RHS and the rule must be correct. We implemented an SMT2 printer for 
@@ -708,8 +709,8 @@ if the constant was non-zero.
 
 This mostly-automated approach to verification assists with changing
 the language semantics. Our initial work on verification was not on
-the semantics descibed above. It used to be the case that division or
-modulo by zero was considered undefined behavior. Since we had already
+the semantics described above: division or modulo by zero was originally
+considered undefined behavior. Since we had already
 modeled Halide semantics in SMT2, it was a simple matter to alter the
 definitions of division and modulo and run the verification scripts
 again. At the time we ran our second verification, there were
@@ -721,7 +722,7 @@ we had only to add a case to show that the rule was true both when the
 divisor was zero and when it was non-zero. In the course of reviewing
 these proofs, we identified \NumZdivRelaxedPredicates rules whose
 predicates included the condition that a divisor be non-zero and where
-that condition could safely be lifted. We found that
+that condition could safely be lifted. We found that the remaining
 \NumZdivFalseRules rules were not correct under the new semantics and
 submitted a patch to amend them.
 
@@ -732,26 +733,24 @@ Overall results of verifying rule correctness are described in Section~\ref{sec:
 Term rewriting systems are not guaranteed to terminate. Consider a term
 rewriting system containing only one rule: $x + y \rightarrow y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
-be matched to the rule and rewritten to $3 + 5$, and so on. The Halide TRS has been observed to fail to terminate in the past\footnote{See for example https://github.com/halide/Halide/pull/1525}, causing unbounded recursion and eventually a stack overflow in the compiler. This issue is tricky to debug, and has presumably not always reported by users, since the error is fairly opaque. To show that this type of error has been eliminated, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some sequence of rules that form a cycle.
+be matched to the rule and rewritten to $3 + 5$, and so on. The Halide TRS has been observed to fail to terminate in the past\footnote{See for example https://github.com/halide/Halide/pull/1525}, causing unbounded recursion and eventually a stack overflow in the compiler. This issue is tricky to debug, and may not always be reported by users, since the error is fairly opaque. To show that this type of error has been eliminated, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some sequence of rules that form a cycle.
 
-We can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rule always rewrites expressions such that they move monotonically in some direction through expression space, then it will be impossible for any sequence of rules to form a cycle. These directions correspond to our intuition about why certain rules are useful: we may want to write rules that cancel expressions and make them smaller, replace expensive operations with cheaper ones, or canonicalize expressions so we can more easily prove an equivalence. We can consider each of these properties as a dimension in the expression space, in which rewrites should move expressions in the desired direction. If we can formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
+Intuitively, we can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rule always rewrites expressions such that they move monotonically in some direction through expression space, then it will be impossible for any sequence of rules to form a cycle. These directions correspond to our intuition about why certain rules are useful: we may want to write rules that cancel expressions and make them smaller, replace expensive operations with cheaper ones, or canonicalize expressions so we can more easily prove an equivalence. We can consider each of these properties as a dimension in the expression space, in which rewrites should move expressions in the desired direction. If we can formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
 
-We provide this formalism and prove that the Halide term rewriting system must terminate by constructing a \emph{reduction order}, a strict order with properties that ensure that, for an order $>$ and a rule $l \rightarrow_R r$, if $l > r$, then for any expression $e_1$ that matches $l$ and is rewritten by $l \rightarrow r$ into $e_2$, it must be true that $e_1 > e_2$. Crucially, this order is evaluated over rule terms, and not over all expressions that those terms may match. We take the definition of a reduction order and the next two theorems from~\cite{baader1999term}.
+We provide this formalism and prove that the Halide term rewriting system must terminate by constructing a \emph{reduction order}, a strict order with properties that ensure that, for an order $>$ and a rule $l \rightarrow_R r$, if $l > r$, then for any expression $e_1$ that matches $l$ and is rewritten by $l \rightarrow r$ into $e_2$, it must be true that $e_1 > e_2$. Crucially, this order is evaluated over rule terms, and not over all expressions that those terms may match. We take the definition of a reduction order and the next two theorems from~\citet{baader1999term}.
 
 \begin{theorem}\label{theorem:terminates}
 A term rewriting system $R$ terminates iff there exists a reduction order $>$ that satisfies $l > r$ for all $l \rightarrow_R r \in R$.
 \end{theorem}
 
 A reduction order is a strict order that must be well-founded, meaning that every non-empty set has a least element with regard to the order, to prevent infinitely descending chains. It must be \emph{compatible with $\Sigma$-operations}: for all expressions $s_1, s_2$, all $n \geq 0$, and all $f \in \Sigma$:
-
 \[
 s_1 > s_2 \implies f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n) > f(t_1,...t_{i-1},s_2,t_{i+1},...,t_n)
 \]
-
 for all $i, 1 \leq i \leq n$ and all expressions $t_1,...t_{i-1},t_{i+1},...,t_n$. This property means that if a rewrite rule is used to transform a subtree in some expression $e$, the $>$ relation is preserved between the original expression $e$ and the rewritten expression $e'$. Finally, a reduction order is \emph{closed under substitution}: for all expressions $s_1, s_2$ and all substitutions $\sigma \in \mathcal{S}ub(T(\Sigma,V))$, 
 $s_1 > s_2 \implies \sigma(s_1) > \sigma(s_2)$. When we match some left-hand side term $l$ to some expression $e$, we are defining a substitution for each of the variables in $l$ with some subtree in $e$; we then use that substitution to rewrite $e$ to $e'$. If our order is closed under substitutions, we know that for any expression we match to $l$, the resulting rewritten expression will obey the ordering.
 
-Choosing a single monotonic direction in which to rewrite expressions would be overly restrictive, since there are many reasons why a given rule may be useful. The Halide TRS is used both to prove expressions true and to simplify them; when using it as a prover, we want to put both sides of an equality into some normal form, but it doesn't particularly matter what that form is. When using the TRS to simplify expressions, on the other hand, reducing the size of an expression can have performance benefits. Since we must devise an ordering that covers the existing ruleset, we make use of the following theorem:
+Choosing a single monotonic direction in which to rewrite expressions would be overly restrictive, since there are many reasons why a given rule may be useful. The Halide TRS is used both to prove expressions true and to simplify them; when using it as a prover, we want to put both sides of an equality into some normal form, but it doesn't particularly matter what that form is. When using the TRS to simplify expressions, on the other hand, reducing the size of an expression can have performance benefits. Since we choose to devise an ordering that covers the existing ruleset, we make use of the following theorem:
 
 \begin{theorem}
 The lexicographic product of two terminating relations is again terminating.
@@ -780,7 +779,7 @@ To ensure the order is closed under substitution, we need to add one more constr
 s_1 >_* s_2 \textrm{ iff } |s_1|_* > |s_2|_* \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x
 \]
 
-Most of the component orders in the full reduction order take the form above. These orders guarantee termination no matter what sequence rewrite rules are applied to an expression. However for part of the existing ruleset, we were obliged to take into account the order in which rules are applied in the Halide TRS algorithm.
+Most of the component orders in the full reduction order take the form above. These orders guarantee termination no matter what sequence rewrite rules are applied to an expression. However, for part of the existing ruleset, we were obliged to take into account the order in which rules are applied in the Halide TRS algorithm.
 
 For example, one existing rule is the canonicalization $(c_0 - x) + y \rightarrow (y - x) + c_0$ where $c_0$ is a constant. If $y$ is also a constant, this rule forms a cycle with itself, and could not possibly obey any reduction order. Fortunately, the rule immediately before it in the TRS handles that specific case ($((c_0 - x) + c_1 \rightarrow fold(c_0 + c_1) - x)$), so by this sort of non-local reasoning we know that $y$ is not a constant, and therefore the rule strictly decreases a measure which counts the number of constants on the right-hand side of an addition.
 
@@ -798,7 +797,7 @@ Relying on non-local reasoning makes our order more brittle; if the simplifier a
 
 Besides giving a termination guarantee, the reduction order is necessary if we want to synthesizing new rewrite rules. If we do not constrain newly-synthesized rules to obey a consistent reduction order with the existing human-written ones, they form cycles with the existing rules and cause infinite recursion in the TRS. Additionally, the reduction order is the formal encoding of the types of transformations we find desirable, so the reduction order limits synthesis to rules that rewrite expressions in a useful direction.
 
-In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. \jln{add reference to eval section that discusses this} With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. A full description of the reduction order is given in the appendix.
+In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. \jln{add reference to eval section that discusses this} With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. A full description of the reduction order is given in the supplemental material.
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \begin{figure*}
