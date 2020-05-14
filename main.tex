@@ -1203,7 +1203,7 @@ rewrite(min(y + c0, z) < min(y, x), min(z, y + c0) < x, c0 < 0)
 
 \subsubsection{Redefining division by zero}
 
-Case $\mathbb{H}$ is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by \aba{(cite Alex’s paper on formalizing Halide)}. Existing tests and real uses of Halide were useless as a test of this change, as it was all carefully written to never divide by zero! Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now we must ensure that the rule was still correct in the case where a denominator is zero, or constrain the rule to only trigger when the denominator is known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 141 rules were reverified with a human in the loop by revisiting and modifying existing coq proofs. In this process, 44 existing rules were found to be incorrect in the new semantics and fixed. Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case $\mathbb{D}$ above. The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of newly-incorrect rules were:
+Case $\mathbb{H}$ is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by Alex Reinking~\cite{reinkingthesis}. Existing tests and real uses of Halide were useless as a test of this change, as it was all carefully written to never divide by zero! Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now we must ensure that the rule was still correct in the case where a denominator is zero, or constrain the rule to only trigger when the denominator is known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 141 rules were reverified with a human in the loop by revisiting and modifying existing coq proofs. In this process, 44 existing rules were found to be incorrect in the new semantics and fixed. Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case $\mathbb{D}$ above. The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of newly-incorrect rules were:
 
 \begin{align*}
 & rewrite((x/y)*y + x\%y, x) \\
@@ -1296,13 +1296,11 @@ never have been introduced. We intend to formalize and verify this
 secondary TRS next to flush out any other bugs lurking therein.
 
 \paragraph{The TRS scales well with the number of rules}
-Remarkably, quadrupling the size of the TRS increased compile times by
-only 0.3\%. On further examination we found that any increase in
-compile time spent inside the TRS was balanced by a decrease in
-compile time in later phases of compilation. Stronger simplification
-reduces the size and complexity of the program, which makes every
-subsequent compiler pass faster. TODO: how many extra cycles per rule
-added spent in TRS?
+Remarkably, quadrupling the size of the TRS increased total compile
+times by only 0.3\%. On further examination we found that the
+additional rules increased the amount of time spent inside the TRS by
+30\%, and that only 1\% of the the total compile time of the average
+Halide program is spent inside the TRS.
 
 We did not find significant effects on runtime of the generated code or code size. We also found no significant differences on any metrics within the company X corpus. This may be because the random schedules we generate are especially complex compared to human-written ones, or simply because humans don’t commit code that causes the compiler to misbehave.
 
