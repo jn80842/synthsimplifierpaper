@@ -889,7 +889,7 @@ first.  If CEGIS returns a sequence that is semantically equivalent to the LHS p
 operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the op-code count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
 
 \paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, there are certain types of expressions 
-containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat}, but were not able to obtain appreciably better results.)
+containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
 Therefore we limit the use of division and modulo in our op-codes to be division
 or modulo by 2 only, and rely on the generalization step described next to
 widen the set of denominators for which a rule applies.  Because of this
@@ -899,6 +899,7 @@ construct all rules a human can.
 
 \begin{table*}
 \caption{Sample rules synthesized by our process. }
+\small
 \begin{tabular}{l|l|l}
 LHS & RHS & Predicate \\
 \hline
