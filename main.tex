@@ -384,20 +384,17 @@ A \emph{rewrite rule} is a directed binary relation $l \rightarrow_R r$ such tha
 Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\clubsuit, \diamondsuit\}$ and $V$ is an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
 
 \[ R = \{ x_1 \clubsuit x_2 \rightarrow_R x_1 \diamondsuit x_2 \} \]
-
 We use $R$ to rewrite the term
 
 \[ 
 (y_1 \diamondsuit y_1) \clubsuit (y_2 \clubsuit y_3)
 \]
-
 The first step is matching; we find a substitution that will unify the left-hand side (LHS) of the rule with the term we are rewriting. Here, one possible substitution is:
 
 \[
 \{ x_1 \mapsto (y_1 \diamondsuit y_1), x_2 \mapsto (y_2 \clubsuit y_3) \}
 \]
-
-We then apply this substitution to the right-hand side (RHS) of the rule to obtain the rewritten version of the original term.
+We then apply this substitution to the right-hand side (RHS) of the rule to obtain the rewritten version of the original term:
 
 \[ 
 (y_1 \diamondsuit y_1) \diamondsuit (y_2 \clubsuit y_3)
@@ -756,7 +753,7 @@ Choosing a single monotonic direction in which to rewrite expressions would be o
 The lexicographic product of two terminating relations is again terminating.
 \end{theorem}
 
-Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rightarrow_R r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rightarrow_R r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.  Our final ordering consists of \sk{13} component orders.
+Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rightarrow_R r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rightarrow_R r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.  Our final ordering consists of \sak{13} component orders.
 
 Many of our component orders are defined using a measure function that counts the number of particular operations or other features in a term. We say that $s > t$ when $s$ has more vector operations than $t$, then when $s$ has more division, modulo and multiplications operations, and so on. As a sample proof sketch of this flavor of order, consider an order $s_1 >_* s_2$ that holds when the number of multiplication operations is greater in $s_1$ than in $s_2$. We represent this through a measure function $|s_1|_*$ that returns the count of multiplication operations in $s_1$; since this function maps a term to a natural number, the order is clearly well-founded. The order is also compatible with $\Sigma$-operations; we compute our measure function as follows:
 
@@ -797,7 +794,7 @@ Relying on non-local reasoning makes our order more brittle; if the simplifier a
 
 Besides giving a termination guarantee, the reduction order is necessary if we want to synthesizing new rewrite rules. If we do not constrain newly-synthesized rules to obey a consistent reduction order with the existing human-written ones, they form cycles with the existing rules and cause infinite recursion in the TRS. Additionally, the reduction order is the formal encoding of the types of transformations we find desirable, so the reduction order limits synthesis to rules that rewrite expressions in a useful direction.
 
-In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. \jln{add reference to eval section that discusses this} With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. \sk{To ensure this guarantee is preserved, we build a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order.} A full description of the reduction order is given in the supplemental material.
+In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. \jln{add reference to eval section that discusses this} With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. \sak{To ensure this guarantee is preserved, we build a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order.} A full description of the reduction order is given in the supplemental material.
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \begin{figure*}
