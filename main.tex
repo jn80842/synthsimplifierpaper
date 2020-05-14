@@ -975,12 +975,11 @@ construct all rules a human can.
 \begin{tabular}{l|l|l}
 LHS & RHS & Predicate \\
 \hline
-$(x*y) - (w + (y*z))$ & $(y*(x - z)) - w $ & \\
-$x < ((y + x) + z)$ &  $0 < (y + z)$ & \\
-$x < (min(z, (x - y)) + min(x, y))$ &  $false$ & \\
-$((x - ((y*c0) + z)) + c1)/c0$ & $((x + (c1 - z))/c0) - y$ & \\
-$select((c0 < min(x, y)), (z + min(y, 0)), z)$ &  $z$ &  $-1 \leq c0 $ \\
-$min((x*c0), c1)/c0$ & $min(x, -1)$ & $((0 \leq (c0 + c1)) \wedge (1 \leq c0)) \wedge (c1 \leq -1)$ \\
+$(x*y) - (z + (w*x))$ & $(x*(y - w)) - z $ & \\
+$x < (y + x) + z$ &  $0 < (y + z)$ & \\
+$max(x*x, y) + max(z, w*w) < c_0$ & false & $c_0 <= 0$ \\
+$select(x, c_0, y) < min(select(x, c_1, y), c_2)$ & false & $min(c_1, c_2) <= c_0$ \\
+$min((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0)*c_0 + c_1$ \\
 \end{tabular}
 \label{tab:samplerules}
 \end{table*}
