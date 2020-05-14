@@ -714,7 +714,7 @@ considered undefined behavior. Since we had already
 modeled Halide semantics in SMT2, it was a simple matter to alter the
 definitions of division and modulo and run the verification scripts
 again. At the time we ran our second verification, there were
-\NumZdivRules in the Halide TRS ruleset, and \NumZdivZThreeProvedRules
+\NumZdivRules rules in the Halide TRS ruleset, and \NumZdivZThreeProvedRules
 were proven true in Z3. We proved \NumZdivCoqProvedRules rules to be
 true manually in Coq; since in the previous round all Coq proofs
 included the assumption that all divisors were non-zero, in most cases
