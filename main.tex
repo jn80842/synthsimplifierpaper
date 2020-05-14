@@ -780,27 +780,41 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
 \begin{algorithm}[htbp]
   \SetAlgoLined
   \KwIn{$e$, an expression}
-  \KwOut{$r$, a rewrite rule}
-  \BlankLine
+  \KwOut{$r=\{r_0,..\}$, a set of rewrite rules}
+  \BlankLine\BlankLine
+  \tcp{Generate candidate rules (\S\ref{sec:synthesizing-candidate-rules})}
   Generate $P=\{p_0,..,p_n\}$ patterns that match subexpressions of $e$\;
   Remove $p_i \in P$ if $p_i$ does not include a repeated wildcard\;
+  $r_{cand} = \{\}$\;
   \ForEach{$p_i \in P$}{
     \tcp{First try reassociation \& applying existing rules}
     Flatten pattern into $p_{flat}$\;
     \ForEach{$p_{reassoc}$}{
       \If{\texttt{rewrite($p_{reassoc}$) $\neq$ $p_{reassoc}$}}{
           \tcp{Found a candidate rewrite}
-          $r_{cand}$ = $p_i$ $\rightarrow$ \texttt{rewrite($p_{reassoc}$)}\;
+          Append $p_i$ $\rightarrow$ \texttt{rewrite($p_{reassoc}$)} to $r_{cand}$\;
           break\;
       }
     }
     \tcp{If no candidate found yet, use CEGIS}
     \If{\texttt{superoptimize($p_i$) $\neq$ $p_i$}}{
-      $r_{cand}$ = $p_i$ $\rightarrow$ \texttt{superoptimize($p_i$)}\;
+      Append $p_i$ $\rightarrow$ \texttt{superoptimize($p_i$)}\ to $r_{cand}$\;
       break\;
     }
    }
-  \tcp{We now have a candidate rule containing constants $c_i$}
+  \tcp{Generalize constants (\S\ref{sec:generalizing-constants})}
+  \ForEach{$r_i \in r_{cand}$}{
+    Replace concrete constants in $r_i$ with symbolic constants $c_i$\;
+    $m =$ number of non-constant wildcards in $r_i$\;
+    $S$ = standard basis vectors for $Z^m \cup \vec{0}$\;
+    $P_{cand} = \bigwedge\limits_{\vec{x} \in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )$\;
+    \Repeat{$iter > 4$ or Z3 confirms $P_{cand}$ sufficient}{
+      Add counterexample to $S$ and add new clause to $P_{cand}$\;
+    }
+    \If{still not sufficient}{break $P_{cand}$ into disjunctive normal form and check if any clause is sufficient\;}
+    \uIf{sufficient}{Perform final filtering and add to $r$\;}
+    \Else{Reject candidate\;}
+  }
   \caption{\label{alg:synthesis-algorithm} Pseudocode of the synthesis algorithm.}
 \end{algorithm}
 
@@ -817,6 +831,7 @@ match any compile-time constants, along with predicates checkable at compile-tim
 that encode constraints on those constants.
 
 \subsection{Synthesizing Candidate Rules With Constants}
+\label{sec:synthesizing-candidate-rules}
 The aim of the synthesis pipeline is to learn new rules useful for reasoning about input expressions.
 We obtain scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compile
  random but realistic Halide pipelines with random schedules for
@@ -898,6 +913,7 @@ $min((x*c0), c1)/c0$ & $min(x, -1)$ & $((0 \leq (c0 + c1)) \wedge (1 \leq c0)) \
 \end{table*}
 
 \subsection{Generalizing Constants}
+\label{sec:generalizing-constants}
 
 At this point in the synthesis pipeline, we have constructed a candidate rewrite
 rule that contains concrete constants.  To make the rule as general as possible,
@@ -935,15 +951,26 @@ $Z^n$ then many of the terms in the conjunction are either trivially
 true or equivalent, and the unrolled conjunction often simplifies
 (using the TRS itself) to a single equality.
 
+For example, consider the candidate rewrite rule
+$x_1 < select(x_2, c_0, c_1) + x_1 \rightarrow !x_2$.  In this case,
+we set $S = \{\{0, 0\}, \{1, 0\}, \{0, 1\}\}$.  If we substitute the zero
+vector into $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$, we get
+$0 < select(0, c_0, c_1) + 0 = 1$, which simplifies to $c_1 > 0$.  Thus, for $S$,
+we obtain:
+$$P_S(\vec{c}) = c_1 > 0 \wedge c_1 > 0 \wedge c_0 \le 0$$
+which the Halide TRS will further simplify to remove the redundant term.
+
 Because we dropped terms from the infinite conjunction, $P_S$
-is now necessary but not sufficient. While it does recognize all the
-cases in which the rule applies, it also captures cases in which it
+is now necessary but may not be sufficient. While it does recognize all the
+cases in which the rule applies, it may also capture cases in which it
 should not. However, for any given choice of $S$ we can improve it by
 finding one of these incorrect cases using Z3, adding the
 counterexample $\vec{x}$ to $S$, and iterating this until convergence in a
-CEGIS-like loop.
+CEGIS-like loop.  For our example, Z3 returns that the candidate
+predicate is indeed sufficient, so we do not need to enter this loop.
 
-If the loop terminates with $Z3$ definitively stating that there are
+
+If the loop terminates with Z3 definitively stating that there are
 no counterexamples, then $P_S$ is necessary \emph{and} sufficient, so
 we have found our ideal predicate. If the loop does not terminate
 after a small number of iterations (we use four) then we simplify our
@@ -1276,8 +1303,10 @@ language need not consider; and Alive uses a simple reduction order in
 which all optimizations reduce program size, while our termination proof is more
 complex. We originally tried synthesizing rule predicates with the approach used
 by Alive-Infer but were not successful: using Z3 to generate positive and
-negative examples did not scale for us, due in part to the use of
-division/modulo over the integers in the Halide expression language.
+negative examples did not scale for us, requiring seconds to minutes per query
+due to the underlying theory of integers.  Moreover, queries with
+division/modulo over the integers often did not work at all, simply returning
+``unknown.''
 
 Most recently, leveraging a TRS along with synthesized rules has been applied
 to optimizing fully-homomorphic encryption (FHE) circuits~\cite{lee2020fhe}.  This
