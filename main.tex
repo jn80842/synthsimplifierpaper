@@ -874,16 +874,17 @@ interval arithmetic is exact in cases where an expression
 monotonically increases or decreases over a loop. For example, if $x
 \in [0, 100]$, then symbolic interval arithmetic states that $max(x,
 x/2 + 20) \in [20, 100]$, which is the tightest correct
-bound. However, in the presence of anti-correlated subexpressions
+bound; this bound is obtained by substituting in the lower and upper bounds of $x$
+into the expression. However, in the presence of anti-correlated subexpressions
 interval arithmetic becomes inexact, and is prone to overestimating
-bounds. The expression $min(x, 100 - x)$ is bounded above by 50, but
+bounds. The expression $min(x, 100 - x)$ when $x \in [0, 100]$ is bounded above by 50, but
 symbolic interval arithmetic makes the weaker claim that it is bounded
 above by 100, by setting the first instance of $x$ to 100 and the
 second instance of $x$ to zero. The compiler therefore logs all
 instances of expressions which are non-monotonic in some containing
 loop, to make it easier to find inefficiencies caused by this
 overestimation. Any new TRS rule which reduces a non-monotonic
-expression to a monotonic one will help the compiler avoid these
+expression to a monotonic one helps the compiler avoid these
 inefficiencies.
 
 \paragraph{Failed proofs}
@@ -990,7 +991,7 @@ rule that contains concrete constants.  To make the rule as general as possible,
 we replace each constant with a fresh \emph{symbolic constant}. A symbolic constant, unlike a variable,
  matches only terms with constant values known at compile time. We first query Z3
 again to see if the equivalence still holds; if it does, the rule is valid. If
-it is not, we will need to find a \textit{predicate} to guard
+it is not, we will need to find a predicate (a precondition) to guard
 applications of the rule in the term rewriting system. We attempt to synthesize a predicate
 such that $pred \rightarrow LHS = RHS$ and all variables appearing in the
 predicate are symbolic constants.
