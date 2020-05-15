@@ -313,27 +313,29 @@ to guarantee correctness or to ensure the resulting code performs as well
 as possible.  For example, to fully unroll a loop, the compiler must prove
 the loop has a constant extent.
 
-Many of these properties relate regions of computation with one another,
-which, within Halide, are represented as intervals over the integers.
-Reasoning about these regions uses a \textit{term rewriting system}
-(TRS): the compiler applies simplification rules to an expression relating
-the regions until no more rewrites apply.  
-%%% RB: Not sure we need this sentence.  It just made me think what it's putpose was.
-% The final expression may be true, false, or some more complex expression. 
-If an expression is semantically equivalent to true
-but the TRS cannot rewrite it to that form, the compiler may be unable to apply a valid optimization,
-resulting in suboptimal code output and possibly errors during compilation.
+Many of these properties relate regions of computation with one
+another, which Halide represents as intervals over the integers.
+Reasoning about these regions relies on a \textit{term rewriting
+  system} (TRS). The Halide TRS is an ordered set of over a thousand
+handwritten rewrite rules. It traverses expressions bottom-up, and
+greedily applies the first matching rule. These rules were constructed
+by developers based on observed compilation failures over many years,
+and ordered in ad-hoc ways to avoid non-termination.
 
-In this work, we develop tools that improve the Halide term rewriting system by
-verifying  the rules and synthesizing new rules.  The Halide term rewriting
-system can be called thousands of times per compilation, so the rewriter must be
-exceedingly fast.  In order to be as robust  as possible, the Halide TRS is
-structured to scale well with the size of the ruleset; currently, it consists of
-nearly a thousand rewrite rules. The Halide TRS consists of an ordered set of 
-handwritten rules and efficient matchers to traverse expressions bottom-up and
-apply the first matching rule. These rules were constructed
-by developers based on observed compilation failures over many years, and
-ordered in ad-hoc ways to avoid non-termination. 
+Incorrect rules in the term rewriting system cause miscompilations,
+which can cause undefined behavior at runtime (e.g. by writing beyond
+the end of a buffer). Missing rules in the term rewriting system lead
+the compiler to produce worse code. For example, if a boolean-valued
+expression is semantically equivalent to the literal true but the TRS
+cannot rewrite it to that form, the compiler may be unable to apply a
+valid optimization, resulting in suboptimal code output and possibly
+even errors during compilation if that optimization was explicitly
+requested in the \textit{schedule}.
+
+In this work, we develop tools that improve the Halide term rewriting
+system by verifying rewrite rules to find and prevent bugs, and
+synthesizing new rewrite rules to help fix bugs and ameliorate
+inefficiencies.
 
 \textbf{Verification of rules.}
 Extensive
@@ -378,7 +380,7 @@ theorem prover. We provide a proof of termination that shows that every applicat
 \textbf{Synthesis of rules.} New rules are constructed by combining Z3 and a
 handwritten solver to find predicates to guard rule application. We 
 synthesize rules for the set of expressions on which the 
-existing ruleset fails. We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and show it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset results in improvements in memory allocation without slowing down compilation times.
+existing ruleset fails. We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and show it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset results in improvements in memory allocation without notably increasing compilation times.
 
 We make three main contributions:
 \begin{itemize}
@@ -388,11 +390,10 @@ We make three main contributions:
   \item We develop a synthesis algorithm for synthesis of rules in the undecidable theory of integers. 
   The algorithm has a new approach for synthesizing rule preconditions and generates rules that obey the reduction order and preserve termination.
 
-  \item{We evaluate our tools on a number of experiments, including two case studies: adapting the TRS to the change of the semantics of  division and modulo; and a large-scale addition of more than 4,000 rules synthesized from more than 100,000 failed expressions. The former yielded a verified TRS for the latest version of Halide.  The latter eliminate over-allocation problems caused by the failures of the previous TRS.}
+  \item{We evaluate our tools on a number of experiments, including two case studies: adapting the TRS to the change of the semantics of division and modulo; and a large-scale addition of more than 4,000 rules synthesized from more than 100,000 failed expressions. The former yielded a verified TRS for the latest version of Halide.  The latter eliminate over-allocation problems caused by the failures of the previous TRS.}
 \end{itemize}
 
 In this paper, we first provide some background on term rewriting systems and the Halide rewriting algorithm. We then describe our approach to verifying rule correction and discuss the relation between LHS and RHS terms that guarantees termination. Once semantics and the termination property have been formalized, we present our synthesis algorithm. We demonstrate the effectiveness of our approach through several experiments and case studies, and finish with a discussion of our current limitations and a review of related work.
-
 
 \section{Background \& Overview}
 \subsection{Term Rewriting Systems}
