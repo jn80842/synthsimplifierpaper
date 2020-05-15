@@ -373,45 +373,25 @@ the subject of numerous complaints from Halide developers.
 
 We verify existing rules using a combination of the Z3~\cite{de2008z3}
 satisfiability modulo theory (SMT) solver and the Coq~\cite{coq19} interactive
-theorem prover.
-\rb{Talk here about the approach to termination.} 
-\rb{Add a summary of the *verification* Questions from the Eval section. }
+theorem prover. We provide a proof of termination that shows that every application of a rule from the TRS must decrease the value of the given expression monotonically in some measure function. We demonstrate the utility of formal verification even in a well-tested codebase by finding five unsoundness bugs, and by showing that a semantics change in the Halide expression language is safe to make.
 
 \textbf{Synthesis of rules.} New rules are constructed by combining Z3 and a
-handwritten solver that uses beam search with a learned cost model. We 
+handwritten solver to find predicates to guard rule application. We 
 synthesize rules for the set of expressions on which the 
-existing ruleset fails. \rb{Add a summary of the *synthesis* Questions from the Eval section. }
+existing ruleset fails. We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and show it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset results in improvements in memory allocation without slowing down compilation times.
 
 We make three main contributions:
 \begin{itemize}
   % \item We guarantee soundness by verifying the existing Halide TRS.
-  \item We develop algorithms for proving correctness and termination of the TRS. The termination proof is based on a reduction order that we designed to allow both proving termination and automatic synthesis of new rules that oey this reduction order. 
+  \item We develop algorithms for proving correctness and termination of the TRS. The termination proof is based on a reduction order that we designed to allow both proving termination and automatic synthesis of new rules that obey this reduction order. 
   % \item We guarantee termination by defining a rule strategy that prevents rewriter cycles.
   \item We develop a synthesis algorithm for synthesis of rules in the undecidable theory of integers. 
   The algorithm has a new approach for synthesizing rule preconditions and generates rules that obey the reduction order and preserve termination.
 
-  \item{We evaluate our tools on a number of experiments, including two case studies: adopting the TRS to the change of the semantics of  division and modulo; and a large-scale addition of more than 4,000 rules synthesized from more than 100,000 failed expressions. The former yielded a verified TRS for the latest version of Halide.  The latter eliminate over-allocation problems caused by the failures of the previous TRS.}
+  \item{We evaluate our tools on a number of experiments, including two case studies: adapting the TRS to the change of the semantics of  division and modulo; and a large-scale addition of more than 4,000 rules synthesized from more than 100,000 failed expressions. The former yielded a verified TRS for the latest version of Halide.  The latter eliminate over-allocation problems caused by the failures of the previous TRS.}
 \end{itemize}
 
-We demonstrate the utility of our framework by using it to assist in
-    fixing bugs and performing large-scale changes in the Halide compiler, which would otherwise require massive
-    investment of human effort to ensure correctness.
 
-\jln{this next para is outdated and should be updated to reflect current eval section}
-\rb{I would move the info from this para above the contributions, and add the info to verification and synthesis, respectively}
-Overall, we discover \NumRulesFixed bugs in handwritten Halide rewrite rules, and discover \NumOrderingProblems
-potential issues in the rule rewrite strategy.  We then synthesize \NumRulesSynthesized new rules, use the
-synthesis framework to maintain correctness when modifying compiler semantics,
-and further demonstrate the utility of our synthesizer by 
-automatically reproducing the \NumBugsAutomated latest code changes that add new
-rules based on compiler misbehavior.
-%We additionally craft a strategy for grouping
-%new rules that prevents compile times from increasing linearly with the number
-%of rules.
-Overall, we demonstrate that our approach
-reduces failed proofs,  does not slow down the compiler, and replaces the
-tedious human effort required to craft bug fixes due to missing rules in the
-term rewriting system.
 
 
 \section{Background \& Overview}
