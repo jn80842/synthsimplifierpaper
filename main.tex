@@ -1316,7 +1316,15 @@ case where the increase was more than a gigabyte. This represents
 nearly 6\% of all compilations tested. We believe this captures a
 widespread problem, as instances of overallocation are a common source
 of complaint from users. See Figure~\ref{fig:peakmemoryhistogram} for
-the full distribution. \jln{figure missing?}
+the full distribution. 
+
+\begin{figure*}
+  \includegraphics[width=4in]{figures/memoryhistogram.pdf}
+\caption{Reduction in peak memory usage of compiled code when 4127
+  synthesized rules are added to the TRS. In 197 cases, peak memory usage
+  drops by more than 10\%.}
+\label{fig:peakmemoryhistogram}
+\end{figure*}
 
 \paragraph{Term rewriting systems written without verification have bugs}
 On our initial run of this experiment, 55 compilations (1.6\%) crashed
