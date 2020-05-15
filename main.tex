@@ -95,7 +95,7 @@
 \newcommand{\NumApps}{{\color{black} 10}\xspace}
 \newcommand{\NumRulesFixed}{{\color{black} 4}\xspace}
 \newcommand{\NumPredicatesRelaxed}{{\color{black} 17}\xspace}
-\newcommand{\NumOrderingProblems}{{\color{black} 46}\xspace}
+\newcommand{\NumOrderingProblems}{{\color{black} 8}\xspace}
 \newcommand{\NumRulesSynthesized}{{\color{black} 2632}\xspace}
 \newcommand{\NumOpSequences}{{\color{black} 6246}\xspace}
 \newcommand{\NumFailureExamples}{{\color{black} 61000}\xspace}
@@ -246,9 +246,7 @@
   %% in response to user-reported bugs.  We demonstrate that the new
   %% term rewriting system is provably sound, more robust, and more general, without
   %% slowing down the compiler.
-  We then demonstrate the utility of our verification and synthesis framework using XX case studies,
-  including automatically fixing term rewriting bugs and verifying and assisting developers
-  when making large-scale changes to the Halide compiler.
+We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and show it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset lowers peak memory usage without notably increasing compilation times.
 \end{abstract}
 
 
@@ -380,7 +378,7 @@ theorem prover. We provide a proof of termination that shows that every applicat
 \textbf{Synthesis of rules.} New rules are constructed by combining Z3 and a
 handwritten solver to find predicates to guard rule application. We 
 synthesize rules for the set of expressions on which the 
-existing ruleset fails. We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and show it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset results in improvements in memory allocation without notably increasing compilation times.
+existing ruleset fails. We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and show it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset lowers peak memory usage without notably increasing compilation times.
 
 We make three main contributions:
 \begin{itemize}
