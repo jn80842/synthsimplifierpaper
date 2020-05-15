@@ -20,7 +20,7 @@
 \usepackage{tabularx}
 \usepackage{makecell}
 \usepackage{algorithm2e}
-\usepackage{csquotes}
+\usepackage{hhline}
 \usetikzlibrary{hobby,arrows,backgrounds,calc,trees}
 
 \pgfdeclarelayer{background}
@@ -1233,22 +1233,22 @@ and the other two were constrained to only trigger when the denominator is known
 The cases discussed in section~\ref{sub:bugfixes} all concern fixing existing problems while not introducing new ones. By giving a proof of soundness, showing that the ruleset is correct and that the rules are cycle-free, we also remove two entire classes of future bugs. For reference, over the life of the Halide project there have been 14 pull requests that fix incorrect rules, and 3 pull requests that modify rules in order to avoid cycles. Fixing a reduction order also guarantees that no new cycles can be introduced as long as new rules obey this order; without such a guide, it is possible to introduce a rule that would close a loop in some sequence of existing rule applications and cause a cycle. 
 
 \begin{table*}
-\caption{Rules corrected through the first round of verification. \jln{format this nicely}}
-\begin{tabular}{|l|l|}
-\hline \\
-Wrong &  $(x * c_0) / c_1 \rewrites x / fold(c_1 / c_0) \pred c_1 \% c_0 = 0 \wedge c_1 > 0$ \\
-Counterexample & $c_0 = -1, c_1 = 2, x = 1$\\
-Fixed & $(x * c_0) / c_1 \rewrites x / fold(c_1 / c_0) \pred c_1 \% c_0 = 0 \wedge c_0 > 0 \wedge c_1 / c_0 \neq 0$\\
-\hline \\
-Wrong & $((x + c_0)/c_1)*c_1 - x \rewrites x \% c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$\\
-Counterexample & $c_0 = 2, c_1 = 3, x = -5$\\
-Fixed & $((x + c_0)/c_1)*c_1 - x \rewrites (-x) \% c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$\\
-\hline \\
-Wrong & $x - ((x + c_0)/c_1)*c_1 \rewrites -(x \% c_1) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ \\
-Counterexample & $c_0 = 2, c_1 = 3, x = -5$\\
-Fixed & $x - ((x + c_0)/c_1)*c_1 \rewrites ((x + c_0) \% c_1) + fold(-c_0) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ \\
-\hline
+\caption{Rules corrected through the first round of verification.}
+{\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{r|l|l}
+& Rule & Counterexample \\
+\hhline{=|=|=}
+Wrong &  $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \% c_0 = 0 \wedge c_1 > 0$ & $c_0 = -1, c_1 = 2, x = 1$\\
+Fixed & $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \% c_0 = 0 \wedge c_0 > 0 \wedge \frac{c_1}{c_0} \neq 0$ & \\
+\hhline{=|=|=}
+Wrong & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites x \% c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites (-x) \% c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
+\hhline{=|=|=}
+Wrong & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites -(x \% c_1) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites ((x + c_0) \% c_1) + (-c_0) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
+
 \end{tabular}
+}
 \label{tab:verfirstround}
 \end{table*}
 
