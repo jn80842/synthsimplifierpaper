@@ -70,7 +70,10 @@
 
 \newcommand{\hmax}[0]{\texttt{max}}
 \newcommand{\hmin}[0]{\texttt{min}}
-\newcommand{\rewrites}[0]{\rightarrow_R}
+%\newcommand{\rewrites}[0]{\mathop{\rightarrow}\limits_{\scriptscriptstyle{R}}}
+\newcommand{\rewrites}[0]{\:\rightarrow_{R}\:}
+%\newcommand{\rewrites}[0]{\longrightarrow}
+%\newcommand{\rewrites}[0]{\rightharpoonup}
 \newcommand{\pred}[0]{\textrm{ if }}
 \newcommand{\hfalse}[0]{\texttt{false}}
 \newcommand{\htrue}[0]{\texttt{true}}
@@ -418,11 +421,11 @@ used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{
 
 Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. (Constants are considered zero-arity functions.) We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
 
-A \emph{rewrite rule} is a directed binary relation $l \rightarrow_R r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
+A \emph{rewrite rule} is a directed binary relation $l \rewrites r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
 
 Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\clubsuit, \diamondsuit\}$ and $V$ is an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
 
-\[ R = \{ x_1 \clubsuit x_2 \rightarrow_R x_1 \diamondsuit x_2 \} \]
+\[ R = \{ x_1 \clubsuit x_2 \rewrites x_1 \diamondsuit x_2 \} \]
 We use $R$ to rewrite the term
 
 \[ 
@@ -552,7 +555,7 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 \end{tikzpicture} \\
 (i) & (ii) & (iii) & (iv)
 \end{tabular}
-\caption{We demonstrate the Halide rewriting algorithm using a TRS $R = \{max(x,x) \rightarrow_R x, (x - y) + y \rightarrow_R x\}$ and an expression $min(a,b) - max(c,c) + max(c,c)$. The algorithm attempts to simplify all subtrees bottom up; here, no rule applies to $min(a,b)$ so it is not changed. Next (i), rule 1 rewrites $max(c,c)$ to $c$. No rule applies to $min(a,b) - c$, so we move to the rightmost subtree and rewrite again (ii) to obtain $c$ from $max(c,c)$. Finally, we consider the entire tree $min(a,b) - c) + c$ (iii) and apply rule 2 to produce $min(a,b)$. No rules match this expression, so we are left with $min(a,b)$ (iv).}
+\caption{We demonstrate the Halide rewriting algorithm using a TRS $R = \{\hmax(x, x) \rewrites x, (x - y) + y \rewrites x\}$ and an expression $\hmin(a,b) - \hmax(c,c) + \hmax(c,c)$. The algorithm attempts to simplify all subtrees bottom up; here, no rule applies to $\hmin(a,b)$ so it is not changed. Next (i), rule 1 rewrites $\hmax(c,c)$ to $c$. No rule applies to $\hmin(a,b) - c$, so we move to the rightmost subtree and rewrite again (ii) to obtain $c$ from $\hmax(c,c)$. Finally, we consider the entire tree $\hmin(a,b) - c) + c$ (iii) and apply rule 2 to produce $\hmin(a,b)$. No rules match this expression, so we are left with $\hmin(a,b)$ (iv).}
 \label{fig:algoexample}
 \end{figure*}
 
@@ -769,16 +772,16 @@ Overall results of verifying rule correctness are described in Section~\ref{sec:
 \label{sub:termination}
 
 Term rewriting systems are not guaranteed to terminate. Consider a term
-rewriting system containing only one rule: $x + y \rightarrow y + x$. The term
+rewriting system containing only one rule: $x + y \rewrites y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
 be matched to the rule and rewritten to $3 + 5$, and so on. The Halide TRS has been observed to fail to terminate in the past\footnote{See for example https://github.com/halide/Halide/pull/1525}, causing unbounded recursion and eventually a stack overflow in the compiler. This issue is tricky to debug, and may not always be reported by users, since the error is fairly opaque. To show that this type of error has been eliminated, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some sequence of rules that form a cycle.
 
 Intuitively, we can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rule always rewrites expressions such that they move monotonically in some direction through expression space, then it will be impossible for any sequence of rules to form a cycle. These directions correspond to our intuition about why certain rules are useful: we may want to write rules that cancel expressions and make them smaller, replace expensive operations with cheaper ones, or canonicalize expressions so we can more easily prove an equivalence. We can consider each of these properties as a dimension in the expression space, in which rewrites should move expressions in the desired direction. If we can formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
 
-We provide this formalism and prove that the Halide term rewriting system must terminate by constructing a \emph{reduction order}, a strict order with properties that ensure that, for an order $>$ and a rule $l \rightarrow_R r$, if $l > r$, then for any expression $e_1$ that matches $l$ and is rewritten by $l \rightarrow r$ into $e_2$, it must be true that $e_1 > e_2$. Crucially, this order is evaluated over rule terms, and not over all expressions that those terms may match. We take the definition of a reduction order and the next two theorems from~\citet{baader1999term}.
+We provide this formalism and prove that the Halide term rewriting system must terminate by constructing a \emph{reduction order}, a strict order with properties that ensure that, for an order $>$ and a rule $l \rewrites r$, if $l > r$, then for any expression $e_1$ that matches $l$ and is rewritten by $l \rewrites r$ into $e_2$, it must be true that $e_1 > e_2$. Crucially, this order is evaluated over rule terms, and not over all expressions that those terms may match. We take the definition of a reduction order and the next two theorems from~\citet{baader1999term}.
 
 \begin{theorem}\label{theorem:terminates}
-A term rewriting system $R$ terminates iff there exists a reduction order $>$ that satisfies $l > r$ for all $l \rightarrow_R r \in R$.
+A term rewriting system $R$ terminates iff there exists a reduction order $>$ that satisfies $l > r$ for all $l \rewrites r \in R$.
 \end{theorem}
 
 A reduction order is a strict order that must be well-founded, meaning that every non-empty set has a least element with regard to the order, to prevent infinitely descending chains. It must be \emph{compatible with $\Sigma$-operations}: for all expressions $s_1, s_2$, all $n \geq 0$, and all $f \in \Sigma$:
@@ -794,7 +797,7 @@ Choosing a single monotonic direction in which to rewrite expressions would be o
 The lexicographic product of two terminating relations is again terminating.
 \end{theorem}
 
-Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rightarrow_R r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rightarrow_R r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.  Our final ordering consists of \sak{13} component orders.
+Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rewrites r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rewrites r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.  Our final ordering consists of \sak{13} component orders.
 
 Many of our component orders are defined using a measure function that counts the number of particular operations or other features in a term. We say that $s > t$ when $s$ has more vector operations than $t$, then when $s$ has more division, modulo and multiplications operations, and so on. As a sample proof sketch of this flavor of order, consider an order $s_1 >_* s_2$ that holds when the number of multiplication operations is greater in $s_1$ than in $s_2$. We represent this through a measure function $|s_1|_*$ that returns the count of multiplication operations in $s_1$; since this function maps a term to a natural number, the order is clearly well-founded. The order is also compatible with $\Sigma$-operations; we compute our measure function as follows:
 
@@ -811,7 +814,7 @@ It clearly follows that given $|s_1|_* > |s_2|_*$, it must be true that:
 |f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n)|_* > |f(t_1,...t_{i-1},s_2,t_{i+1},...,t_n)|_*
 \]
 
-To ensure the order is closed under substitution, we need to add one more constraint. Imagine a rule $x * 2 \rightarrow_R x + x$. Although there are fewer $*$ symbols in the righthand term than on the left, that would not be true for a substitution $\sigma = \{x \mapsto (z * z)\}$. We add a condition that for every variable present in $s_1$, it must occur either fewer or an equal number of times in $s_2$. With this constraint there is no possible substitution that increases the value of the measure function in $s_2$ that would not result in an increase by an equivalent or greater amount in $s_1$. This gives us the order:
+To ensure the order is closed under substitution, we need to add one more constraint. Imagine a rule $x * 2 \rewrites x + x$. Although there are fewer $*$ symbols in the righthand term than on the left, that would not be true for a substitution $\sigma = \{x \mapsto (z * z)\}$. We add a condition that for every variable present in $s_1$, it must occur either fewer or an equal number of times in $s_2$. With this constraint there is no possible substitution that increases the value of the measure function in $s_2$ that would not result in an increase by an equivalent or greater amount in $s_1$. This gives us the order:
 
 \[
 s_1 >_* s_2 \textrm{ iff } |s_1|_* > |s_2|_* \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x
@@ -819,9 +822,9 @@ s_1 >_* s_2 \textrm{ iff } |s_1|_* > |s_2|_* \wedge \forall x \in \mathcal{V}ar(
 
 Most of the component orders in the full reduction order take the form above. These orders guarantee termination no matter what sequence rewrite rules are applied to an expression. However, for part of the existing ruleset, we were obliged to take into account the order in which rules are applied in the Halide TRS algorithm.
 
-For example, one existing rule is the canonicalization $(c_0 - x) + y \rightarrow (y - x) + c_0$ where $c_0$ is a constant. If $y$ is also a constant, this rule forms a cycle with itself, and could not possibly obey any reduction order. Fortunately, the rule immediately before it in the TRS handles that specific case ($((c_0 - x) + c_1 \rightarrow fold(c_0 + c_1) - x)$), so by this sort of non-local reasoning we know that $y$ is not a constant, and therefore the rule strictly decreases a measure which counts the number of constants on the right-hand side of an addition.
+For example, one existing rule is the canonicalization $(c_0 - x) + y \rewrites (y - x) + c_0$ where $c_0$ is a constant. If $y$ is also a constant, this rule forms a cycle with itself, and could not possibly obey any reduction order. Fortunately, the rule immediately before it in the TRS handles that specific case ($((c_0 - x) + c_1 \rewrites fold(c_0 + c_1) - x)$), so by this sort of non-local reasoning we know that $y$ is not a constant, and therefore the rule strictly decreases a measure which counts the number of constants on the right-hand side of an addition.
 
-%The handwritten ruleset had many rules that eliminated the occurrence of a variable, such as $x + x \rightarrow_R x * 2$. It seems natural to define an order based on the measure function $|s_1|_x$, but for a substitution $\sigma = \{x \mapsto 3\}$, $|3 + 3|_x \not > |3 * 2|_x$. However, the simplifier algorithm always attempts constant folding before any other rule, so we know that the rule $x + x \rightarrow_R x * 2$ can only be invoked if $x$ is not a ground term.
+%The handwritten ruleset had many rules that eliminated the occurrence of a variable, such as $x + x \rewrites x * 2$. It seems natural to define an order based on the measure function $|s_1|_x$, but for a substitution $\sigma = \{x \mapsto 3\}$, $|3 + 3|_x \not > |3 * 2|_x$. However, the simplifier algorithm always attempts constant folding before any other rule, so we know that the rule $x + x \rewrites x * 2$ can only be invoked if $x$ is not a ground term.
 
 %Similarly, we have several rules that factor out an occurrence of a variable and introduce the constant 0 into the expression. We define an order on the occurrences of the constant 0 by defining a measure function that takes the count of terminals or leaves in the expression and subtracts the count of the constant 0; if terms $s_1$ and $s_2$ have the same number of leaves, but more of the leaves of $s_2$ are the constant 0, then $s_1 > s_2$.
 
@@ -829,7 +832,7 @@ For example, one existing rule is the canonicalization $(c_0 - x) + y \rightarro
 %s_1 >_0 s_2 \textrm { iff } |s_1|_{leaf} - |s_1|_0 > |s_2|_{leaf} - |s_2|_0 \wedge |s_1|_{leaf} = |s_2|_{leaf} \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x
 %\]
 
-% For the rule $\texttt{max}(x + y, x) \rightarrow_R \texttt{max}(y, 0) + x$, the order will not hold for the substitution $\sigma = \{x \mapsto 0\}$. However, we know the rule $0 + x \rightarrow_R x$ will be invoked before this one, so the rule cannot be evaluated on the expression $\texttt{max}(0 + y, 0)$.
+% For the rule $\texttt{max}(x + y, x) \rewrites \texttt{max}(y, 0) + x$, the order will not hold for the substitution $\sigma = \{x \mapsto 0\}$. However, we know the rule $0 + x \rewrites x$ will be invoked before this one, so the rule cannot be evaluated on the expression $\texttt{max}(0 + y, 0)$.
 
 Relying on non-local reasoning makes our order more brittle; if the simplifier algorithm were to be changed, the termination guarantee could be lost. However, we use only a small number of basic rules in this way, which are unlikely to be changed.
 
@@ -859,13 +862,13 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
     \ForEach{$p_{reassoc}$}{
       \If{\texttt{rewrite($p_{reassoc}$) $\neq$ $p_{reassoc}$}}{
           \tcp{Found a candidate rewrite}
-          Append $p_i$ $\rightarrow$ \texttt{rewrite($p_{reassoc}$)} to $r_{cand}$\;
+          Append $p_i$ $\rewrites$ \texttt{rewrite($p_{reassoc}$)} to $r_{cand}$\;
           break\;
       }
     }
     \tcp{If no candidate found yet, use CEGIS}
     \If{\texttt{superoptimize($p_i$) $\neq$ $p_i$}}{
-      Append $p_i$ $\rightarrow$ \texttt{superoptimize($p_i$)}\ to $r_{cand}$\;
+      Append $p_i$ $\rewrites$ \texttt{superoptimize($p_i$)}\ to $r_{cand}$\;
       break\;
     }
    }
@@ -913,12 +916,12 @@ First, Halide relies on symbolic interval arithmetic for determining
 how much memory to allocate and how many values to compute. Symbolic
 interval arithmetic is exact in cases where an expression
 monotonically increases or decreases over a loop. For example, if $x
-\in [0, 100]$, then symbolic interval arithmetic states that $max(x,
+\in [0, 100]$, then symbolic interval arithmetic states that $\hmax(x,
 x/2 + 20) \in [20, 100]$, which is the tightest correct
 bound; this bound is obtained by substituting in the lower and upper bounds of $x$
 into the expression. However, in the presence of anti-correlated subexpressions
 interval arithmetic becomes inexact, and is prone to overestimating
-bounds. The expression $min(x, 100 - x)$ when $x \in [0, 100]$ is bounded above by 50, but
+bounds. The expression $\hmin(x, 100 - x)$ when $x \in [0, 100]$ is bounded above by 50, but
 symbolic interval arithmetic makes the weaker claim that it is bounded
 above by 100, by setting the first instance of $x$ to 100 and the
 second instance of $x$ to zero. The compiler therefore logs all
@@ -1017,9 +1020,9 @@ LHS & RHS & Predicate \\
 \hline
 $(x*y) - (z + (w*x))$ & $(x*(y - w)) - z $ & \\
 $x < (y + x) + z$ &  $0 < (y + z)$ & \\
-$max(x*x, y) + max(z, w*w) < c_0$ & false & $c_0 <= 0$ \\
-$select(x, c_0, y) < min(select(x, c_1, y), c_2)$ & false & $min(c_1, c_2) <= c_0$ \\
-$min((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0)*c_0 + c_1$ \\
+$\hmax(x*x, y) + \hmax(z, w*w) < c_0$ & false & $c_0 <= 0$ \\
+$select(x, c_0, y) < \hmin(select(x, c_1, y), c_2)$ & false & $\hmin(c_1, c_2) <= c_0$ \\
+$\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0)*c_0 + c_1$ \\
 \end{tabular}
 \label{tab:samplerules}
 \end{table*}
@@ -1064,7 +1067,7 @@ true or equivalent, and the unrolled conjunction often simplifies
 (using the TRS itself) to a single equality.
 
 For example, consider the candidate rewrite rule
-$x_1 < select(x_2, c_0, c_1) + x_1 \rightarrow !x_2$.  In this case,
+$x_1 < select(x_2, c_0, c_1) + x_1 \rewrites !x_2$.  In this case,
 we set $S = \{\{0, 0\}, \{1, 0\}, \{0, 1\}\}$.  If we substitute the zero
 vector into $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$, we get
 $0 < select(0, c_0, c_1) + 0 = 1$, which simplifies to $c_1 > 0$.  Thus, for $S$,
@@ -1089,7 +1092,7 @@ after a small number of iterations (we use four) then we simplify our
 $P_s$ expression using the TRS, convert it to disjunctive normal
 form \footnote{While $P_S$ is initially a conjunction of equalities,
   disjunctions appear after simplification due to rewrites such as
-  $c_1 \times c_2 = 0 \rightarrow c_1 = 0 \vee c_2 = 0$}, and test
+  $c_1 \times c_2 = 0 \rewrites c_1 = 0 \vee c_2 = 0$}, and test
 each clause in turn to see if it is a sufficient condition, if not a
 necessary one. If we find one, we return this single clause. If the
 loop terminates with Z3 timing out or returning ``unknown'', we return
@@ -1100,12 +1103,12 @@ below.
 Our resulting $P_S(\vec{c})$ may still not be possible to evaluate at
 compile-time in the case where some of the symbolic constants that
 make up $c$ appear only on the right-hand side. For example, in $(x_1
-+ c_1) + c_2 \rightarrow x_1 + c_3$ we have no value for $c_3$ to use
++ c_1) + c_2 \rewrites x_1 + c_3$ we have no value for $c_3$ to use
 in testing a predicate or constructing the right-hand side
 expression. Fortunately, using the algorithm above, the only term in
 this predicate is $c_1 + c_2 = c_3$, so we can simply substitute out
 $c_3$ using the constant-folded left-hand side of this equality,
-giving the unpredicated rule $(x_1 + c_1) + c_2 \rightarrow x_1 +
+giving the unpredicated rule $(x_1 + c_1) + c_2 \rewrites x_1 +
 fold(c_1 + c_2)$. In general we eliminate each symbolic constant that
 only appears on the right-hand side of a rewrite rule by iterating
 over the clauses in the predicate, attempting to solve each for the
@@ -1125,10 +1128,10 @@ strings considering only the parentheses and the leaves. This is done
 to avoid pointlessly shuffling subexpressions. Variables in each rule
 are then renamed to appear in a consistent order.
 
-For example, from a synthesized rule $y - max(x, y - z) \rightarrow min(y - x, z)$ we would generate the following two
+For example, from a synthesized rule $y - \hmax(x, y - z) \rewrites \hmin(y - x, z)$ we would generate the following two
 output rules by commuting the max operation:
 \[
-x - max(y, x - z) \rightarrow min(z, x - y) \qquad x - max(x - y, z) \rightarrow min(y, x - z)
+x - \hmax(y, x - z) \rewrites \hmin(z, x - y) \qquad x - \hmax(x - y, z) \rewrites \hmin(y, x - z)
 \]
 
 Next, we check that the rule is not redundant. For every pair of rules
@@ -1189,7 +1192,7 @@ Case $\mathbb{D}$ is the most interesting. It contains four rules involving comp
 \hmin(x, c_0) < \hmin(x, c_1) + c_2, \hfalse, c_0 \geq c_1 + c_2)
 \]
 
-This rule is incorrect (consider c0 = c2 = 1, x = c1 = 0). It can be fixed by adding the term $c2 \leq 0$ to the predicate. The synthesizer output the correct version of this rule, along with two generalizations of it:
+This rule is incorrect (consider $c_0 = c_2 = 1$, $x = c_1 = 0$). It can be fixed by adding the term $c_2 \leq 0$ to the predicate. The synthesizer output the correct version of this rule, along with two generalizations of it:
 
 \begin{align*}
 & \hmin(x, c_0) < \hmin(x, c_1) + c_2 \rewrites  \hfalse \pred c_2 \leq 0 \wedge c_1 + c_2 \leq c_0 \\
@@ -1203,13 +1206,13 @@ The second human rule was:
 \]
 The synthesizer found a more general rule, along with three other commuted variants of it:
 \[
-rewrite((min(x, y) < min(x, z)), (y < min(x, z)))
+\hmin(x, y) < \hmin(x, z)) \rewrites y < \hmin(x, z)
 \]
-Any expression which matches the human-written rule would also match the synthesized one. The synthesized version does not simplify to the constant “false” in a single step. However, after applying this rule to the case considered by the human, we get $c0 < min(x, c1)$ where $c0 \geq c1$. The simplifier then reduces this to “false” in a second step, so the human-written rule becomes unnecessary. The synthesizer considered the human-written rule, but discarded it as less general than the one above.
+Any expression which matches the human-written rule would also match the synthesized one. The synthesized version does not simplify to the constant “false” in a single step. However, after applying this rule to the case considered by the human, we get $c_0 < \hmin(x, c_1)$ where $c_0 \geq c_1$. The simplifier then reduces this to “false” in a second step, so the human-written rule becomes unnecessary. The synthesizer considered the human-written rule, but discarded it as less general than the one above.
 
 Case $\mathbb{D}$ also included the rewrite rule: 
 \[
-rewrite(x \% x, 0)
+x \% x \rewrites 0
 \]
 which was the sole rule the synthesizer could not generate, as we did not include modulo by non-constants in our CEGIS interpreter.
 
@@ -1236,14 +1239,14 @@ The first use of verification took place when the TRS had not yet been merged in
 Case $\mathbb{H}$ is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by Alex Reinking~\cite{reinkingthesis}. Existing tests and real uses of Halide were useless as a test of this change, as it was all carefully written to never divide by zero! Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now it was necessary to either show that the rule was still correct in the case where a denominator was zero, or constrain the rule to only trigger when the denominator was known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 141 rules were reverified with a human in the loop by revisiting and modifying existing Coq proofs. The mechanical re-verification was all but push-button; the manual effort for updating the Coq proofs was non-trivial, but about half of the effort of writing the original proofs from scratch. In this process, 44 existing rules were found to be incorrect in the new semantics and fixed. (Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case $\mathbb{D}$ above.) The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of now-incorrect rules were:
 
 \begin{align*}
-& rewrite((x/y)*y + x\%y, x) \\
-& rewrite(-1 / x, select(x < 0, 1, -1)) \\
-& rewrite((x + y)/x, y/x + 1)
+((x/y)*y + x\%y \rewrites x \\
+  -1 / x \rewrites select(x < 0, 1, -1) \\
+(x + y)/x \rewrites y/x + 1
 \end{align*}
 
 The first was modified to:
 \[
-rewrite((x/c0)*c0 + x\%c0, x, c0 != 0)
+(x/c_0)*c_0 + x\%c_0 \rewrites x \pred c_0 \neq 0
 \]
 and the other two were constrained to only trigger when the denominator is known to be non-zero via other means.
 
@@ -1253,17 +1256,17 @@ The cases discussed in section~\ref{sub:bugfixes} all concern fixing existing pr
 \caption{Rules corrected through the first round of verification. \jln{format this nicely}}
 \begin{tabular}{|l|l|}
 \hline \\
-Wrong &  rewrite((x * c0) / c1, x / fold(c1 / c0), c1 \% c0 == 0 \&\& c1 > 0) \\
-Counterexample & c0 = -1, c1 = 2, x = 1\\
-Fixed & rewrite((x * c0) / c1, x / fold(c1 / c0), c1 \% c0 == 0 \&\& c0 > 0 \&\& c1 / c0 != 0)\\
+Wrong &  $(x * c_0) / c_1 \rewrites x / fold(c_1 / c_0) \pred c_1 \% c_0 = 0 \wedge c_1 > 0$ \\
+Counterexample & $c_0 = -1, c_1 = 2, x = 1$\\
+Fixed & $(x * c_0) / c_1 \rewrites x / fold(c_1 / c_0) \pred c_1 \% c_0 = 0 \wedge c_0 > 0 \wedge c_1 / c_0 \neq 0$\\
 \hline \\
-Wrong & rewrite(((x + c0)/c1)*c1 - x, x \% c1, c1 > 0 \&\& c0 + 1 == c1)\\
-Counterexample & c0 = 2, c1 = 3, x = -5\\
-Fixed &  rewrite(((x + c0)/c1)*c1 - x, (-x) \% c1, c1 > 0 \&\& c0 + 1 == c1)\\
+Wrong & $((x + c_0)/c_1)*c_1 - x \rewrites x \% c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$\\
+Counterexample & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $((x + c_0)/c_1)*c_1 - x \rewrites (-x) \% c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$\\
 \hline \\
-Wrong & rewrite(x - ((x + c0)/c1)*c1, -(x \% c1), c1 > 0 \&\& c0 + 1 == c1)\\
-Counterexample & c0 = 2, c1 = 3, x = -5\\
-Fixed & rewrite(x - ((x + c0)/c1)*c1, ((x + c0) \% c1) + fold(-c0), c1 > 0 \&\& c0 + 1 == c1) \\
+Wrong & $x - ((x + c_0)/c_1)*c_1 \rewrites -(x \% c_1) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ \\
+Counterexample & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $x - ((x + c_0)/c_1)*c_1 \rewrites ((x + c_0) \% c_1) + fold(-c_0) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ \\
 \hline
 \end{tabular}
 \label{tab:verfirstround}
@@ -1279,11 +1282,11 @@ Here we survey some cases from recent Halide development where the synthesis mac
 
 In case $\mathbb{F}$ a Halide developer encountered expressions that seemed like they could be simpler while working on real code, and rather than inventing a rule from scratch searched the logs of the synthesizer project for a known-correct synthesized rule that handled the case in question. This added four new rules that are variants on:
 \[
-rewrite((max(y, z) < min(x, y)), false)
+\hmax(y, z) < \hmin(x, y) \rewrites false
 \]
 In case $\mathbb{G}$ a developer wrote 24 new rules, proving them on paper, and then checked their work by resynthesizing the predicates using the synthesizer, ensuring that the synthesized predicates agreed with the human’s and that those predicates were as broad as possible. Here the synthesis machinery served as a reviewer of rules rather than an author. Eight of these rules were in fact manual rederivations of the synthesizer’s output on case $\mathbb{D}$ above. The remaining 16 are generalizations that add constant terms. One example:
 \[
-rewrite(min(y + c0, z) < min(y, x), min(z, y + c0) < x, c0 < 0)
+\hmin(y + c_0, z) < \hmin(y, x) \rewrites \hmin(z, y + c_0) < x \pred c_0 < 0)
 \]
 
 Halide endeavors to be a safe language, meaning that certain things are checked at compile time or runtime rather than being undefined behavior. In case $\mathbb{I}$, Halide was changed such that instead of asserting that no output value has a dependency on any out-of-bounds input values, it now asserts the stricter condition that no out-of-bounds loads occur on the input, even if those loaded values cannot possibly affect an output.
@@ -1339,8 +1342,8 @@ new rules added). We traced this to an incorrect transformation in a
 separate, unverified TRS in the Halide compiler (the ``solver''). This
 bug had existed for four years, but had only recently become an
 important code path due to change $\mathbb{I}$ mentioned above. The
-incorrect transformation was $min(x - y, x - z) \rightarrow x - min(y, z)$,
-which should be $min(x - y, x - z) \rightarrow x - max(y, z)$. If this
+incorrect transformation was $\hmin(x - y, x - z) \rewrites x - \hmin(y, z)$,
+which should be $\hmin(x - y, x - z) \rewrites x - \hmax(y, z)$. If this
 secondary TRS had been written using verification, this bug would
 never have been introduced. We intend to formalize and verify this
 secondary TRS next to flush out any other bugs lurking therein.
@@ -1367,10 +1370,10 @@ These results show that having verification and synthesis available as a tool fo
 % \begin{tabular}{l|l|l}
 % Incorrect rule & Counterexample & Tool used \\
 % \hline
-% $((x + c0)/c1)*c1 - x \rightarrow_R x \bmod c1 \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & x := -2, c0 := 2, c1 := 3 & Z3 \\
-% $x - ((x + c0)/c1)*c1 \rightarrow_R -(x \bmod c1) \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & x := -2, c0 := 2, c1 := 3 & Z3 \\
-% $min(x, c0) < min(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2)$ & x := 0, c0 := 0, c1 := -1, c2 := 1 & Z3 \\
-% $max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & x := 0, c0 := 2, c1 := 1, c2 := 1 & Z3 \\
+% $((x + c_0)/c_1)*c_1 - x \rewrites x \bmod c_1 \textrm{ if } c_1 > 0 \wedge c_0 + 1 == c_1$ & x := -2, c_0 := 2, c_1 := 3 & Z3 \\
+% $x - ((x + c_0)/c_1)*c_1 \rewrites -(x \bmod c_1) \textrm{ if } c_1 > 0 \wedge c_0 + 1 == c_1$ & x := -2, c_0 := 2, c_1 := 3 & Z3 \\
+% $\hmin(x, c_0) < \hmin(x, c_1) + c_2 \rewrites \textrm{false if } c_0 >= c_1 + c_2)$ & x := 0, c_0 := 0, c_1 := -1, c_2 := 1 & Z3 \\
+% $\hmax(x, c_0) < \hmax(x, c_1) + c_2 \rewrites \textrm{false if } c_0 >= c_1 + c_2$ & x := 0, c_0 := 2, c_1 := 1, c_2 := 1 & Z3 \\
 % \end{tabular}
 % \label{tab:incorrectrules}
 % \end{table*}
