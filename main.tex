@@ -313,27 +313,29 @@ to guarantee correctness or to ensure the resulting code performs as well
 as possible.  For example, to fully unroll a loop, the compiler must prove
 the loop has a constant extent.
 
-Many of these properties relate regions of computation with one another,
-which, within Halide, are represented as intervals over the integers.
-Reasoning about these regions uses a \textit{term rewriting system}
-(TRS): the compiler applies simplification rules to an expression relating
-the regions until no more rewrites apply.  
-%%% RB: Not sure we need this sentence.  It just made me think what it's putpose was.
-% The final expression may be true, false, or some more complex expression. 
-If an expression is semantically equivalent to true
-but the TRS cannot rewrite it to that form, the compiler may be unable to apply a valid optimization,
-resulting in suboptimal code output and possibly errors during compilation.
+Many of these properties relate regions of computation with one
+another, which Halide represents as intervals over the integers.
+Reasoning about these regions relies on a \textit{term rewriting
+  system} (TRS). The Halide TRS is an ordered set of over a thousand
+handwritten rewrite rules. It traverses expressions bottom-up, and
+greedily applies the first matching rule. These rules were constructed
+by developers based on observed compilation failures over many years,
+and ordered in ad-hoc ways to avoid non-termination.
 
-In this work, we develop tools that improve the Halide term rewriting system by
-verifying  the rules and synthesizing new rules.  The Halide term rewriting
-system can be called thousands of times per compilation, so the rewriter must be
-exceedingly fast.  In order to be as robust  as possible, the Halide TRS is
-structured to scale well with the size of the ruleset; currently, it consists of
-nearly a thousand rewrite rules. The Halide TRS consists of an ordered set of 
-handwritten rules and efficient matchers to traverse expressions bottom-up and
-apply the first matching rule. These rules were constructed
-by developers based on observed compilation failures over many years, and
-ordered in ad-hoc ways to avoid non-termination. 
+Incorrect rules in the term rewriting system cause miscompilations,
+which can cause undefined behavior at runtime (e.g. by writing beyond
+the end of a buffer). Missing rules in the term rewriting system lead
+the compiler to produce worse code. For example, if a boolean-valued
+expression is semantically equivalent to the literal true but the TRS
+cannot rewrite it to that form, the compiler may be unable to apply a
+valid optimization, resulting in suboptimal code output and possibly
+even errors during compilation if that optimization was explicitly
+requested in the \textit{schedule}.
+
+In this work, we develop tools that improve the Halide term rewriting
+system by verifying rewrite rules to find and prevent bugs, and
+synthesizing new rewrite rules to help fix bugs and ameliorate
+inefficiencies.
 
 \textbf{Verification of rules.}
 Extensive
@@ -378,7 +380,7 @@ theorem prover. We provide a proof of termination that shows that every applicat
 \textbf{Synthesis of rules.} New rules are constructed by combining Z3 and a
 handwritten solver to find predicates to guard rule application. We 
 synthesize rules for the set of expressions on which the 
-existing ruleset fails. We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and show it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset results in improvements in memory allocation without slowing down compilation times.
+existing ruleset fails. We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and show it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset results in improvements in memory allocation without notably increasing compilation times.
 
 We make three main contributions:
 \begin{itemize}
@@ -388,11 +390,10 @@ We make three main contributions:
   \item We develop a synthesis algorithm for synthesis of rules in the undecidable theory of integers. 
   The algorithm has a new approach for synthesizing rule preconditions and generates rules that obey the reduction order and preserve termination.
 
-  \item{We evaluate our tools on a number of experiments, including two case studies: adapting the TRS to the change of the semantics of  division and modulo; and a large-scale addition of more than 4,000 rules synthesized from more than 100,000 failed expressions. The former yielded a verified TRS for the latest version of Halide.  The latter eliminate over-allocation problems caused by the failures of the previous TRS.}
+  \item{We evaluate our tools on a number of experiments, including two case studies: adapting the TRS to the change of the semantics of division and modulo; and a large-scale addition of more than 4,000 rules synthesized from more than 100,000 failed expressions. The former yielded a verified TRS for the latest version of Halide.  The latter eliminate over-allocation problems caused by the failures of the previous TRS.}
 \end{itemize}
 
 In this paper, we first provide some background on term rewriting systems and the Halide rewriting algorithm. We then describe our approach to verifying rule correction and discuss the relation between LHS and RHS terms that guarantees termination. Once semantics and the termination property have been formalized, we present our synthesis algorithm. We demonstrate the effectiveness of our approach through several experiments and case studies, and finish with a discussion of our current limitations and a review of related work.
-
 
 \section{Background \& Overview}
 \subsection{Term Rewriting Systems}
@@ -695,8 +696,7 @@ whose initial entry has the value $x$ and all subsequent entries increase with
 stride $s$. In SMT2, we represent this term as the symbolic expression $x + l *
 s$, where $l$ must be zero or positive.
 
-Given this modeling, for each rule, we assert any assumptions are true, then
-\sak{by assumption, do we mean predicate?  We need to talk about predicates in Sec 2}
+Given this modeling, for each rule, we assert any predicates are true, then
 ask Z3 to search for a variable assignment such that the LHS and RHS are not
 equivalent.  If Z3 indicates no such assignment exists, the LHS must be equivalent to
 the RHS and the rule must be correct. We implemented an SMT2 printer for 
@@ -777,7 +777,7 @@ Choosing a single monotonic direction in which to rewrite expressions would be o
 The lexicographic product of two terminating relations is again terminating.
 \end{theorem}
 
-Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rewrites r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rewrites r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.  Our final ordering consists of \sak{13} component orders.
+Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rewrites r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rewrites r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.  Our final ordering consists of 13 component orders.
 
 Many of our component orders are defined using a measure function that counts the number of particular operations or other features in a term. We say that $s > t$ when $s$ has more vector operations than $t$, then when $s$ has more division, modulo and multiplications operations, and so on. As a sample proof sketch of this flavor of order, consider an order $s_1 >_* s_2$ that holds when the number of multiplication operations is greater in $s_1$ than in $s_2$. We represent this through a measure function $|s_1|_*$ that returns the count of multiplication operations in $s_1$; since this function maps a term to a natural number, the order is clearly well-founded. The order is also compatible with $\Sigma$-operations; we compute our measure function as follows:
 
@@ -818,7 +818,7 @@ Relying on non-local reasoning makes our order more brittle; if the simplifier a
 
 Besides giving a termination guarantee, the reduction order is necessary if we want to synthesizing new rewrite rules. If we do not constrain newly-synthesized rules to obey a consistent reduction order with the existing human-written ones, they form cycles with the existing rules and cause infinite recursion in the TRS. Additionally, the reduction order is the formal encoding of the types of transformations we find desirable, so the reduction order limits synthesis to rules that rewrite expressions in a useful direction.
 
-In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. \jln{add reference to eval section that discusses this} With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. \sak{To ensure this guarantee is preserved, we build a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order.} A full description of the reduction order is given in the supplemental material.
+In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. To ensure this guarantee is preserved, we build a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order. A full description of the reduction order is given in the supplemental material.
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \begin{figure*}
@@ -1316,9 +1316,9 @@ the full distribution.
 
 \begin{figure*}
   \includegraphics[width=4in]{figures/memoryhistogram.pdf}
-\caption{Reduction in peak memory usage of compiled code when 4127
-  synthesized rules are added to the TRS. In 197 cases, peak memory usage
-  drops by more than 10\%.}
+\caption{Reduction in peak memory usage of 3072 pieces of compiled
+  code when 4127 synthesized rules are added to the TRS. In 197 cases,
+  peak memory usage drops by more than 10\%.}
 \label{fig:peakmemoryhistogram}
 \end{figure*}
 
