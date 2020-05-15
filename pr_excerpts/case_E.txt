@@ -1,0 +1,45 @@
+Description:
+------------
+
+Add new simplifier rules for select(), to pull divide or mod (with the same
+denominator) outside of the select:
+
+    select(a, b/d, c/d) -> select(a, b, c)/d
+    select(a, b%d, c%d) -> select(a, b, c)%d
+
+
+Selected comments:
+------------------
+
+N/A
+
+
+Diff:
+---------------
+
+diff --git a/src/Simplify_Select.cpp b/src/Simplify_Select.cpp
+index 1271e1b530db..4c4b354dc655 100644
+--- a/src/Simplify_Select.cpp
++++ b/src/Simplify_Select.cpp
+@@ -73,6 +73,8 @@ Expr Simplify::visit(const Select *op, ExprInfo *bounds) {
+              rewrite(select(x, y * z, w * y), y * select(x, z, w)) ||
+              rewrite(select(x, z * y, y * w), y * select(x, z, w)) ||
+              rewrite(select(x, z * y, w * y), select(x, z, w) * y) ||
++             rewrite(select(x, z / y, w / y), select(x, z, w) / y) ||
++             rewrite(select(x, z % y, w % y), select(x, z, w) % y) ||
+
+              rewrite(select(x < y, x, y), min(x, y)) ||
+              rewrite(select(x < y, y, x), max(x, y)) ||
+diff --git a/test/correctness/simplify.cpp b/test/correctness/simplify.cpp
+index 610745a959bc..5547babca55f 100644
+--- a/test/correctness/simplify.cpp
++++ b/test/correctness/simplify.cpp
+@@ -1352,6 +1352,8 @@ void check_boolean() {
+     check(select(cond, y+x, x-z), select(cond, y, 0-z) + x);
+     check(select(cond, x-z, x+y), select(cond, 0-z, y) + x);
+     check(select(cond, x-z, y+x), select(cond, 0-z, y) + x);
++    check(select(cond, x/y, z/y), select(cond, x, z) / y);
++    check(select(cond, x%y, z%y), select(cond, x, z) % y);
+
+
+     {

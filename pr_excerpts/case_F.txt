@@ -1,0 +1,51 @@
+Description:
+------------
+
+Add some obviously good rules from [work-in-progress branch]
+
+Selected comments:
+------------------
+
+N/A
+
+Diff:
+---------------
+
+diff --git a/src/Simplify_LT.cpp b/src/Simplify_LT.cpp
+index 2fc551d76424..2354700adf8c 100644
+--- a/src/Simplify_LT.cpp
++++ b/src/Simplify_LT.cpp
+@@ -42,6 +42,12 @@ Expr Simplify::visit(const LT *op, ExprInfo *bounds) {
+              rewrite(x < min(x, y), false) ||
+              rewrite(x < min(y, x), false) ||
+
++             // From [work-in-progress branch]
++             rewrite((max(y, z) < min(x, y)), false) ||
++             rewrite((max(y, z) < min(y, x)), false) ||
++             rewrite((max(z, y) < min(x, y)), false) ||
++             rewrite((max(z, y) < min(y, x)), false) ||
++
+              // Comparisons of ramps and broadcasts. If the first
+              // and last lanes are provably < or >= the broadcast
+              // we can collapse the comparison.
+diff --git a/test/correctness/simplify.cpp b/test/correctness/simplify.cpp
+index 3dc4133d6ce1..d2e05e941adb 100644
+--- a/test/correctness/simplify.cpp
++++ b/test/correctness/simplify.cpp
+@@ -1190,6 +1190,16 @@ void check_boolean() {
+     check(max(x, y) <= y, x <= y);
+     check(min(x, y) >= y, y <= x);
+
++    check(max(x, y) < min(y, z), f);
++    check(max(x, y) < min(z, y), f);
++    check(max(y, x) < min(y, z), f);
++    check(max(y, x) < min(z, y), f);
++
++    check(max(x, y) >= min(y, z), t);
++    check(max(x, y) >= min(z, y), t);
++    check(max(y, x) >= min(y, z), t);
++    check(max(y, x) >= min(z, y), t);
++
+     check((1 < y) && (2 < y), 2 < y);
+
+     check(x * 5 < 4, x < 1);

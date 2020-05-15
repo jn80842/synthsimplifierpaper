@@ -1,0 +1,572 @@
+Description:
+------------
+
+Add various simplifier changes from [work-in-progress branch]
+
+Selected comments:
+------------------
+
+N/A -- This PR just carved off some independently mergeable pieces from
+[work-in-progress branch]
+
+
+Diff:
+---------------
+
+diff --git a/src/SimplifyCorrelatedDifferences.cpp b/src/SimplifyCorrelatedDifferences.cpp
+index a8b4d81491b2..bb6ad074d683 100644
+--- a/src/SimplifyCorrelatedDifferences.cpp
++++ b/src/SimplifyCorrelatedDifferences.cpp
+@@ -2,6 +2,7 @@
+
+ #include "CSE.h"
+ #include "ExprUsesVar.h"
++#include "IRMatch.h"
+ #include "IRMutator.h"
+ #include "IROperator.h"
+ #include "Monotonic.h"
+@@ -25,7 +26,12 @@ class SimplifyCorrelatedDifferences : public IRMutator {
+
+     Scope<Monotonic> monotonic;
+
+-    vector<pair<string, Expr>> lets;
++    struct OuterLet {
++        string name;
++        Expr value;
++        bool may_substitute;
++    };
++    vector<OuterLet> lets;
+
+     template<typename LetStmtOrLet, typename StmtOrExpr>
+     StmtOrExpr visit_let(const LetStmtOrLet *op) {
+@@ -45,14 +51,35 @@ class SimplifyCorrelatedDifferences : public IRMutator {
+         std::vector<Frame> frames;
+         StmtOrExpr result;
+
++        // Note that we must add *everything* that depends on the loop
++        // var to the monotonic scope and the list of lets, even
++        // things which we can never substitute in (e.g. impure
++        // things). This is for two reasons. First this pass could be
++        // used at a time when we still have nested lets under the
++        // same name. If we decide not to add an inner let, but do add
++        // the outer one, then later references to it will be
++        // incorrect. Second, if we don't add something that happens
++        // to be non-monotonic, then is_monotonic finds a variable
++        // that references it in a later let, it will think it's a
++        // constant, not an unknown.
+         do {
+             result = op->body;
+-            if (op->value.type() == Int(32) && is_pure(op->value)) {
++            if (loop_var.empty()) {
++                frames.emplace_back(op);
++                continue;
++            }
++
++            bool pure = is_pure(op->value);
++            if (!pure || expr_uses_vars(op->value, monotonic) || monotonic.contains(op->name)) {
+                 frames.emplace_back(op, loop_var, monotonic);
+                 Expr new_value = mutate(op->value);
+-                lets.emplace_back(op->name, new_value);
++                bool may_substitute_in = new_value.type() == Int(32) && pure;
++                lets.emplace_back(OuterLet{op->name, new_value, may_substitute_in});
+                 frames.back().new_value = std::move(new_value);
+             } else {
++                // Pure and constant w.r.t the loop var. Doesn't
++                // shadow any outer thing already in the monotonic
++                // scope.
+                 frames.emplace_back(op);
+             }
+         } while ((op = result.template as<LetStmtOrLet>()));
+@@ -101,7 +128,10 @@ class SimplifyCorrelatedDifferences : public IRMutator {
+             tmp_monotonic.swap(monotonic);
+             tmp_lets.swap(lets);
+             loop_var = op->name;
+-            s = IRMutator::visit(op);
++            {
++                ScopedBinding<Monotonic> bind(monotonic, loop_var, Monotonic::Increasing);
++                s = IRMutator::visit(op);
++            }
+             loop_var.clear();
+             tmp_monotonic.swap(monotonic);
+             tmp_lets.swap(lets);
+@@ -110,12 +140,58 @@ class SimplifyCorrelatedDifferences : public IRMutator {
+         return s;
+     }
+
++    class PartiallyCancelDifferences : public IRMutator {
++        using IRMutator::visit;
++
++        // Symbols used by rewrite rules
++        IRMatcher::Wild<0> x;
++        IRMatcher::Wild<1> y;
++        IRMatcher::Wild<2> z;
++        IRMatcher::WildConst<0> c0;
++        IRMatcher::WildConst<1> c1;
++
++        Expr visit(const Sub *op) override {
++
++            Expr a = mutate(op->a), b = mutate(op->b);
++
++            // Partially cancel terms in correlated differences of
++            // various kinds to get tighter bounds.  We assume any
++            // correlated term has already been pulled leftmost by
++            // solve_expression.
++            if (op->type == Int(32)) {
++                auto rewrite = IRMatcher::rewriter(IRMatcher::sub(a, b), op->type);
++                if (
++                    // Differences of quasi-affine functions
++                    rewrite((x + y) / c0 - (x + z) / c0, ((x % c0) + y) / c0 - ((x % c0) + z) / c0) ||
++                    rewrite(x / c0 - (x + z) / c0, 0 - ((x % c0) + z) / c0) ||
++                    rewrite((x + y) / c0 - x / c0, ((x % c0) + y) / c0) ||
++
++                    // truncated cones have a constant upper or lower
++                    // bound that isn't apparent when expressed in the
++                    // form in the LHS below
++                    rewrite(min(x, c0) - max(x, c1), min(min(c0 - x, x - c1), fold(min(0, c0 - c1)))) ||
++                    rewrite(max(x, c0) - min(x, c1), max(max(c0 - x, x - c1), fold(max(0, c0 - c1)))) ||
++                    rewrite(min(x, y) - max(x, z), min(min(x, y) - max(x, z), 0)) ||
++                    rewrite(max(x, y) - min(x, z), max(max(x, y) - min(x, z), 0)) ||
++
++                    false) {
++                    return rewrite.result;
++                }
++            }
++            return a - b;
++        }
++    };
++
+     template<typename T>
+     Expr visit_add_or_sub(const T *op) {
+-        if (op->type != Int(32)) {
++        if (op->type != Int(32) || loop_var.empty()) {
+             return IRMutator::visit(op);
+         }
+         Expr e = IRMutator::visit(op);
++        op = e.as<T>();
++        if (!op) {
++            return e;
++        }
+         auto ma = is_monotonic(op->a, loop_var, monotonic);
+         auto mb = is_monotonic(op->b, loop_var, monotonic);
+
+@@ -125,16 +201,28 @@ class SimplifyCorrelatedDifferences : public IRMutator {
+             (ma == Monotonic::Decreasing && mb == Monotonic::Increasing && std::is_same<T, Add>::value)) {
+
+             for (auto it = lets.rbegin(); it != lets.rend(); it++) {
+-                e = Let::make(it->first, it->second, e);
++                if (expr_uses_var(e, it->name)) {
++                    if (!it->may_substitute) {
++                        // We have to stop here. Can't continue
++                        // because there might be an outer let with
++                        // the same name that we *can* substitute in,
++                        // and then inner uses will get the wrong
++                        // value.
++                        break;
++                    }
++                }
++                e = Let::make(it->name, it->value, e);
+             }
+             e = common_subexpression_elimination(e);
+             e = solve_expression(e, loop_var).result;
++            e = PartiallyCancelDifferences().mutate(e);
+             e = simplify(e);
+
+             if ((debug::debug_level() > 0) &&
+-                is_monotonic(e, loop_var, monotonic) == Monotonic::Unknown) {
++                is_monotonic(e, loop_var) == Monotonic::Unknown) {
+                 // Might be a missed simplification opportunity. Log to help improve the simplifier.
+-                debug(1) << "Warning: expression is non-monotonic in loop variable " << loop_var << ": " << e << "\n";
++                debug(1) << "Warning: expression is non-monotonic in loop variable "
++                         << loop_var << ": " << e << "\n";
+             }
+         }
+         return e;
+@@ -151,8 +239,8 @@ class SimplifyCorrelatedDifferences : public IRMutator {
+
+ }  // namespace
+
+-Stmt simplify_correlated_differences(const Stmt &s) {
+-    return SimplifyCorrelatedDifferences().mutate(s);
++Stmt simplify_correlated_differences(const Stmt &stmt) {
++    return SimplifyCorrelatedDifferences().mutate(stmt);
+ }
+
+ }  // namespace Internal
+diff --git a/src/Simplify_Add.cpp b/src/Simplify_Add.cpp
+index cd3dd2289fb1..960e0d70714b 100644
+--- a/src/Simplify_Add.cpp
++++ b/src/Simplify_Add.cpp
+@@ -139,7 +139,9 @@ Expr Simplify::visit(const Add *op, ExprInfo *bounds) {
+
+                rewrite(x + ((c0 - x)/c1)*c1, c0 - ((c0 - x) % c1), c1 > 0) ||
+                rewrite(x + ((c0 - x)/c1 + y)*c1, y * c1 - ((c0 - x) % c1) + c0, c1 > 0) ||
+-               rewrite(x + (y + (c0 - x)/c1)*c1, y * c1 - ((c0 - x) % c1) + c0, c1 > 0))))) {
++               rewrite(x + (y + (c0 - x)/c1)*c1, y * c1 - ((c0 - x) % c1) + c0, c1 > 0) ||
++
++               false)))) {
+             return mutate(rewrite.result, bounds);
+         }
+         // clang-format on
+diff --git a/src/Simplify_Min.cpp b/src/Simplify_Min.cpp
+index 981f995f3beb..55e9dfd0fced 100644
+--- a/src/Simplify_Min.cpp
++++ b/src/Simplify_Min.cpp
+@@ -217,7 +217,13 @@ Expr Simplify::visit(const Min *op, ExprInfo *bounds) {
+
+                rewrite(min(select(x, y, z), select(x, w, u)), select(x, min(y, w), min(z, u))) ||
+
+-               rewrite(min(c0 - x, c1), c0 - max(x, fold(c0 - c1))))))) {
++               rewrite(min(c0 - x, c1), c0 - max(x, fold(c0 - c1))) ||
++
++               // Required for nested GuardWithIf tilings
++               rewrite(min((min(((y + c0)/c1), x)*c1), y + c2), min(x * c1, y + c2), c1 > 0 && c1 + c2 <= c0 + 1) ||
++               rewrite(min((min(((y + c0)/c1), x)*c1) + c2, y), min(x * c1 + c2, y), c1 > 0 && c1 <= c0 + c2 + 1) ||
++
++               false )))) {
+
+             return mutate(rewrite.result, bounds);
+         }
+diff --git a/src/Simplify_Sub.cpp b/src/Simplify_Sub.cpp
+index 4b7ea82ed9d3..8500d72f01ea 100644
+--- a/src/Simplify_Sub.cpp
++++ b/src/Simplify_Sub.cpp
+@@ -109,34 +109,85 @@ Expr Simplify::visit(const Sub *op, ExprInfo *bounds) {
+                rewrite(min(x, y) - x, min(y - x, 0)) ||
+                rewrite(max(x, y) - y, max(x - y, 0)) ||
+                rewrite(min(x, y) - y, min(x - y, 0)) ||
++
+                rewrite(x - max(x, y), min(x - y, 0), !is_const(x)) ||
+                rewrite(x - min(x, y), max(x - y, 0), !is_const(x)) ||
+                rewrite(y - max(x, y), min(y - x, 0), !is_const(y)) ||
+                rewrite(y - min(x, y), max(y - x, 0), !is_const(y)) ||
++
++               // Negate a clamped subtract
++               rewrite(0 - max(x - y, c0), min(y - x, fold(-c0))) ||
++               rewrite(0 - min(x - y, c0), max(y - x, fold(-c0))) ||
++               rewrite(0 - max(min(x - y, c0), c1), min(max(y - x, fold(-c0)), fold(-c1))) ||
++               rewrite(0 - min(max(x - y, c0), c1), max(min(y - x, fold(-c0)), fold(-c1))) ||
++
+                rewrite(x*y - x, x*(y - 1)) ||
+                rewrite(x*y - y, (x - 1)*y) ||
+                rewrite(x - x*y, x*(1 - y)) ||
+                rewrite(x - y*x, (1 - y)*x) ||
+-               rewrite(x - min(x + y, z), max(-y, x - z)) ||
+-               rewrite(x - min(y + x, z), max(-y, x - z)) ||
+-               rewrite(x - min(z, x + y), max(x - z, -y)) ||
+-               rewrite(x - min(z, y + x), max(x - z, -y)) ||
+-               rewrite(min(x + y, z) - x, min(y, z - x)) ||
+-               rewrite(min(y + x, z) - x, min(y, z - x)) ||
++
++               // Cancel a term from one side of a min or max. Some of
++               // these rules introduce a new constant zero, so we require
++               // that the cancelled term is not a constant. This way
++               // there can't be a cycle. For some rules we know by
++               // context that the cancelled term is not a constant
++               // (e.g. it appears on the LHS of an addition).
++               rewrite((x - min(z, (x + y))), (0 - min(z - x, y)), !is_const(x)) ||
++               rewrite((x - min(z, (y + x))), (0 - min(z - x, y)), !is_const(x)) ||
++               rewrite((x - min((x + y), z)), (0 - min(z - x, y)), !is_const(x)) ||
++               rewrite((x - min((y + x), z)), (0 - min(z - x, y)), !is_const(x)) ||
++               rewrite((x - min(y, (w + (x + z)))), (0 - min(y - x, w + z)), !is_const(x)) ||
++               rewrite((x - min(y, (w + (z + x)))), (0 - min(y - x, z + w)), !is_const(x)) ||
++               rewrite((x - min(y, ((x + z) + w))), (0 - min(y - x, z + w)), !is_const(x)) ||
++               rewrite((x - min(y, ((z + x) + w))), (0 - min(y - x, z + w)), !is_const(x)) ||
++               rewrite((x - min((w + (x + z)), y)), (0 - min(y - x, w + z)), !is_const(x)) ||
++               rewrite((x - min((w + (z + x)), y)), (0 - min(y - x, z + w)), !is_const(x)) ||
++               rewrite((x - min(((x + z) + w), y)), (0 - min(y - x, w + z)), !is_const(x)) ||
++               rewrite((x - min(((z + x) + w), y)), (0 - min(y - x, w + z)), !is_const(x)) ||
++
++               rewrite(min(x + y, z) - x, min(z - x, y)) ||
++               rewrite(min(y + x, z) - x, min(z - x, y)) ||
+                rewrite(min(z, x + y) - x, min(z - x, y)) ||
+                rewrite(min(z, y + x) - x, min(z - x, y)) ||
++               rewrite((min(x, (w + (y + z))) - z), min(x - z, w + y)) ||
++               rewrite((min(x, (w + (z + y))) - z), min(x - z, w + y)) ||
++               rewrite((min(x, ((y + z) + w)) - z), min(x - z, y + w)) ||
++               rewrite((min(x, ((z + y) + w)) - z), min(x - z, y + w)) ||
++               rewrite((min((w + (y + z)), x) - z), min(x - z, w + y)) ||
++               rewrite((min((w + (z + y)), x) - z), min(x - z, w + y)) ||
++               rewrite((min(((y + z) + w), x) - z), min(x - z, y + w)) ||
++               rewrite((min(((z + y) + w), x) - z), min(x - z, y + w)) ||
++
+                rewrite(min(x, y) - min(y, x), 0) ||
+                rewrite(min(x, y) - min(z, w), y - w, can_prove(x - y == z - w, this)) ||
+                rewrite(min(x, y) - min(w, z), y - w, can_prove(x - y == z - w, this)) ||
+
+-               rewrite(x - max(x + y, z), min(-y, x - z)) ||
+-               rewrite(x - max(y + x, z), min(-y, x - z)) ||
+-               rewrite(x - max(z, x + y), min(x - z, -y)) ||
+-               rewrite(x - max(z, y + x), min(x - z, -y)) ||
+-               rewrite(max(x + y, z) - x, max(y, z - x)) ||
+-               rewrite(max(y + x, z) - x, max(y, z - x)) ||
++               rewrite((x - max(z, (x + y))), (0 - max(z - x, y)), !is_const(x)) ||
++               rewrite((x - max(z, (y + x))), (0 - max(z - x, y)), !is_const(x)) ||
++               rewrite((x - max((x + y), z)), (0 - max(z - x, y)), !is_const(x)) ||
++               rewrite((x - max((y + x), z)), (0 - max(z - x, y)), !is_const(x)) ||
++               rewrite((x - max(y, (w + (x + z)))), (0 - max(y - x, w + z)), !is_const(x)) ||
++               rewrite((x - max(y, (w + (z + x)))), (0 - max(y - x, z + w)), !is_const(x)) ||
++               rewrite((x - max(y, ((x + z) + w))), (0 - max(y - x, z + w)), !is_const(x)) ||
++               rewrite((x - max(y, ((z + x) + w))), (0 - max(y - x, z + w)), !is_const(x)) ||
++               rewrite((x - max((w + (x + z)), y)), (0 - max(y - x, w + z)), !is_const(x)) ||
++               rewrite((x - max((w + (z + x)), y)), (0 - max(y - x, z + w)), !is_const(x)) ||
++               rewrite((x - max(((x + z) + w), y)), (0 - max(y - x, w + z)), !is_const(x)) ||
++               rewrite((x - max(((z + x) + w), y)), (0 - max(y - x, w + z)), !is_const(x)) ||
++
++               rewrite(max(x + y, z) - x, max(z - x, y)) ||
++               rewrite(max(y + x, z) - x, max(z - x, y)) ||
+                rewrite(max(z, x + y) - x, max(z - x, y)) ||
+                rewrite(max(z, y + x) - x, max(z - x, y)) ||
++               rewrite((max(x, (w + (y + z))) - z), max(x - z, w + y)) ||
++               rewrite((max(x, (w + (z + y))) - z), max(x - z, w + y)) ||
++               rewrite((max(x, ((y + z) + w)) - z), max(x - z, y + w)) ||
++               rewrite((max(x, ((z + y) + w)) - z), max(x - z, y + w)) ||
++               rewrite((max((w + (y + z)), x) - z), max(x - z, w + y)) ||
++               rewrite((max((w + (z + y)), x) - z), max(x - z, w + y)) ||
++               rewrite((max(((y + z) + w), x) - z), max(x - z, y + w)) ||
++               rewrite((max(((z + y) + w), x) - z), max(x - z, y + w)) ||
++
+                rewrite(max(x, y) - max(y, x), 0) ||
+                rewrite(max(x, y) - max(z, w), y - w, can_prove(x - y == z - w, this)) ||
+                rewrite(max(x, y) - max(w, z), y - w, can_prove(x - y == z - w, this)) ||
+@@ -274,7 +325,34 @@ Expr Simplify::visit(const Sub *op, ExprInfo *bounds) {
+                rewrite(x/c0 - (x + y)/c0, ((fold(c0 - 1) - y) - (x % c0))/c0, c0 > 0) ||
+                rewrite((x + y)/c0 - x/c0, ((x % c0) + y)/c0, c0 > 0) ||
+                rewrite(x/c0 - (x - y)/c0, ((y + fold(c0 - 1)) - (x % c0))/c0, c0 > 0) ||
+-               rewrite((x - y)/c0 - x/c0, ((x % c0) - y)/c0, c0 > 0))))) {
++               rewrite((x - y)/c0 - x/c0, ((x % c0) - y)/c0, c0 > 0) ||
++
++               // Simplification of bounds code for various tail
++               // strategies requires cancellations of the form:
++               // min(f(x), y) - g(x)
++
++               // There are many potential variants of these rules if
++               // we start adding commutative/associative rewritings
++               // of them, or consider max as well as min. We
++               // explicitly only include the ones necessary to get
++               // correctness_nested_tail_strategies to pass.
++               rewrite((min(x + y, z) + w) - x, min(z - x, y) + w) ||
++               rewrite(min((x + y) + w, z) - x, min(z - x, y + w)) ||
++               rewrite(min(min(x + z, y), w) - x, min(min(y, w) - x, z)) ||
++               rewrite(min(min(y, x + z), w) - x, min(min(y, w) - x, z)) ||
++
++               rewrite(min((x + y)*u + z, w) - x*u, min(w - x*u, y*u + z)) ||
++               rewrite(min((y + x)*u + z, w) - x*u, min(w - x*u, y*u + z)) ||
++
++               // Splits can introduce confounding divisions
++               rewrite(min(x*c0 + y, z) / c1 - x*c2, min(y, z - x*c0) / c1, c0 == c1 * c2) ||
++               rewrite(min(z, x*c0 + y) / c1 - x*c2, min(y, z - x*c0) / c1, c0 == c1 * c2) ||
++
++               // There could also be an addition inside the division (e.g. if it's division rounding up)
++               rewrite((min(x*c0 + y, z) + w) / c1 - x*c2, (min(y, z - x*c0) + w) / c1, c0 == c1 * c2) ||
++               rewrite((min(z, x*c0 + y) + w) / c1 - x*c2, (min(z - x*c0, y) + w) / c1, c0 == c1 * c2) ||
++
++               false)))) {
+             return mutate(rewrite.result, bounds);
+         }
+     }
+diff --git a/src/Solve.cpp b/src/Solve.cpp
+index 2527feb1a17d..16c8ac08c1e5 100644
+--- a/src/Solve.cpp
++++ b/src/Solve.cpp
+@@ -141,6 +141,8 @@ class SolveExpression : public IRMutator {
+         const Sub *sub_b = b.as<Sub>();
+         const Mul *mul_a = a.as<Mul>();
+         const Mul *mul_b = b.as<Mul>();
++        const Div *div_a = a.as<Div>();
++        const Div *div_b = b.as<Div>();
+
+         Expr expr;
+
+@@ -179,6 +181,12 @@ class SolveExpression : public IRMutator {
+             } else if (mul_b && equal(mul_b->a, a)) {
+                 // f(x) + f(x)*a -> f(x) * (a + 1)
+                 expr = mutate(a * (mul_b->b + 1));
++            } else if (div_a && !a_failed) {
++                // f(x)/a + g(x) -> (f(x) + g(x) * a) / b
++                expr = mutate((div_a->a + b * div_a->b) / div_a->b);
++            } else if (div_b && !b_failed) {
++                // f(x) + g(x)/b -> (f(x) * b + g(x)) / b
++                expr = mutate((a * div_b->b + div_b->a) / div_b->b);
+             } else {
+                 expr = fail(a + b);
+             }
+@@ -222,6 +230,7 @@ class SolveExpression : public IRMutator {
+         const Sub *sub_b = b.as<Sub>();
+         const Mul *mul_a = a.as<Mul>();
+         const Mul *mul_b = b.as<Mul>();
++        const Div *div_a = a.as<Div>();
+
+         Expr expr;
+
+@@ -271,6 +280,9 @@ class SolveExpression : public IRMutator {
+             } else if (mul_a && mul_b && equal(mul_a->b, mul_b->b)) {
+                 // f(x)*a - g(x)*a -> (f(x) - g(x))*a;
+                 expr = mutate((mul_a->a - mul_b->a) * mul_a->b);
++            } else if (div_a && !a_failed) {
++                // f(x)/a - g(x) -> (f(x) - g(x) * a) / b
++                expr = mutate((div_a->a - b * div_a->b) / div_a->b);
+             } else {
+                 expr = fail(a - b);
+             }
+@@ -1482,6 +1494,10 @@ void solve_test() {
+     check_solve(x + (y * 16 + (z - (x * 2 + -1))) / 2,
+                 (x * 0) + (((z - -1) + (y * 16)) / 2));
+
++    check_solve((x * 9 + 3) / 4 - x * 2, (x * 1 + 3) / 4);
++    check_solve((x * 9 + 3) / 4 + x * 2, (x * 17 + 3) / 4);
++    check_solve(x * 2 + (x * 9 + 3) / 4, (x * 17 + 3) / 4);
++
+     // Check the solver doesn't perform transformations that change integer overflow behavior.
+     check_solve(i16(x + y) * i16(2) / i16(2), i16(x + y) * i16(2) / i16(2));
+
+diff --git a/test/correctness/CMakeLists.txt b/test/correctness/CMakeLists.txt
+index ca993f045c90..af46c259b200 100644
+--- a/test/correctness/CMakeLists.txt
++++ b/test/correctness/CMakeLists.txt
+@@ -256,6 +256,7 @@ tests(GROUPS correctness travis
+         scatter.cpp
+         mux.cpp
+         set_custom_trace.cpp
++        shadowed_bound.cpp
+         shared_self_references.cpp
+         shifted_image.cpp
+         side_effects.cpp
+diff --git a/test/correctness/shadowed_bound.cpp b/test/correctness/shadowed_bound.cpp
+new file mode 100644
+index 000000000000..e8210bc2562c
+--- /dev/null
++++ b/test/correctness/shadowed_bound.cpp
+@@ -0,0 +1,34 @@
++#include "Halide.h"
++
++using namespace Halide;
++
++int main(int argc, char **argv) {
++    Func f("f"), g("g");
++    Var x, y, c("c");
++
++    f(x, y, c) = x + y + c;
++
++    g(x, y, c) = f(x, y, c) + f(x, y, 3);
++
++    Var xi, yi, ci;
++    g.compute_root().tile(x, y, xi, yi, 32, 32);
++    f.compute_at(g, x).bound(c, 0, 4).unroll(c);
++
++    g.realize(1024, 1024, 4);
++
++    // f's loop over channels has two bounds. The first outer one
++    // comes from its relationship with g - it needs to satisfy
++    // however many channels of g are required. The second inner one
++    // is the constant range given by the bound directive. These two
++    // bounds appear as a shadowed .min/.max variable. We want to
++    // ensure simplify_correlated_differences respects the inner const
++    // bound instead of substituting in the outer one. The schedule
++    // above is a little silly in that it overcomputes f, but it's
++    // designed to be just complex enough to tempt
++    // simplify_correlated_differences into trying to substitute in
++    // the outer bound to cancel the c.
++
++    // It's sufficient to check that we compiled.
++    printf("Success!\n");
++    return 0;
++}
+diff --git a/test/correctness/simplify.cpp b/test/correctness/simplify.cpp
+index 3548c7744c6a..c80ca9df51f5 100644
+--- a/test/correctness/simplify.cpp
++++ b/test/correctness/simplify.cpp
+@@ -747,16 +747,6 @@ void check_bounds() {
+
+     check((x + 3) / 4 - (x + 2) / 4, ((x + 2) % 4 + 1) / 4);
+
+-    check(x - min(x + y, z), max(-y, x - z));
+-    check(x - min(y + x, z), max(-y, x - z));
+-    check(x - min(z, x + y), max(-y, x - z));
+-    check(x - min(z, y + x), max(-y, x - z));
+-
+-    check(min(x + y, z) - x, min(z - x, y));
+-    check(min(y + x, z) - x, min(z - x, y));
+-    check(min(z, x + y) - x, min(z - x, y));
+-    check(min(z, y + x) - x, min(z - x, y));
+-
+     check(min(x + y, y + z), min(x, z) + y);
+     check(min(y + x, y + z), min(x, z) + y);
+     check(min(x + y, y + z), min(x, z) + y);
+@@ -926,6 +916,77 @@ void check_bounds() {
+     check(max((y + x * 32) * 4, x * 128 + 127), max(y * 4, 127) + x * 128);
+     check(max((y + x * 32) * 4, x * 128 + 4), (max(y, 1) + x * 32) * 4);
+
++    check((min(x + y, z) + w) - x, min(z - x, y) + w);
++    check(min((x + y) + w, z) - x, min(z - x, w + y));
++
++    check(min(min(x + z, y), w) - x, min(min(w, y) - x, z));
++    check(min(min(y, x + z), w) - x, min(min(w, y) - x, z));
++
++    // Two- and three-deep cancellations into min/max nodes
++    check((x - min(z, (x + y))), (0 - min(z - x, y)));
++    check((x - min(z, (y + x))), (0 - min(z - x, y)));
++    check((x - min((x + y), z)), (0 - min(z - x, y)));
++    check((x - min((y + x), z)), (0 - min(z - x, y)));
++    check((x - min(y, (w + (x + z)))), (0 - min((y - x), (w + z))));
++    check((x - min(y, (w + (z + x)))), (0 - min((y - x), (w + z))));
++    check((x - min(y, ((x + z) + w))), (0 - min((y - x), (w + z))));
++    check((x - min(y, ((z + x) + w))), (0 - min((y - x), (w + z))));
++    check((x - min((w + (x + z)), y)), (0 - min((y - x), (w + z))));
++    check((x - min((w + (z + x)), y)), (0 - min((y - x), (w + z))));
++    check((x - min(((x + z) + w), y)), (0 - min((y - x), (w + z))));
++    check((x - min(((z + x) + w), y)), (0 - min((y - x), (w + z))));
++
++    check(min(x + y, z) - x, min(z - x, y));
++    check(min(y + x, z) - x, min(z - x, y));
++    check(min(z, x + y) - x, min(z - x, y));
++    check(min(z, y + x) - x, min(z - x, y));
++    check((min(x, (w + (y + z))) - z), min(x - z, w + y));
++    check((min(x, (w + (z + y))) - z), min(x - z, w + y));
++    check((min(x, ((y + z) + w)) - z), min(x - z, w + y));
++    check((min(x, ((z + y) + w)) - z), min(x - z, w + y));
++    check((min((w + (y + z)), x) - z), min(x - z, w + y));
++    check((min((w + (z + y)), x) - z), min(x - z, w + y));
++    check((min(((y + z) + w), x) - z), min(x - z, w + y));
++    check((min(((z + y) + w), x) - z), min(x - z, w + y));
++
++    check((x - max(z, (x + y))), (0 - max(z - x, y)));
++    check((x - max(z, (y + x))), (0 - max(z - x, y)));
++    check((x - max((x + y), z)), (0 - max(z - x, y)));
++    check((x - max((y + x), z)), (0 - max(z - x, y)));
++    check((x - max(y, (w + (x + z)))), (0 - max((y - x), (w + z))));
++    check((x - max(y, (w + (z + x)))), (0 - max((y - x), (w + z))));
++    check((x - max(y, ((x + z) + w))), (0 - max((y - x), (w + z))));
++    check((x - max(y, ((z + x) + w))), (0 - max((y - x), (w + z))));
++    check((x - max((w + (x + z)), y)), (0 - max((y - x), (w + z))));
++    check((x - max((w + (z + x)), y)), (0 - max((y - x), (w + z))));
++    check((x - max(((x + z) + w), y)), (0 - max((y - x), (w + z))));
++    check((x - max(((z + x) + w), y)), (0 - max((y - x), (w + z))));
++
++    check(max(x + y, z) - x, max(z - x, y));
++    check(max(y + x, z) - x, max(z - x, y));
++    check(max(z, x + y) - x, max(z - x, y));
++    check(max(z, y + x) - x, max(z - x, y));
++    check((max(x, (w + (y + z))) - z), max(x - z, w + y));
++    check((max(x, (w + (z + y))) - z), max(x - z, w + y));
++    check((max(x, ((y + z) + w)) - z), max(x - z, w + y));
++    check((max(x, ((z + y) + w)) - z), max(x - z, w + y));
++    check((max((w + (y + z)), x) - z), max(x - z, w + y));
++    check((max((w + (z + y)), x) - z), max(x - z, w + y));
++    check((max(((y + z) + w), x) - z), max(x - z, w + y));
++    check((max(((z + y) + w), x) - z), max(x - z, w + y));
++
++    check(min((x + y) * 7 + z, w) - x * 7, min(w - x * 7, y * 7 + z));
++    check(min((y + x) * 7 + z, w) - x * 7, min(w - x * 7, y * 7 + z));
++
++    check(min(x * 12 + y, z) / 4 - x * 3, min(z - x * 12, y) / 4);
++    check(min(z, x * 12 + y) / 4 - x * 3, min(z - x * 12, y) / 4);
++
++    check((min(x * 12 + y, z) + w) / 4 - x * 3, (min(z - x * 12, y) + w) / 4);
++    check((min(z, x * 12 + y) + w) / 4 - x * 3, (min(z - x * 12, y) + w) / 4);
++
++    check(min((min(((y + 5) / 2), x) * 2), y + 3), min(x * 2, y + 3));
++    check(min((min(((y + 1) / 3), x) * 3) + 1, y), min(x * 3 + 1, y));
++
+     {
+         Expr one = 1;
+         Expr three = 3;

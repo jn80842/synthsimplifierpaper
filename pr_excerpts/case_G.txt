@@ -1,0 +1,114 @@
+Description:
+------------
+
+Add simplifications of min(x, y) < min(x, z), and similar
+
+Selected comments:
+------------------
+
+In a comparison between two mins, if a term on one side dominates a term
+on the other, we can drop it. Consider:
+
+    min(x, y) < min(z, w)
+
+First we'll assume we can statically prove w <= y (e.g. because they are
+equal). Then:
+
+    min(x, y) < min(z, w)
+    = (x < min(z, w)) || (y < min(z, w))
+    = (x < min(z, w)) || (y < z && y < w)
+    = (x < min(z, w)) || (y < z && false)
+    = (x < min(z, w)) || false
+    = x < min(z, w)
+
+Alternatively if we can prove y < w
+
+    min(x, y) < min(z, w)
+    = (min(x, y) < z) && (min(x, y) < w)
+    = (min(x, y) < z) && (x < w || y < w)
+    = (min(x, y) < z) && (x < w || true)
+    = (min(x, y) < z) && true
+    = min(x, y) < z
+
+You can do the same reasoning for max by flipping the sign on everything.
+
+...
+
+I've formally verified these using the tools in the [redacted] branch.
+Seemed like a thing to do on a Sunday afternoon.
+
+
+Diff:
+---------------
+
+diff --git a/src/Simplify_LT.cpp b/src/Simplify_LT.cpp
+index 2354700adf8c..5f9d4671191b 100644
+--- a/src/Simplify_LT.cpp
++++ b/src/Simplify_LT.cpp
+@@ -202,6 +202,38 @@ Expr Simplify::visit(const LT *op, ExprInfo *bounds) {
+               rewrite(c1 < min(y, c0), fold(c1 < c0) && c1 < y) ||
+               rewrite(c1 < max(y, c0), fold(c1 < c0) || c1 < y) ||
+
++              // Cases where we can remove a min on one side because
++              // one term dominates another.
++              rewrite(min(z, y) < min(x, y), z < min(x, y)) ||
++              rewrite(min(z, y) < min(y, x), z < min(y, x)) ||
++              rewrite(min(z, y) < min(x, y + c0), min(z, y) < x, c0 > 0) ||
++              rewrite(min(z, y) < min(y + c0, x), min(z, y) < x, c0 > 0) ||
++              rewrite(min(z, y + c0) < min(x, y), min(z, y + c0) < x, c0 < 0) ||
++              rewrite(min(z, y + c0) < min(y, x), min(z, y + c0) < x, c0 < 0) ||
++
++              rewrite(min(y, z) < min(x, y), z < min(x, y)) ||
++              rewrite(min(y, z) < min(y, x), z < min(y, x)) ||
++              rewrite(min(y, z) < min(x, y + c0), min(z, y) < x, c0 > 0) ||
++              rewrite(min(y, z) < min(y + c0, x), min(z, y) < x, c0 > 0) ||
++              rewrite(min(y + c0, z) < min(x, y), min(z, y + c0) < x, c0 < 0) ||
++              rewrite(min(y + c0, z) < min(y, x), min(z, y + c0) < x, c0 < 0) ||
++
++              // Equivalents with max
++              rewrite(max(z, y) < max(x, y), max(z, y) < x) ||
++              rewrite(max(z, y) < max(y, x), max(z, y) < x) ||
++              rewrite(max(z, y) < max(x, y + c0), max(z, y) < x, c0 < 0) ||
++              rewrite(max(z, y) < max(y + c0, x), max(z, y) < x, c0 < 0) ||
++              rewrite(max(z, y + c0) < max(x, y), max(z, y + c0) < x, c0 > 0) ||
++              rewrite(max(z, y + c0) < max(y, x), max(z, y + c0) < x, c0 > 0) ||
++
++              rewrite(max(y, z) < max(x, y), max(z, y) < x) ||
++              rewrite(max(y, z) < max(y, x), max(z, y) < x) ||
++              rewrite(max(y, z) < max(x, y + c0), max(z, y) < x, c0 < 0) ||
++              rewrite(max(y, z) < max(y + c0, x), max(z, y) < x, c0 < 0) ||
++              rewrite(max(y + c0, z) < max(x, y), max(z, y + c0) < x, c0 > 0) ||
++              rewrite(max(y + c0, z) < max(y, x), max(z, y + c0) < x, c0 > 0) ||
++
+               // Comparisons with selects:
+               // x < select(c, t, f) == c && (x < t) || !c && (x < f)
+               // This is profitable when x < t or x < f is statically provable
+diff --git a/test/correctness/simplify.cpp b/test/correctness/simplify.cpp
+index b28ac1fc30e2..0597ae68e21a 100644
+--- a/test/correctness/simplify.cpp
++++ b/test/correctness/simplify.cpp
+@@ -1256,6 +1256,24 @@ void check_boolean() {
+     check(max(y, x) >= min(y, z), t);
+     check(max(y, x) >= min(z, y), t);
+
++    check(min(z, y) < min(x, y), z < min(x, y));
++    check(min(z, y) < min(y, x), z < min(x, y));
++    check(min(y, z) < min(x, y), z < min(x, y));
++    check(min(y, z) < min(y, x), z < min(x, y));
++    check(min(z, y) < min(x, y + 5), min(y, z) < x);
++    check(min(z, y) < min(y + 5, x), min(y, z) < x);
++    check(min(z, y - 5) < min(x, y), min(y + (-5), z) < x);
++    check(min(z, y - 5) < min(y, x), min(y + (-5), z) < x);
++
++    check(max(z, y) < max(x, y), max(y, z) < x);
++    check(max(z, y) < max(y, x), max(y, z) < x);
++    check(max(y, z) < max(x, y), max(y, z) < x);
++    check(max(y, z) < max(y, x), max(y, z) < x);
++    check(max(z, y) < max(x, y - 5), max(y, z) < x);
++    check(max(z, y) < max(y - 5, x), max(y, z) < x);
++    check(max(z, y + 5) < max(x, y), max(y + 5, z) < x);
++    check(max(z, y + 5) < max(y, x), max(y + 5, z) < x);
++
+     check((1 < y) && (2 < y), 2 < y);
+
+     check(x * 5 < 4, x < 1);

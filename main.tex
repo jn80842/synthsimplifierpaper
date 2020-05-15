@@ -67,6 +67,17 @@
 \newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
 \newcommand{\aba}[1]{\textcolor{red}{\textit{[{#1} --AA]}}}
 \newcommand{\rb}[1]{\textcolor{blue}{\textit{[{#1} --RB]}}}
+
+\newcommand{\hmax}[0]{\texttt{max}}
+\newcommand{\hmin}[0]{\texttt{min}}
+%\newcommand{\rewrites}[0]{\mathop{\rightarrow}\limits_{\scriptscriptstyle{R}}}
+\newcommand{\rewrites}[0]{\:\rightarrow_{R}\:}
+%\newcommand{\rewrites}[0]{\longrightarrow}
+%\newcommand{\rewrites}[0]{\rightharpoonup}
+\newcommand{\pred}[0]{\textrm{ if }}
+\newcommand{\hfalse}[0]{\texttt{false}}
+\newcommand{\htrue}[0]{\texttt{true}}
+\newcommand{\hsel}[0]{\texttt{select}}
 \usepackage{syntax}
 %% Journal information
 %% Supplied to authors by publisher for camera-ready submission;
@@ -320,8 +331,7 @@ exceedingly fast.  In order to be as robust  as possible, the Halide TRS is
 structured to scale well with the size of the ruleset; currently, it consists of
 nearly a thousand rewrite rules. The Halide TRS consists of an ordered set of 
 handwritten rules and efficient matchers to traverse expressions bottom-up and
-apply the first matching rule. \rb{I've changed the previous sentence to clarify the
-algorithm. Is the sentence technically correct? } These rules were constructed
+apply the first matching rule. These rules were constructed
 by developers based on observed compilation failures over many years, and
 ordered in ad-hoc ways to avoid non-termination. 
 
@@ -360,54 +370,28 @@ the subject of numerous complaints from Halide developers.
 % correct but not provable by the current TRS), and produces new rules with predicates to guard their application.
 % These synthesized rules preserve correctness and termination properties by construction.
 
-\rb{I think we can move the next two sentences to Sexction 2 or somewhere...}
-Verification and synthesis of Halide term rewriting rules poses significant
-challenges. For example, while prior work~\cite{lopes2015alive,menendez2017aliveinfer}
-considered verification and synthesis over the decidable theory of bitvectors,
-Halide's semantics require our machinery to operate over the undecidable theory
-of integers.
+
 We verify existing rules using a combination of the Z3~\cite{de2008z3}
 satisfiability modulo theory (SMT) solver and the Coq~\cite{coq19} interactive
-theorem prover.
-\rb{Talk here about the approach to termination.} 
-\rb{Add a summary of the *verification* Questions from the Eval section. }
+theorem prover. We provide a proof of termination that shows that every application of a rule from the TRS must decrease the value of the given expression monotonically in some measure function. We demonstrate the utility of formal verification even in a well-tested codebase by finding five unsoundness bugs, and by showing that a semantics change in the Halide expression language is safe to make.
 
 \textbf{Synthesis of rules.} New rules are constructed by combining Z3 and a
-handwritten solver that uses beam search with a learned cost model. We 
+handwritten solver to find predicates to guard rule application. We 
 synthesize rules for the set of expressions on which the 
-existing ruleset fails. \rb{Add a summary of the *synthesis* Questions from the Eval section. }
+existing ruleset fails. We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and show it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset results in improvements in memory allocation without slowing down compilation times.
 
 We make three main contributions:
 \begin{itemize}
   % \item We guarantee soundness by verifying the existing Halide TRS.
-  \item We develop algorithms for proving correctness and termination of the TRS. The termination proof is based on a reduction order that we designed to allow both proving termination and automatic synthesis of new rules that oey this reduction order. 
+  \item We develop algorithms for proving correctness and termination of the TRS. The termination proof is based on a reduction order that we designed to allow both proving termination and automatic synthesis of new rules that obey this reduction order. 
   % \item We guarantee termination by defining a rule strategy that prevents rewriter cycles.
   \item We develop a synthesis algorithm for synthesis of rules in the undecidable theory of integers. 
-  The algorithm has a new approach for synthesizing rule preconditions and generates rules that obey the termination reduction order. \rb{Is termination reduction orer the right term to use? }
-    \rb{Saying that we "learn rules from expressions" sounds like these expressions tells us what the RHS of rewrites are.  We actually need to discover the RHS during synthesis. So the learning term might be misleading, and I removed it.  }
+  The algorithm has a new approach for synthesizing rule preconditions and generates rules that obey the reduction order and preserve termination.
 
-  \item{We evaluate our tools on a number of experiments, including two case studies: adopting the TRS to the change of the semantics of  division and modulo; and a large-scale addition of more than 4,000 rules synthesized from more than 100,000 failed expressions. The former yielded a verified TRS for the latest version of Halide.  The latter eliminate over-allocation problems caused by the failures of the previous TRS.}
+  \item{We evaluate our tools on a number of experiments, including two case studies: adapting the TRS to the change of the semantics of  division and modulo; and a large-scale addition of more than 4,000 rules synthesized from more than 100,000 failed expressions. The former yielded a verified TRS for the latest version of Halide.  The latter eliminate over-allocation problems caused by the failures of the previous TRS.}
 \end{itemize}
 
-We demonstrate the utility of our framework by using it to assist in
-    fixing bugs and performing large-scale changes in the Halide compiler, which would otherwise require massive
-    investment of human effort to ensure correctness.
-
-\jln{this next para is outdated and should be updated to reflect current eval section}
-\rb{I would move the info from this para above the contributions, and add the info to verification and synthesis, respectively}
-Overall, we discover \NumRulesFixed bugs in handwritten Halide rewrite rules, and discover \NumOrderingProblems
-potential issues in the rule rewrite strategy.  We then synthesize \NumRulesSynthesized new rules, use the
-synthesis framework to maintain correctness when modifying compiler semantics,
-and further demonstrate the utility of our synthesizer by 
-automatically reproducing the \NumBugsAutomated latest code changes that add new
-rules based on compiler misbehavior.
-%We additionally craft a strategy for grouping
-%new rules that prevents compile times from increasing linearly with the number
-%of rules.
-Overall, we demonstrate that our approach
-reduces failed proofs,  does not slow down the compiler, and replaces the
-tedious human effort required to craft bug fixes due to missing rules in the
-term rewriting system.
+In this paper, we first provide some background on term rewriting systems and the Halide rewriting algorithm. We then describe our approach to verifying rule correction and discuss the relation between LHS and RHS terms that guarantees termination. Once semantics and the termination property have been formalized, we present our synthesis algorithm. We demonstrate the effectiveness of our approach through several experiments and case studies, and finish with a discussion of our current limitations and a review of related work.
 
 
 \section{Background \& Overview}
@@ -417,11 +401,11 @@ used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{
 
 Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. (Constants are considered zero-arity functions.) We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
 
-A \emph{rewrite rule} is a directed binary relation $l \rightarrow_R r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
+A \emph{rewrite rule} is a directed binary relation $l \rewrites r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
 
 Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\clubsuit, \diamondsuit\}$ and $V$ is an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
 
-\[ R = \{ x_1 \clubsuit x_2 \rightarrow_R x_1 \diamondsuit x_2 \} \]
+\[ R = \{ x_1 \clubsuit x_2 \rewrites x_1 \diamondsuit x_2 \} \]
 We use $R$ to rewrite the term
 
 \[ 
@@ -551,7 +535,7 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 \end{tikzpicture} \\
 (i) & (ii) & (iii) & (iv)
 \end{tabular}
-\caption{We demonstrate the Halide rewriting algorithm using a TRS $R = \{max(x,x) \rightarrow_R x, (x - y) + y \rightarrow_R x\}$ and an expression $min(a,b) - max(c,c) + max(c,c)$. The algorithm attempts to simplify all subtrees bottom up; here, no rule applies to $min(a,b)$ so it is not changed. Next (i), rule 1 rewrites $max(c,c)$ to $c$. No rule applies to $min(a,b) - c$, so we move to the rightmost subtree and rewrite again (ii) to obtain $c$ from $max(c,c)$. Finally, we consider the entire tree $min(a,b) - c) + c$ (iii) and apply rule 2 to produce $min(a,b)$. No rules match this expression, so we are left with $min(a,b)$ (iv).}
+\caption{We demonstrate the Halide rewriting algorithm using a TRS $R = \{\hmax(x, x) \rewrites x, (x - y) + y \rewrites x\}$ and an expression $\hmin(a,b) - \hmax(c,c) + \hmax(c,c)$. The algorithm attempts to simplify all subtrees bottom up; here, no rule applies to $\hmin(a,b)$ so it is not changed. Next (i), rule 1 rewrites $\hmax(c,c)$ to $c$. No rule applies to $\hmin(a,b) - c$, so we move to the rightmost subtree and rewrite again (ii) to obtain $c$ from $\hmax(c,c)$. Finally, we consider the entire tree $\hmin(a,b) - c) + c$ (iii) and apply rule 2 to produce $\hmin(a,b)$. No rules match this expression, so we are left with $\hmin(a,b)$ (iv).}
 \label{fig:algoexample}
 \end{figure*}
 
@@ -768,16 +752,16 @@ Overall results of verifying rule correctness are described in Section~\ref{sec:
 \label{sub:termination}
 
 Term rewriting systems are not guaranteed to terminate. Consider a term
-rewriting system containing only one rule: $x + y \rightarrow y + x$. The term
+rewriting system containing only one rule: $x + y \rewrites y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
 be matched to the rule and rewritten to $3 + 5$, and so on. The Halide TRS has been observed to fail to terminate in the past\footnote{See for example https://github.com/halide/Halide/pull/1525}, causing unbounded recursion and eventually a stack overflow in the compiler. This issue is tricky to debug, and may not always be reported by users, since the error is fairly opaque. To show that this type of error has been eliminated, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some sequence of rules that form a cycle.
 
 Intuitively, we can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rule always rewrites expressions such that they move monotonically in some direction through expression space, then it will be impossible for any sequence of rules to form a cycle. These directions correspond to our intuition about why certain rules are useful: we may want to write rules that cancel expressions and make them smaller, replace expensive operations with cheaper ones, or canonicalize expressions so we can more easily prove an equivalence. We can consider each of these properties as a dimension in the expression space, in which rewrites should move expressions in the desired direction. If we can formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
 
-We provide this formalism and prove that the Halide term rewriting system must terminate by constructing a \emph{reduction order}, a strict order with properties that ensure that, for an order $>$ and a rule $l \rightarrow_R r$, if $l > r$, then for any expression $e_1$ that matches $l$ and is rewritten by $l \rightarrow r$ into $e_2$, it must be true that $e_1 > e_2$. Crucially, this order is evaluated over rule terms, and not over all expressions that those terms may match. We take the definition of a reduction order and the next two theorems from~\citet{baader1999term}.
+We provide this formalism and prove that the Halide term rewriting system must terminate by constructing a \emph{reduction order}, a strict order with properties that ensure that, for an order $>$ and a rule $l \rewrites r$, if $l > r$, then for any expression $e_1$ that matches $l$ and is rewritten by $l \rewrites r$ into $e_2$, it must be true that $e_1 > e_2$. Crucially, this order is evaluated over rule terms, and not over all expressions that those terms may match. We take the definition of a reduction order and the next two theorems from~\citet{baader1999term}.
 
 \begin{theorem}\label{theorem:terminates}
-A term rewriting system $R$ terminates iff there exists a reduction order $>$ that satisfies $l > r$ for all $l \rightarrow_R r \in R$.
+A term rewriting system $R$ terminates iff there exists a reduction order $>$ that satisfies $l > r$ for all $l \rewrites r \in R$.
 \end{theorem}
 
 A reduction order is a strict order that must be well-founded, meaning that every non-empty set has a least element with regard to the order, to prevent infinitely descending chains. It must be \emph{compatible with $\Sigma$-operations}: for all expressions $s_1, s_2$, all $n \geq 0$, and all $f \in \Sigma$:
@@ -793,7 +777,7 @@ Choosing a single monotonic direction in which to rewrite expressions would be o
 The lexicographic product of two terminating relations is again terminating.
 \end{theorem}
 
-Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rightarrow_R r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rightarrow_R r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.  Our final ordering consists of \sak{13} component orders.
+Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rewrites r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rewrites r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.  Our final ordering consists of \sak{13} component orders.
 
 Many of our component orders are defined using a measure function that counts the number of particular operations or other features in a term. We say that $s > t$ when $s$ has more vector operations than $t$, then when $s$ has more division, modulo and multiplications operations, and so on. As a sample proof sketch of this flavor of order, consider an order $s_1 >_* s_2$ that holds when the number of multiplication operations is greater in $s_1$ than in $s_2$. We represent this through a measure function $|s_1|_*$ that returns the count of multiplication operations in $s_1$; since this function maps a term to a natural number, the order is clearly well-founded. The order is also compatible with $\Sigma$-operations; we compute our measure function as follows:
 
@@ -810,7 +794,7 @@ It clearly follows that given $|s_1|_* > |s_2|_*$, it must be true that:
 |f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n)|_* > |f(t_1,...t_{i-1},s_2,t_{i+1},...,t_n)|_*
 \]
 
-To ensure the order is closed under substitution, we need to add one more constraint. Imagine a rule $x * 2 \rightarrow_R x + x$. Although there are fewer $*$ symbols in the righthand term than on the left, that would not be true for a substitution $\sigma = \{x \mapsto (z * z)\}$. We add a condition that for every variable present in $s_1$, it must occur either fewer or an equal number of times in $s_2$. With this constraint there is no possible substitution that increases the value of the measure function in $s_2$ that would not result in an increase by an equivalent or greater amount in $s_1$. This gives us the order:
+To ensure the order is closed under substitution, we need to add one more constraint. Imagine a rule $x * 2 \rewrites x + x$. Although there are fewer $*$ symbols in the righthand term than on the left, that would not be true for a substitution $\sigma = \{x \mapsto (z * z)\}$. We add a condition that for every variable present in $s_1$, it must occur either fewer or an equal number of times in $s_2$. With this constraint there is no possible substitution that increases the value of the measure function in $s_2$ that would not result in an increase by an equivalent or greater amount in $s_1$. This gives us the order:
 
 \[
 s_1 >_* s_2 \textrm{ iff } |s_1|_* > |s_2|_* \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x
@@ -818,9 +802,9 @@ s_1 >_* s_2 \textrm{ iff } |s_1|_* > |s_2|_* \wedge \forall x \in \mathcal{V}ar(
 
 Most of the component orders in the full reduction order take the form above. These orders guarantee termination no matter what sequence rewrite rules are applied to an expression. However, for part of the existing ruleset, we were obliged to take into account the order in which rules are applied in the Halide TRS algorithm.
 
-For example, one existing rule is the canonicalization $(c_0 - x) + y \rightarrow (y - x) + c_0$ where $c_0$ is a constant. If $y$ is also a constant, this rule forms a cycle with itself, and could not possibly obey any reduction order. Fortunately, the rule immediately before it in the TRS handles that specific case ($((c_0 - x) + c_1 \rightarrow fold(c_0 + c_1) - x)$), so by this sort of non-local reasoning we know that $y$ is not a constant, and therefore the rule strictly decreases a measure which counts the number of constants on the right-hand side of an addition.
+For example, one existing rule is the canonicalization $(c_0 - x) + y \rewrites (y - x) + c_0$ where $c_0$ is a constant. If $y$ is also a constant, this rule forms a cycle with itself, and could not possibly obey any reduction order. Fortunately, the rule immediately before it in the TRS handles that specific case ($((c_0 - x) + c_1 \rewrites fold(c_0 + c_1) - x)$), so by this sort of non-local reasoning we know that $y$ is not a constant, and therefore the rule strictly decreases a measure which counts the number of constants on the right-hand side of an addition.
 
-%The handwritten ruleset had many rules that eliminated the occurrence of a variable, such as $x + x \rightarrow_R x * 2$. It seems natural to define an order based on the measure function $|s_1|_x$, but for a substitution $\sigma = \{x \mapsto 3\}$, $|3 + 3|_x \not > |3 * 2|_x$. However, the simplifier algorithm always attempts constant folding before any other rule, so we know that the rule $x + x \rightarrow_R x * 2$ can only be invoked if $x$ is not a ground term.
+%The handwritten ruleset had many rules that eliminated the occurrence of a variable, such as $x + x \rewrites x * 2$. It seems natural to define an order based on the measure function $|s_1|_x$, but for a substitution $\sigma = \{x \mapsto 3\}$, $|3 + 3|_x \not > |3 * 2|_x$. However, the simplifier algorithm always attempts constant folding before any other rule, so we know that the rule $x + x \rewrites x * 2$ can only be invoked if $x$ is not a ground term.
 
 %Similarly, we have several rules that factor out an occurrence of a variable and introduce the constant 0 into the expression. We define an order on the occurrences of the constant 0 by defining a measure function that takes the count of terminals or leaves in the expression and subtracts the count of the constant 0; if terms $s_1$ and $s_2$ have the same number of leaves, but more of the leaves of $s_2$ are the constant 0, then $s_1 > s_2$.
 
@@ -828,7 +812,7 @@ For example, one existing rule is the canonicalization $(c_0 - x) + y \rightarro
 %s_1 >_0 s_2 \textrm { iff } |s_1|_{leaf} - |s_1|_0 > |s_2|_{leaf} - |s_2|_0 \wedge |s_1|_{leaf} = |s_2|_{leaf} \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x
 %\]
 
-% For the rule $\texttt{max}(x + y, x) \rightarrow_R \texttt{max}(y, 0) + x$, the order will not hold for the substitution $\sigma = \{x \mapsto 0\}$. However, we know the rule $0 + x \rightarrow_R x$ will be invoked before this one, so the rule cannot be evaluated on the expression $\texttt{max}(0 + y, 0)$.
+% For the rule $\texttt{max}(x + y, x) \rewrites \texttt{max}(y, 0) + x$, the order will not hold for the substitution $\sigma = \{x \mapsto 0\}$. However, we know the rule $0 + x \rewrites x$ will be invoked before this one, so the rule cannot be evaluated on the expression $\texttt{max}(0 + y, 0)$.
 
 Relying on non-local reasoning makes our order more brittle; if the simplifier algorithm were to be changed, the termination guarantee could be lost. However, we use only a small number of basic rules in this way, which are unlikely to be changed.
 
@@ -858,13 +842,13 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
     \ForEach{$p_{reassoc}$}{
       \If{\texttt{rewrite($p_{reassoc}$) $\neq$ $p_{reassoc}$}}{
           \tcp{Found a candidate rewrite}
-          Append $p_i$ $\rightarrow$ \texttt{rewrite($p_{reassoc}$)} to $r_{cand}$\;
+          Append $p_i$ $\rewrites$ \texttt{rewrite($p_{reassoc}$)} to $r_{cand}$\;
           break\;
       }
     }
     \tcp{If no candidate found yet, use CEGIS}
     \If{\texttt{superoptimize($p_i$) $\neq$ $p_i$}}{
-      Append $p_i$ $\rightarrow$ \texttt{superoptimize($p_i$)}\ to $r_{cand}$\;
+      Append $p_i$ $\rewrites$ \texttt{superoptimize($p_i$)}\ to $r_{cand}$\;
       break\;
     }
    }
@@ -912,12 +896,12 @@ First, Halide relies on symbolic interval arithmetic for determining
 how much memory to allocate and how many values to compute. Symbolic
 interval arithmetic is exact in cases where an expression
 monotonically increases or decreases over a loop. For example, if $x
-\in [0, 100]$, then symbolic interval arithmetic states that $max(x,
+\in [0, 100]$, then symbolic interval arithmetic states that $\hmax(x,
 x/2 + 20) \in [20, 100]$, which is the tightest correct
 bound; this bound is obtained by substituting in the lower and upper bounds of $x$
 into the expression. However, in the presence of anti-correlated subexpressions
 interval arithmetic becomes inexact, and is prone to overestimating
-bounds. The expression $min(x, 100 - x)$ when $x \in [0, 100]$ is bounded above by 50, but
+bounds. The expression $\hmin(x, 100 - x)$ when $x \in [0, 100]$ is bounded above by 50, but
 symbolic interval arithmetic makes the weaker claim that it is bounded
 above by 100, by setting the first instance of $x$ to 100 and the
 second instance of $x$ to zero. The compiler therefore logs all
@@ -1016,9 +1000,9 @@ LHS & RHS & Predicate \\
 \hline
 $(x*y) - (z + (w*x))$ & $(x*(y - w)) - z $ & \\
 $x < (y + x) + z$ &  $0 < (y + z)$ & \\
-$max(x*x, y) + max(z, w*w) < c_0$ & false & $c_0 <= 0$ \\
-$select(x, c_0, y) < min(select(x, c_1, y), c_2)$ & false & $min(c_1, c_2) <= c_0$ \\
-$min((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0)*c_0 + c_1$ \\
+$\hmax(x*x, y) + \hmax(z, w*w) < c_0$ & false & $c_0 <= 0$ \\
+$select(x, c_0, y) < \hmin(select(x, c_1, y), c_2)$ & false & $\hmin(c_1, c_2) <= c_0$ \\
+$\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0)*c_0 + c_1$ \\
 \end{tabular}
 \label{tab:samplerules}
 \end{table*}
@@ -1063,7 +1047,7 @@ true or equivalent, and the unrolled conjunction often simplifies
 (using the TRS itself) to a single equality.
 
 For example, consider the candidate rewrite rule
-$x_1 < select(x_2, c_0, c_1) + x_1 \rightarrow !x_2$.  In this case,
+$x_1 < select(x_2, c_0, c_1) + x_1 \rewrites !x_2$.  In this case,
 we set $S = \{\{0, 0\}, \{1, 0\}, \{0, 1\}\}$.  If we substitute the zero
 vector into $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$, we get
 $0 < select(0, c_0, c_1) + 0 = 1$, which simplifies to $c_1 > 0$.  Thus, for $S$,
@@ -1088,7 +1072,7 @@ after a small number of iterations (we use four) then we simplify our
 $P_s$ expression using the TRS, convert it to disjunctive normal
 form \footnote{While $P_S$ is initially a conjunction of equalities,
   disjunctions appear after simplification due to rewrites such as
-  $c_1 \times c_2 = 0 \rightarrow c_1 = 0 \vee c_2 = 0$}, and test
+  $c_1 \times c_2 = 0 \rewrites c_1 = 0 \vee c_2 = 0$}, and test
 each clause in turn to see if it is a sufficient condition, if not a
 necessary one. If we find one, we return this single clause. If the
 loop terminates with Z3 timing out or returning ``unknown'', we return
@@ -1099,12 +1083,12 @@ below.
 Our resulting $P_S(\vec{c})$ may still not be possible to evaluate at
 compile-time in the case where some of the symbolic constants that
 make up $c$ appear only on the right-hand side. For example, in $(x_1
-+ c_1) + c_2 \rightarrow x_1 + c_3$ we have no value for $c_3$ to use
++ c_1) + c_2 \rewrites x_1 + c_3$ we have no value for $c_3$ to use
 in testing a predicate or constructing the right-hand side
 expression. Fortunately, using the algorithm above, the only term in
 this predicate is $c_1 + c_2 = c_3$, so we can simply substitute out
 $c_3$ using the constant-folded left-hand side of this equality,
-giving the unpredicated rule $(x_1 + c_1) + c_2 \rightarrow x_1 +
+giving the unpredicated rule $(x_1 + c_1) + c_2 \rewrites x_1 +
 fold(c_1 + c_2)$. In general we eliminate each symbolic constant that
 only appears on the right-hand side of a rewrite rule by iterating
 over the clauses in the predicate, attempting to solve each for the
@@ -1124,10 +1108,10 @@ strings considering only the parentheses and the leaves. This is done
 to avoid pointlessly shuffling subexpressions. Variables in each rule
 are then renamed to appear in a consistent order.
 
-For example, from a synthesized rule $y - max(x, y - z) \rightarrow min(y - x, z)$ we would generate the following two
+For example, from a synthesized rule $y - \hmax(x, y - z) \rewrites \hmin(y - x, z)$ we would generate the following two
 output rules by commuting the max operation:
 \[
-x - max(y, x - z) \rightarrow min(z, x - y) \qquad x - max(x - y, z) \rightarrow min(y, x - z)
+x - \hmax(y, x - z) \rewrites \hmin(z, x - y) \qquad x - \hmax(x - y, z) \rewrites \hmin(y, x - z)
 \]
 
 Next, we check that the rule is not redundant. For every pair of rules
@@ -1142,61 +1126,73 @@ auditing.
 
 \section{Evaluation}
 
-Here we evaluate the benefits of our verifier and synthesizer in three ways. First we examine bug reports from Halide’s past and evaluate whether the machinery presented in this paper could have fixed them automatically. Second, we examine cases where beta versions of our verifier and synthesizer assisted humans in both fixing bugs and also correctly making larger changes to the compiler. Third, we fuzz the compiler to mine for issues that could be fixed with new simplifier rules, and automatically fix them before they ever appear as a bug in a real program. In this way we demonstrate that this machinery would have been useful in the past, is useful in the present, and will help avoid entire classes of bugs in the future.
+In evaluating the benefits of the verifier and synthesizer, we answer the following questions:
+
+\begin{itemize}
+  \item \textbf{Does the synthesizer produce better rules than a human expert?} We find five bug reports from the Halide commit logs, synthesize rules to fix them, and compare our rules to the committed fix. We find that the human-authored rules were less general and in one case were incorrect.
+  \item \textbf{Could the entire TRS have been synthesized?} The current synthesizer is capable of synthesizing about three-quarters of the existing ruleset; the remainder either contain operators not yet supported by the tool, or cannot be reasoned about by our solver. We test the synthesizer's power by removing 330 rules from the ruleset one by one and attempting to synthesize a replacement, successfully finding a replacement rule 52\% of the time.
+  \item \textbf{Can verification contribute to the Halide TRS, or is testing alone sufficient?} Although handwritten rules have been extensively fuzz-tested and new rules are peer-reviewed before inclusion, we were still able to discover 5 unsound rules through verification. In addition, verification was able to identify 44 rules that needed to be changed after a significant semantics redefinition, which would have been challenging to discover through testing.
+  \item \textbf{What is the best way to use synthesis and verification in development?} We survey several cases from recent Halide development where human experts used the synthesis machinery as an assistant, finding that this hybrid model is more powerful than either the human developer or the synthesizer alone.
+  \item \textbf{Can synthesis be used for large-scale improvements of the TRS?} We attempt to strengthen the Halide compiler by gathering a corpus of over 100,000 expressions on which the TRS can make no progress and iteratively synthesize rules using the corpus as input. We synthesize 4127 rules and add them to the ruleset without a human audit. The enhanced ruleset improves memory allocation in compiled code, sometimes dramatically, in 197 of our benchmarks. We find no significant loss of compilation time even with this 4.5x increase in ruleset size.
+\end{itemize}
+
+We discuss these findings in more detail below, grouping them into three sections. First we examine bug reports from Halide’s past and evaluate whether the machinery presented in this paper could have fixed them automatically. Second, we examine cases where beta versions of our verifier and synthesizer assisted humans in both fixing bugs and also correctly making larger changes to the compiler. Third, we fuzz the compiler to mine for issues that could be fixed with new simplifier rules, and automatically fix them before they ever appear as a bug in a real program. In this way we demonstrate that this machinery would have been useful in the past, is useful in the present, and will help avoid entire classes of bugs in the future.
 
 Note for reviewers: For the purposes of this anonymous submission, we will refer to code changes by letter, with corresponding diffs found in supplemental material. In this final version of the paper these will be replaced with github issue and pull request IDs with links to Halide’s github page.
 
 \subsection{Comparing the synthesizer to human-authored rules}
 
-\subsubsection{Are synthesized rules comparable to those created by a human expert?}
-\begin{displayquote}
-We expect a human expert to create rules that are as general as possible while also including rules that take advantage of less general situations, such as when special cases allow stronger rewrites.  Can a synthesizer produce rules that are both general and expressive? 
+\subsubsection{Does the synthesizer produce better rules than a human expert?}
+\label{sub:bugfixes}
 
-We compared synthesized rules against five sets of rules added manually. We have found that the expert wrote rules that were less general than the synthesized rules, and in some cases were incorrect. Additionally, the synthesizer avoided adding a specialized rule because the TRS could already achieve its effect with rules present in the TRS. We discuss in Section~\ref{sec:limitations} the limitations of when the synthesizer cannot achieve such general rules. 
-\end{displayquote}
+%We expect a human expert to create rules that are as general as possible while also including rules that take advantage of less general situations, such as when special cases allow stronger rewrites.  Can a synthesizer produce rules that are both general and expressive? 
+
+%We compared synthesized rules against five sets of rules added manually. We have found that the expert wrote rules that were less general than the synthesized rules, and in some cases were incorrect. Additionally, the synthesizer avoided adding a specialized rule because the TRS could already achieve its effect with rules present in the TRS. We discuss in Section~\ref{sec:limitations} the limitations of when the synthesizer cannot achieve such general rules. 
+
+% AA: I found the two paragraphs above redundant with the summary we just gave in the itemized list.
 
 We searched through Halide’s change history and selected the five pull requests that addressed issues by adding new rewrite rules to Halide’s TRS. These pull requests occurred before the Halide developers started routinely using the verifier and synthesizer when changing the TRS. These can be found as diffs $\mathbb{A}$-$\mathbb{E}$ in supplemental material. Creating these rewrite rules as a human is an amount of work disproportionate to the size of the change. The author of the rules must prove them correct on paper, and a second reviewer must check their work. As we will see, bugs can slip through despite this review. 
 
 In each case we take the test expressions committed as part of the change and feed them to our synthesizer to see if it would have produced the same rewrite rules as the humans did. In cases where humans did not check in tests for their new rules, we wrote our own. In total, across these five cases humans added 24 new rules. The synthesizer generated 42, covering all but one of the human rules, while correcting and generalizing others. In cases $\mathbb{A}$, $\mathbb{C}$, and $\mathbb{E}$, the rules generated by the synthesizer are an exact match to the human-generated rules. In case $\mathbb{B}$ the synthesizer matched the human, and also output 8 commuted variants of the human rules. As an example, for the human-written rule:
 
 \[
-rewrite(max(max(x, y) + c0, x), max(x, y + c0), c0 < 0)
+\hmax(\hmax(x, y) + c_0, x) \rewrites \hmax(x, y + c_0) \pred c_0 < 0
 \]
 
 The synthesizer produced effectively the same rule, along with a variant:
 
 \begin{align*}
-& rewrite(max((max(x, y) + c0), x), max((y + c0), x), (c0 <= 0)) \\
-& rewrite(max(x, (max(x, y) + c0)), max(x, (y + c0)), (c0 <= 0))
+& \hmax((\hmax(x, y) + c_0), x) \rewrites \hmax((y + c_0), x) \pred c_0 \leq 0 \\
+& \hmax(x, (\hmax(x, y) + c_0)) \rewrites \hmax(x, (y + c_0)) \pred c_0 \leq 0
 \end{align*}
 
 Case $\mathbb{D}$ is the most interesting. It contains four rules involving comparisons of min and max operations. What happened for each was identical, so we will only discuss the min rules. The first rule is:
 
 \[
-rewrite(min(x, c0) < min(x, c1) + c2, false, c0 >= c1 + c2)
+\hmin(x, c_0) < \hmin(x, c_1) + c_2, \hfalse, c_0 \geq c_1 + c_2)
 \]
 
-This rule is incorrect (consider c0 = c2 = 1, x = c1 = 0). It can be fixed by adding the term $c2 \leq 0$ to the predicate. The synthesizer output the correct version of this rule, along with two generalizations of it:
+This rule is incorrect (consider $c_0 = c_2 = 1$, $x = c_1 = 0$). It can be fixed by adding the term $c_2 \leq 0$ to the predicate. The synthesizer output the correct version of this rule, along with two generalizations of it:
 
 \begin{align*}
-&rewrite((min(x, c0) < (min(x, c1) + c2)), false, ((c2 <= 0) \&\& ((c1 + c2) <= c0))) \\
-&rewrite((min(x, c0) < (min(x, y) + c1)), (fold((c0 - c1)) < min(x, y)), (c1 <= 0)) \\
-&rewrite((min(x, c0) < (min(y, x) + c1)), (fold((c0 - c1)) < min(y, x)), (c1 <= 0))
+& \hmin(x, c_0) < \hmin(x, c_1) + c_2 \rewrites  \hfalse \pred c_2 \leq 0 \wedge c_1 + c_2 \leq c_0 \\
+& \hmin(x, c_0) < \hmin(x, y) + c_1 \rewrites c_0 - c_1 < \hmin(x, y) \pred c_1 \leq 0 \\
+& \hmin(x, c_0) < \hmin(y, x) + c_1 \rewrites c_0 - c_1 < \hmin(y, x) \pred c_1 \leq 0
 \end{align*}
 
 The second human rule was:
 \[
-rewrite(min(x, c0) < min(x, c1), false, c0 >= c1) 
+\hmin(x, c_0) < \hmin(x, c_1) \rewrites \hfalse \pred c_0 \geq c_1) 
 \]
 The synthesizer found a more general rule, along with three other commuted variants of it:
 \[
-rewrite((min(x, y) < min(x, z)), (y < min(x, z)))
+\hmin(x, y) < \hmin(x, z)) \rewrites y < \hmin(x, z)
 \]
-Any expression which matches the human-written rule would also match the synthesized one. However, unlike the human-written rule, the synthesized one does not simplify to the constant “false” in a single step. However after applying this rule to the case considered by the human, we get $c0 < min(x, c1)$ where $c0 \geq c1$. The simplifier then reduces this to “false” in a second step, so the human-written rule becomes unnecessary. The synthesizer considered the human-written rule, but discarded it as less general than the one above.
+Any expression which matches the human-written rule would also match the synthesized one. The synthesized version does not simplify to the constant “false” in a single step. However, after applying this rule to the case considered by the human, we get $c_0 < \hmin(x, c_1)$ where $c_0 \geq c_1$. The simplifier then reduces this to “false” in a second step, so the human-written rule becomes unnecessary. The synthesizer considered the human-written rule, but discarded it as less general than the one above.
 
 Case $\mathbb{D}$ also included the rewrite rule: 
 \[
-rewrite(x \% x, 0)
+x \% x \rewrites 0
 \]
 which was the sole rule the synthesizer could not generate, as we did not include modulo by non-constants in our CEGIS interpreter.
 
@@ -1204,77 +1200,73 @@ With this one exception, across these five code changes the synthesizer generate
 
 
 \subsubsection{What fraction of the Halide rules could have been synthesized?}
-\begin{displayquote}
+
 To bootstrap a TRS, we could start with a TRS equipped with a basic set of rules and synthesize the remaining rules as the TRS encounters expressions needing those rules.  How far is the synthesizer from supporting this ambitious vision?
 
-We have found that the synthesizer can currently produce about K\% of rules that exist in the current TRS. We find this to be a promising state of the technology. The obstacles to synthesizing all human written rules include (i)~the inability to automatically verify some rules or preconditions (see Question 3 above); (ii)~lack of support for some operators in our synthesizer. \jln{numbers to come after experiment tomorrow}
-\end{displayquote}
+We have found that the synthesizer can currently produce about K\% of rules that exist in the current TRS. We find this to be a promising state of the technology. The obstacles to synthesizing all human-written rules include (i)~the inability to automatically verify some rules or preconditions (see Question 3 above); (ii)~lack of support for some operators in our synthesizer. 
 
-\aba{TODO: Could we have synthesized the entire simplifier? Currently looks like we can synthesize about 30\% of the rules?
-}
+We tested the synthesizer's ability to recreate the original ruleset in the following experiment. We instrumented the ruleset to associate expressions from benchmark compilations with individual rules that are invoked when those expressions are simplified. We gathered a set of rules for which we had at least three expressions the rule could match, and filtered out those rules that are out of scope for the current synthesizer, because their right-hand sides contain operators we do not support. This gave us a set of 330 rules. For each of these rules, we disabled the rule in the TRS, then used its matching expressions as input to the synthesizer. The synthesizer was able to find rules in 172 cases, or about 52\% of the rules. Of the other 158 cases, in 43 of them other rules in the existing TRS happened to combine to simplify the input expression even without the target rule. 10 of the 115 failure cases were due to timeouts in the synthesis process, while 26 specifically failed to synthesize a predicate. Given that it was difficult to target the desired rule precisely, we find these results encouraging and plan to work on increasing the synthesizer's reach.
 
 \subsection{Practical uses of the synthesizer and verifier}
 
-\subsubsection{What role can verification play in the Halide TRS?}
+\subsubsection{Can verification contribute to the Halide TRS, or is testing alone sufficient?}
 \label{sec:eval-correctness}
-\begin{displayquote}
-Halide TRS has a stringent development process; new rules are peer reviewed after they are proven on paper, and fuzzing has been discovering bugs for months. It is thus reasonable to ask whether mechanized verification can add any value. 
 
-Our verification discovered five new soundness bugs and 17 overly-strict precondition bugs. The former bugs eluded the fuzzer; the latter are deemed too hard so the fuzzer does not look for them. Furthermore, because the verification infrastructure was in place, it was possible to verify a change of semantics without much additional effort, identifying 44 rules that were incorrect under the new semantics.
-\end{displayquote}
+Halide TRS has a stringent development process; new rules are peer reviewed after they are proven on paper, and fuzzing has been discovering bugs for months. It is thus reasonable to ask whether mechanized verification can add any value. Our verification discovered five new soundness bugs and 17 instances of rules whose predicates were overly restrictive. The former bugs eluded the fuzzer; the latter are deemed too hard so the fuzzer does not look for them. Furthermore, because the verification infrastructure was in place, it was possible to verify a change of semantics without much additional effort, identifying 44 rules that were incorrect under the new semantics.
 
-The first use of verification took place when the TRS had not yet merged into the Halide master branch. We ran the verification pipeline and discovered three incorrect rewrite rules, listed in Table~\ref{tab:verfirstround}. The rules that could not be checked with Z3 were proved true using the Coq proof assistant (none of the manually proved rules were incorrect). While these bugs were found automatically the fixes were performed by hand, as the synthesis pipeline did not yet exist. 
+The first use of verification took place when the TRS had not yet been merged into the Halide master branch. We ran the verification pipeline and discovered three incorrect rewrite rules, listed in Table~\ref{tab:verfirstround}. The rules that could not be checked with Z3 were proved true using the Coq proof assistant (none of the manually proved rules were found to be incorrect). While these bugs were found automatically the fixes were performed by hand, as the synthesis pipeline did not yet exist. 
 
-Case $\mathbb{H}$ is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by Alex Reinking~\cite{reinkingthesis}. Existing tests and real uses of Halide were useless as a test of this change, as it was all carefully written to never divide by zero! Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now we must ensure that the rule was still correct in the case where a denominator is zero, or constrain the rule to only trigger when the denominator is known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 141 rules were reverified with a human in the loop by revisiting and modifying existing Coq proofs. In this process, 44 existing rules were found to be incorrect in the new semantics and fixed. (Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case $\mathbb{D}$ above.) The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of now-incorrect rules were:
+Case $\mathbb{H}$ is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by Alex Reinking~\cite{reinkingthesis}. Existing tests and real uses of Halide were useless as a test of this change, as it was all carefully written to never divide by zero! Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now it was necessary to either show that the rule was still correct in the case where a denominator was zero, or constrain the rule to only trigger when the denominator was known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 141 rules were reverified with a human in the loop by revisiting and modifying existing Coq proofs. The mechanical re-verification was all but push-button; the manual effort for updating the Coq proofs was non-trivial, but about half of the effort of writing the original proofs from scratch. In this process, 44 existing rules were found to be incorrect in the new semantics and fixed. (Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case $\mathbb{D}$ above.) The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of now-incorrect rules were:
 
 \begin{align*}
-& rewrite((x/y)*y + x\%y, x) \\
-& rewrite(-1 / x, select(x < 0, 1, -1)) \\
-& rewrite((x + y)/x, y/x + 1)
+((x/y)*y + x\%y \rewrites & x \\
+  -1 / x \rewrites & select(x < 0, 1, -1) \\
+(x + y)/x \rewrites & y/x + 1
 \end{align*}
 
 The first was modified to:
 \[
-rewrite((x/c0)*c0 + x\%c0, x, c0 != 0)
+(x/c_0)*c_0 + x\%c_0 \rewrites x \pred c_0 \neq 0
 \]
 and the other two were constrained to only trigger when the denominator is known to be non-zero via other means.
+
+The cases discussed in section~\ref{sub:bugfixes} all concern fixing existing problems while not introducing new ones. By giving a proof of soundness, showing that the ruleset is correct and that the rules are cycle-free, we also remove two entire classes of future bugs. For reference, over the life of the Halide project there have been 14 pull requests that fix incorrect rules, and 3 pull requests that modify rules in order to avoid cycles. Fixing a reduction order also guarantees that no new cycles can be introduced as long as new rules obey this order; without such a guide, it is possible to introduce a rule that would close a loop in some sequence of existing rule applications and cause a cycle. 
 
 \begin{table*}
 \caption{Rules corrected through the first round of verification. \jln{format this nicely}}
 \begin{tabular}{|l|l|}
 \hline \\
-Wrong &  rewrite((x * c0) / c1, x / fold(c1 / c0), c1 \% c0 == 0 \&\& c1 > 0) \\
-Counterexample & c0 = -1, c1 = 2, x = 1\\
-Fixed & rewrite((x * c0) / c1, x / fold(c1 / c0), c1 \% c0 == 0 \&\& c0 > 0 \&\& c1 / c0 != 0)\\
+Wrong &  $(x * c_0) / c_1 \rewrites x / fold(c_1 / c_0) \pred c_1 \% c_0 = 0 \wedge c_1 > 0$ \\
+Counterexample & $c_0 = -1, c_1 = 2, x = 1$\\
+Fixed & $(x * c_0) / c_1 \rewrites x / fold(c_1 / c_0) \pred c_1 \% c_0 = 0 \wedge c_0 > 0 \wedge c_1 / c_0 \neq 0$\\
 \hline \\
-Wrong & rewrite(((x + c0)/c1)*c1 - x, x \% c1, c1 > 0 \&\& c0 + 1 == c1)\\
-Counterexample & c0 = 2, c1 = 3, x = -5\\
-Fixed &  rewrite(((x + c0)/c1)*c1 - x, (-x) \% c1, c1 > 0 \&\& c0 + 1 == c1)\\
+Wrong & $((x + c_0)/c_1)*c_1 - x \rewrites x \% c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$\\
+Counterexample & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $((x + c_0)/c_1)*c_1 - x \rewrites (-x) \% c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$\\
 \hline \\
-Wrong & rewrite(x - ((x + c0)/c1)*c1, -(x \% c1), c1 > 0 \&\& c0 + 1 == c1)\\
-Counterexample & c0 = 2, c1 = 3, x = -5\\
-Fixed & rewrite(x - ((x + c0)/c1)*c1, ((x + c0) \% c1) + fold(-c0), c1 > 0 \&\& c0 + 1 == c1) \\
+Wrong & $x - ((x + c_0)/c_1)*c_1 \rewrites -(x \% c_1) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ \\
+Counterexample & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $x - ((x + c_0)/c_1)*c_1 \rewrites ((x + c_0) \% c_1) + fold(-c_0) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ \\
 \hline
 \end{tabular}
 \label{tab:verfirstround}
 \end{table*}
 
-\subsubsection{What is the preferred way to use the tool in rule development?}
-\begin{displayquote}
-Is the expert equipped with the synthesizer better at developing rules than either the expert alone or the synthesizer alone?
+\subsubsection{What is the best way to use synthesis and verification in development?}
 
-The synthesizer can accelerate rule development because it is correct by construction and also faster than a human expert. (On average, the expert needed about 30 minutes to develop a rule, including a paper proof and the code review. Our synthesizer typically produces a batch of ten (verified) rules in about 5 minutes.) We have found that human experts can best leverage the strengths of the synthesis tool by using it as an assistant: for example by synthesizing a rule and then generalizing or simplifying it by hand, or by writing a rule and asking the tool to synthesize a valid predicate.
-\end{displayquote}
+% Is the expert equipped with the synthesizer better at developing rules than either the expert alone or the synthesizer alone? The synthesizer can accelerate rule development because it is correct by construction and also faster than a human expert. On average, the expert needed about 30 minutes to develop a rule, including a paper proof and the code review. Our synthesizer typically produces a batch of ten (verified) rules in about 5 minutes.
 
-Here we survey some cases from recent Halide development where the synthesis machinery was used as an assistant by a human expert. The diffs are available as $\mathbb{F}$ through $\mathbb{I}$ in supplemental material. 
+We have found that human experts can best leverage the strengths of the synthesis tool by using it as an assistant: for example by synthesizing a rule and then generalizing or simplifying it by hand, or by writing a rule and asking the tool to synthesize a valid predicate. Most importantly, this avoids committing new bugs, but it also accelerates rule development. Halide developers report that adding new rules by hand takes about 30 minutes per rule starting from sample input expressions through final review. Starting from the same input expressions, the synthesis tool can produce a batch of 10 verified rules in about 5 minutes.
+
+Here we survey some cases from recent Halide development where the synthesis machinery was used in this way. The diffs are available as $\mathbb{F}$ through $\mathbb{I}$ in supplemental material. 
 
 In case $\mathbb{F}$ a Halide developer encountered expressions that seemed like they could be simpler while working on real code, and rather than inventing a rule from scratch searched the logs of the synthesizer project for a known-correct synthesized rule that handled the case in question. This added four new rules that are variants on:
 \[
-rewrite((max(y, z) < min(x, y)), false)
+\hmax(y, z) < \hmin(x, y) \rewrites false
 \]
 In case $\mathbb{G}$ a developer wrote 24 new rules, proving them on paper, and then checked their work by resynthesizing the predicates using the synthesizer, ensuring that the synthesized predicates agreed with the human’s and that those predicates were as broad as possible. Here the synthesis machinery served as a reviewer of rules rather than an author. Eight of these rules were in fact manual rederivations of the synthesizer’s output on case $\mathbb{D}$ above. The remaining 16 are generalizations that add constant terms. One example:
 \[
-rewrite(min(y + c0, z) < min(y, x), min(z, y + c0) < x, c0 < 0)
+\hmin(y + c_0, z) < \hmin(y, x) \rewrites \hmin(z, y + c_0) < x \pred c_0 < 0)
 \]
 
 Halide endeavors to be a safe language, meaning that certain things are checked at compile time or runtime rather than being undefined behavior. In case $\mathbb{I}$, Halide was changed such that instead of asserting that no output value has a dependency on any out-of-bounds input values, it now asserts the stricter condition that no out-of-bounds loads occur on the input, even if those loaded values cannot possibly affect an output.
@@ -1287,19 +1279,16 @@ Generalizing from these four cases, we have found that having the verifier and s
 \label{ssec:compilationspeed}
 
 \subsubsection{Can synthesis be used for large-scale improvements of the TRS?}
-\begin{displayquote}
-What improvements are possible when we allow the synthesizer to learn rules from a large body of input, without human supervision? 
 
-Rather than synthesizing a repair to just one incorrect rule, we attempted to synthesize rules for 100k+ expressions that failed to simplify in an instrumented TRS. We synthesized 4127 rules and added them to the TRS. In evaluating the effects of these improvements, we found 197 benchmarks that were over-allocating memory, sometimes dramatically, due to imprecise bounds reasoning caused by missing rules. Those benchmarks were fixed by the improved TRS. Synthesis allowed us to make this dramatic change to the ruleset without fear of introducing non-terminating behavior, since synthesized rules must satisfy the reduction order (see Section~\ref{sub:termination}). Satisfying this additional restriction would further complicate manual rule development. 
-\end{displayquote}
+%What improvements are possible when we allow the synthesizer to learn rules from a large body of input, without human supervision? In this experiment, rather than synthesizing a repair to just one incorrect rule, we attempted to synthesize rules for over 100,000 expressions that failed to simplify over thousands of instrumented compilations. We synthesized 4127 rules and added them to the TRS. In evaluating the effects of these improvements, we found 197 benchmarks that were over-allocating memory, sometimes dramatically, due to imprecise bounds reasoning caused by missing rules. Those benchmarks were fixed by the improved TRS. Synthesis allowed us to make this dramatic change to the ruleset without fear of introducing non-terminating behavior, since synthesized rules must satisfy the reduction order (see Section~\ref{sub:termination}). Satisfying this additional restriction would further complicate manual rule development. 
 
-The cases above all concern fixing existing problems while not introducing new ones. By giving a proof of soundness, showing that the ruleset is correct and that the rules are cycle-free, we also remove two entire classes of future bugs. For reference, over the life of the Halide project there have been 14 pull requests that fix incorrect  rules, and 3 pull requests that modify rules in order to avoid cycles. 
+%% AA: I found the above paragraph redundant with the summary at the start of the section and the more detail version below. If we want an intro para here I think it should be shorter.
 
-Although we now have a guarantee of soundness, we have no such guarantee of completeness. There are almost certainly sub-optimal compilations produced now where the addition of some desirable rule would strengthen the TRS enough to unlock some optimization or achieve a tighter bound on some region. However, we don’t know what they are because no human has encountered them yet (or more likely, no human has been sufficiently motivated to submit a bug report for them yet). 
+Although we now have a guarantee of soundness, we have no such guarantee of completeness. There are almost certainly Halide compilations for which the addition of some desirable rule would strengthen the TRS enough to unlock some optimization or achieve a tighter bound on some region. However, we don’t know what they are because no human has encountered them yet (or more likely, no human has been sufficiently motivated to submit a bug report for them yet). 
 
-We attempted to probe for such opportunities for improvement using fuzzing. We selected the 12 most complex example applications in the open source repository, and generated 64 random schedules for each using the autoscheduler~\cite{Adams2019}, which can be configured to generate random likely-good schedules. This produced 768 separate compilations. We also instrumented most of the Halide code at company X (anonymous for submission), for an additional 5032 compilations, this time using the original human-written schedules. Note that this is qualitatively different to randomly-generated schedules. We do not expect Halide users at company X would check in code that behaves poorly due to an issue with the compiler.
+We attempted to probe for such opportunities for improvement using fuzzing. We selected the 12 most complex example applications in the open source repository, and generated 64 random schedules for each using the autoscheduler~\cite{Adams2019}, which can be configured to generate random likely-good schedules. This produced 768 separate compilations. We also instrumented most of the Halide code at company X (anonymous for submission) for an additional 5032 compilations, this time using the original human-written schedules. Note that this is qualitatively different to randomly-generated schedules. We do not expect Halide users at company X would check in code that behaves poorly due to an issue with the compiler.
 
-We instrumented these compilations to log expressions that represent a TRS failure of some kind. From each compilation we log all integer expressions found that are non-monotonic with respect to a containing loop, and all failed proof attempts made during compilation. That is, we log all boolean expressions passed to the TRS in the hope that they will reduce to the constant “true” so that some optimization can correctly be performed. This resulted in a corpus of roughly one hundred thousand unique expressions.
+We instrumented these compilations to log expressions that might represent a TRS failure of some kind. From each compilation we log all integer expressions found that are non-monotonic with respect to a containing loop, and all failed proof attempts made during compilation. That is, we log all boolean expressions passed to the TRS in the hope that they will reduce to the constant “true” so that some optimization can correctly be performed. This resulted in a corpus of roughly one hundred thousand unique expressions.
 
 Using this corpus as input, we synthesize new rewrite rules, add all rules found back to the ruleset, and rerun all compilations to gather new expressions, repeating this process until convergence. In total we created 4127 new rewrite rules in this way, more than quadrupling the number of rules in the TRS. For some examples, refer to Table \ref{tab:samplerules}.
 
@@ -1316,7 +1305,15 @@ case where the increase was more than a gigabyte. This represents
 nearly 6\% of all compilations tested. We believe this captures a
 widespread problem, as instances of overallocation are a common source
 of complaint from users. See Figure~\ref{fig:peakmemoryhistogram} for
-the full distribution. \jln{figure missing?}
+the full distribution. 
+
+\begin{figure*}
+  \includegraphics[width=4in]{figures/memoryhistogram.pdf}
+\caption{Reduction in peak memory usage of compiled code when 4127
+  synthesized rules are added to the TRS. In 197 cases, peak memory usage
+  drops by more than 10\%.}
+\label{fig:peakmemoryhistogram}
+\end{figure*}
 
 \paragraph{Term rewriting systems written without verification have bugs}
 On our initial run of this experiment, 55 compilations (1.6\%) crashed
@@ -1325,14 +1322,14 @@ new rules added). We traced this to an incorrect transformation in a
 separate, unverified TRS in the Halide compiler (the ``solver''). This
 bug had existed for four years, but had only recently become an
 important code path due to change $\mathbb{I}$ mentioned above. The
-transformation was $min(x - y, x - z) \rightarrow x - min(y, z)$,
-which should be $min(x - y, x - z) \rightarrow x - max(y, z)$. If this
+incorrect transformation was $\hmin(x - y, x - z) \rewrites x - \hmin(y, z)$,
+which should be $\hmin(x - y, x - z) \rewrites x - \hmax(y, z)$. If this
 secondary TRS had been written using verification, this bug would
 never have been introduced. We intend to formalize and verify this
 secondary TRS next to flush out any other bugs lurking therein.
 
 \paragraph{The TRS scales well with the number of rules}
-Remarkably, quadrupling the size of the TRS increased total compile
+Remarkably, more than quadrupling the size of the TRS increased total compile
 times by only 0.3\%. On further examination we found that the
 additional rules increased the amount of time spent inside the TRS by
 30\%, and that only 1\% of the the total compile time of the average
@@ -1353,10 +1350,10 @@ These results show that having verification and synthesis available as a tool fo
 % \begin{tabular}{l|l|l}
 % Incorrect rule & Counterexample & Tool used \\
 % \hline
-% $((x + c0)/c1)*c1 - x \rightarrow_R x \bmod c1 \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & x := -2, c0 := 2, c1 := 3 & Z3 \\
-% $x - ((x + c0)/c1)*c1 \rightarrow_R -(x \bmod c1) \textrm{ if } c1 > 0 \wedge c0 + 1 == c1$ & x := -2, c0 := 2, c1 := 3 & Z3 \\
-% $min(x, c0) < min(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2)$ & x := 0, c0 := 0, c1 := -1, c2 := 1 & Z3 \\
-% $max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & x := 0, c0 := 2, c1 := 1, c2 := 1 & Z3 \\
+% $((x + c_0)/c_1)*c_1 - x \rewrites x \bmod c_1 \textrm{ if } c_1 > 0 \wedge c_0 + 1 == c_1$ & x := -2, c_0 := 2, c_1 := 3 & Z3 \\
+% $x - ((x + c_0)/c_1)*c_1 \rewrites -(x \bmod c_1) \textrm{ if } c_1 > 0 \wedge c_0 + 1 == c_1$ & x := -2, c_0 := 2, c_1 := 3 & Z3 \\
+% $\hmin(x, c_0) < \hmin(x, c_1) + c_2 \rewrites \textrm{false if } c_0 >= c_1 + c_2)$ & x := 0, c_0 := 0, c_1 := -1, c_2 := 1 & Z3 \\
+% $\hmax(x, c_0) < \hmax(x, c_1) + c_2 \rewrites \textrm{false if } c_0 >= c_1 + c_2$ & x := 0, c_0 := 2, c_1 := 1, c_2 := 1 & Z3 \\
 % \end{tabular}
 % \label{tab:incorrectrules}
 % \end{table*}

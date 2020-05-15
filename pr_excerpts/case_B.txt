@@ -1,0 +1,86 @@
+Description:
+------------
+
+Add some min/max simplifier rules:
+
+    min(min(x,y)+c,x) -> min(x, y+c) [iff c > 0]
+    max(max(x,y)-c,x) -> max(x, y-c) [iff c > 0]
+    min(min(x,y)+c,x) -> min(x,y)+c [iff c < 0]
+    max(max(x,y)-c,x) -> max(x,y)-c [iff c < 0]
+
+This eliminates some very long nested min() expressions.
+
+
+Selected comments:
+------------------
+
+In the rule-based simplifier, any rule with two instances of a wildcard on the
+LHS and only one instance on the RHS is considered safe/profitable. It strictly
+reduces the number of subexpressions so it can't possibly cause an infinite
+simplifier loop.
+
+
+Diff:
+---------------
+
+diff --git a/src/Simplify_Max.cpp b/src/Simplify_Max.cpp
+index f7b3bab53127..9a0e8baba120 100644
+--- a/src/Simplify_Max.cpp
++++ b/src/Simplify_Max.cpp
+@@ -113,6 +113,10 @@ Expr Simplify::visit(const Max *op, ExprInfo *bounds) {
+              rewrite(max(min(max(x, y), z), y), max(min(x, z), y)) ||
+              rewrite(max(min(max(y, x), z), y), max(y, min(x, z))) ||
+              rewrite(max(max(x, c0), c1), max(x, fold(max(c0, c1)))) ||
++             rewrite(max(max(x, y) + c0, x), max(x, y + c0), c0 < 0) ||
++             rewrite(max(max(x, y) + c0, x), max(x, y) + c0, c0 > 0) ||
++             rewrite(max(max(y, x) + c0, x), max(y + c0, x), c0 < 0) ||
++             rewrite(max(max(y, x) + c0, x), max(y, x) + c0, c0 > 0) ||
+
+              (no_overflow(op->type) &&
+               (rewrite(max(x + c0, c1), max(x, fold(c1 - c0)) + c0) ||
+diff --git a/src/Simplify_Min.cpp b/src/Simplify_Min.cpp
+index 1688960778c7..c12e812c4f20 100644
+--- a/src/Simplify_Min.cpp
++++ b/src/Simplify_Min.cpp
+@@ -113,6 +113,10 @@ Expr Simplify::visit(const Min *op, ExprInfo *bounds) {
+              rewrite(min(max(min(x, y), z), y), min(max(x, z), y)) ||
+              rewrite(min(max(min(y, x), z), y), min(y, max(x, z))) ||
+              rewrite(min(min(x, c0), c1), min(x, fold(min(c0, c1)))) ||
++             rewrite(min(min(x, y) + c0, x), min(x, y + c0), c0 > 0) ||
++             rewrite(min(min(x, y) + c0, x), min(x, y) + c0, c0 < 0) ||
++             rewrite(min(min(y, x) + c0, x), min(y + c0, x), c0 > 0) ||
++             rewrite(min(min(y, x) + c0, x), min(y, x) + c0, c0 < 0) ||
+
+              // Canonicalize a clamp
+              rewrite(min(max(x, c0), c1), max(min(x, c1), c0), c0 <= c1) ||
+diff --git a/test/correctness/simplify.cpp b/test/correctness/simplify.cpp
+index 99250a1d721d..3ae40818ce12 100644
+--- a/test/correctness/simplify.cpp
++++ b/test/correctness/simplify.cpp
+@@ -586,6 +586,26 @@ void check_bounds() {
+     check(min(x, min(x, y)), min(x, y));
+     check(min(y, min(x, y)), min(x, y));
+
++    check(min(min(x, y) + 1, x), min(y + 1, x));
++    check(min(min(x, y) - (-1), x), min(y + 1, x));
++    check(min(min(x, y) + (-1), x), min(x, y) + (-1));
++    check(min(min(x, y) - 1, x), min(x, y) + (-1));
++
++    check(min(min(y, x) + 1, x), min(y + 1, x));
++    check(min(min(y, x) - (-1), x), min(y + 1, x));
++    check(min(min(y, x) + (-1), x), min(x, y) + (-1));
++    check(min(min(y, x) - 1, x), min(x, y) + (-1));
++
++    check(max(max(x, y) - 1, x), max(y + (-1), x));
++    check(max(max(x, y) + (-1), x), max(y + (-1), x));
++    check(max(max(x, y) + 1, x), max(x, y) + 1);
++    check(max(max(x, y) - (-1), x), max(x, y) + 1);
++
++    check(max(max(y, x) - 1, x), max(y + (-1), x));
++    check(max(max(y, x) + (-1), x), max(y + (-1), x));
++    check(max(max(y, x) + 1, x), max(x, y) + 1);
++    check(max(max(y, x) - (-1), x), max(x, y) + 1);
++
+     check(max(Expr(7), 3), 7);
+     check(max(Expr(4.25f), 1.25f), 4.25f);
+     check(max(broadcast(x, 4), broadcast(y, 4)),
