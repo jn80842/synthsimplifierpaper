@@ -1,0 +1,638 @@
+Description:
+------------
+
+Define division by zero to return zero. Also define things like -128/-1 to
+just wrap, for types that wrap.
+
+Selected comments:
+------------------
+
+This makes div/mod free of side effects, which removes the need for
+special div/mod intrinsics in some cases; it also avoid runtime faults due to
+scheduling.
+
+The performance implications of this will be negligible. Division by
+non-constants in the critical path is rare to begin with, and already
+scalarizes and takes tens of cycles. This just adds a probably-perfectly-
+predicted test that the denominator is non-zero a corresponding branch.
+
+Note that division of things that are already guarded against being zero is
+not affected (e.g. foo/max(bar, 1)), because there's a check that skips
+the additional logic if the denominator is provably != 0.
+
+Note that we are keeping x % 0 -> 0, and thus the Euclidean identity
+
+    (x/y)*y + x%y = x
+
+is *not* maintained. Doing so would require that x % 0 -> x, which would
+conflict with the requirement that
+
+    0 <= (x % y) <= max(0, abs(y) - 1)
+
+to keep bounds inference tractable.
+
+
+Diff:
+---------------
+
+(Note: this is partial diff only; there were other necessary changes made
+elsehwere in Halide [e.g. the code-generation backends] to support this,
+which we have omitted here to improve clarity and avoid possible confusion.)
+
+diff --git a/src/IRMatch.h b/src/IRMatch.h
+index 445e506d526e..2d339fcaf395 100644
+--- a/src/IRMatch.h
++++ b/src/IRMatch.h
+@@ -78,8 +78,7 @@ struct MatcherState {
+
+     // values of the lanes field with special meaning.
+     static constexpr uint16_t signed_integer_overflow = 0x8000;
+-    static constexpr uint16_t indeterminate_expression = 0x4000;
+-    static constexpr uint16_t special_values_mask = 0xc000;
++    static constexpr uint16_t special_values_mask = 0x8000;  // currently only one
+
+     halide_type_t bound_const_type[max_wild];
+
+@@ -142,9 +141,7 @@ struct bindings {
+ inline HALIDE_NEVER_INLINE Expr make_const_special_expr(halide_type_t ty) {
+     const uint16_t flags = ty.lanes & MatcherState::special_values_mask;
+     ty.lanes &= ~MatcherState::special_values_mask;
+-    if (flags & MatcherState::indeterminate_expression) {
+-        return make_indeterminate_expression(ty);
+-    } else if (flags & MatcherState::signed_integer_overflow) {
++    if (flags & MatcherState::signed_integer_overflow) {
+         return make_signed_integer_overflow(ty);
+     }
+     // unreachable
+@@ -956,27 +953,17 @@ HALIDE_ALWAYS_INLINE auto div(A a, B b) -> decltype(IRMatcher::operator/(a, b))
+
+ template<>
+ HALIDE_ALWAYS_INLINE int64_t constant_fold_bin_op<Div>(halide_type_t &t, int64_t a, int64_t b) noexcept {
+-    if (b == 0) {
+-        t.lanes |= MatcherState::indeterminate_expression;
+-        return 0;
+-    } else {
+-        return div_imp(a, b);
+-    }
++    return div_imp(a, b);
+ }
+
+ template<>
+ HALIDE_ALWAYS_INLINE uint64_t constant_fold_bin_op<Div>(halide_type_t &t, uint64_t a, uint64_t b) noexcept {
+-    if (b == 0) {
+-        t.lanes |= MatcherState::indeterminate_expression;
+-        return 0;
+-    } else {
+-        return a / b;
+-    }
++    return div_imp(a, b);
+ }
+
+ template<>
+ HALIDE_ALWAYS_INLINE double constant_fold_bin_op<Div>(halide_type_t &t, double a, double b) noexcept {
+-    return a / b;
++    return div_imp(a, b);
+ }
+
+ template<typename A, typename B>
+@@ -991,22 +978,12 @@ HALIDE_ALWAYS_INLINE auto mod(A a, B b) -> decltype(IRMatcher::operator%(a, b))
+
+ template<>
+ HALIDE_ALWAYS_INLINE int64_t constant_fold_bin_op<Mod>(halide_type_t &t, int64_t a, int64_t b) noexcept {
+-    if (b == 0) {
+-        t.lanes |= MatcherState::indeterminate_expression;
+-        return 0;
+-    } else {
+-        return mod_imp(a, b);
+-    }
++    return mod_imp(a, b);
+ }
+
+ template<>
+ HALIDE_ALWAYS_INLINE uint64_t constant_fold_bin_op<Mod>(halide_type_t &t, uint64_t a, uint64_t b) noexcept {
+-    if (b == 0) {
+-        t.lanes |= MatcherState::indeterminate_expression;
+-        return 0;
+-    } else {
+-        return a % b;
+-    }
++    return mod_imp(a, b);
+ }
+
+ template<>
+@@ -1226,7 +1203,7 @@ HALIDE_ALWAYS_INLINE uint64_t constant_fold_bin_op<Or>(halide_type_t &t, uint64_
+
+ template<>
+ HALIDE_ALWAYS_INLINE double constant_fold_bin_op<Or>(halide_type_t &t, double a, double b) noexcept {
+-    t.lanes |= MatcherState::indeterminate_expression;
++    // Unreachable, as it would be a type mismatch.
+     return 0;
+ }
+
+@@ -1252,7 +1229,7 @@ HALIDE_ALWAYS_INLINE uint64_t constant_fold_bin_op<And>(halide_type_t &t, uint64
+
+ template<>
+ HALIDE_ALWAYS_INLINE double constant_fold_bin_op<And>(halide_type_t &t, double a, double b) noexcept {
+-    t.lanes |= MatcherState::indeterminate_expression;
++    // Unreachable
+     return 0;
+ }
+
+@@ -1380,10 +1357,6 @@ struct NotOp {
+         a.make_folded_const(val, ty, state);
+         val.u.u64 = ~val.u.u64;
+         val.u.u64 &= 1;
+-        ty.lanes |= (((int)ty.code == (int)halide_type_float) ||
+-                     ((int)ty.code == (int)halide_type_bfloat)) ?
+-                        MatcherState::indeterminate_expression :
+-                        0;
+     }
+ };
+
+@@ -1777,40 +1750,6 @@ std::ostream &operator<<(std::ostream &s, const Overflows<A> &op) {
+     return s;
+ }
+
+-struct Indeterminate {
+-    struct pattern_tag {};
+-
+-    constexpr static uint32_t binds = 0;
+-
+-    template<uint32_t bound>
+-    HALIDE_ALWAYS_INLINE bool match(const BaseExprNode &e, MatcherState &state) const noexcept {
+-        if (e.node_type != Call::_node_type) {
+-            return false;
+-        }
+-        const Call &op = (const Call &)e;
+-        return (op.is_intrinsic(Call::indeterminate_expression));
+-    }
+-
+-    HALIDE_ALWAYS_INLINE
+-    Expr make(MatcherState &state, halide_type_t type_hint) const {
+-        type_hint.lanes |= MatcherState::indeterminate_expression;
+-        return make_const_special_expr(type_hint);
+-    }
+-
+-    constexpr static bool foldable = true;
+-
+-    HALIDE_ALWAYS_INLINE
+-    void make_folded_const(halide_scalar_value_t &val, halide_type_t &ty, MatcherState &state) const noexcept {
+-        val.u.u64 = 0;
+-        ty.lanes |= MatcherState::indeterminate_expression;
+-    }
+-};
+-
+-inline std::ostream &operator<<(std::ostream &s, const Indeterminate &op) {
+-    s << "indeterminate()";
+-    return s;
+-}
+-
+ struct Overflow {
+     struct pattern_tag {};
+
+diff --git a/src/Simplify_Add.cpp b/src/Simplify_Add.cpp
+index c8636b8795ab..5b9ad7fca21e 100644
+--- a/src/Simplify_Add.cpp
++++ b/src/Simplify_Add.cpp
+@@ -40,8 +40,6 @@ Expr Simplify::visit(const Add *op, ExprInfo *bounds) {
+         const int lanes = op->type.lanes();
+
+         if (rewrite(c0 + c1, fold(c0 + c1)) ||
+-            rewrite(IRMatcher::Indeterminate() + x, a) ||
+-            rewrite(x + IRMatcher::Indeterminate(), b) ||
+             rewrite(IRMatcher::Overflow() + x, a) ||
+             rewrite(x + IRMatcher::Overflow(), b) ||
+             rewrite(x + 0, x) ||
+@@ -103,18 +101,18 @@ Expr Simplify::visit(const Add *op, ExprInfo *bounds) {
+                rewrite(x + y*x, (y + 1) * x) ||
+                rewrite(x*y + x, x * (y + 1)) ||
+                rewrite(y*x + x, (y + 1) * x, !is_const(x)) ||
+-               rewrite((x + c0)/c1 + c2, (x + fold(c0 + c1*c2))/c1) ||
+-               rewrite((x + (y + c0)/c1) + c2, x + (y + fold(c0 + c1*c2))/c1) ||
+-               rewrite(((y + c0)/c1 + x) + c2, x + (y + fold(c0 + c1*c2))/c1) ||
++               rewrite((x + c0)/c1 + c2, (x + fold(c0 + c1*c2))/c1, c1 != 0) ||
++               rewrite((x + (y + c0)/c1) + c2, x + (y + fold(c0 + c1*c2))/c1, c1 != 0) ||
++               rewrite(((y + c0)/c1 + x) + c2, x + (y + fold(c0 + c1*c2))/c1, c1 != 0) ||
+                rewrite((c0 - x)/c1 + c2, (fold(c0 + c1*c2) - x)/c1, c0 != 0 && c1 != 0) || // When c0 is zero, this would fight another rule
+-               rewrite(x + (x + y)/c0, (fold(c0 + 1)*x + y)/c0) ||
+-               rewrite(x + (y + x)/c0, (fold(c0 + 1)*x + y)/c0) ||
+-               rewrite(x + (y - x)/c0, (fold(c0 - 1)*x + y)/c0) ||
+-               rewrite(x + (x - y)/c0, (fold(c0 + 1)*x - y)/c0) ||
+-               rewrite((x - y)/c0 + x, (fold(c0 + 1)*x - y)/c0) ||
+-               rewrite((y - x)/c0 + x, (y + fold(c0 - 1)*x)/c0) ||
+-               rewrite((x + y)/c0 + x, (fold(c0 + 1)*x + y)/c0) ||
+-               rewrite((y + x)/c0 + x, (y + fold(c0 + 1)*x)/c0) ||
++               rewrite(x + (x + y)/c0, (fold(c0 + 1)*x + y)/c0, c0 != 0) ||
++               rewrite(x + (y + x)/c0, (fold(c0 + 1)*x + y)/c0, c0 != 0) ||
++               rewrite(x + (y - x)/c0, (fold(c0 - 1)*x + y)/c0, c0 != 0) ||
++               rewrite(x + (x - y)/c0, (fold(c0 + 1)*x - y)/c0, c0 != 0) ||
++               rewrite((x - y)/c0 + x, (fold(c0 + 1)*x - y)/c0, c0 != 0) ||
++               rewrite((y - x)/c0 + x, (y + fold(c0 - 1)*x)/c0, c0 != 0) ||
++               rewrite((x + y)/c0 + x, (fold(c0 + 1)*x + y)/c0, c0 != 0) ||
++               rewrite((y + x)/c0 + x, (y + fold(c0 + 1)*x)/c0, c0 != 0) ||
+                rewrite(min(x, y - z) + z, min(x + z, y)) ||
+                rewrite(min(y - z, x) + z, min(y, x + z)) ||
+                rewrite(min(x, y + c0) + c1, min(x + c1, y), c0 + c1 == 0) ||
+@@ -130,15 +128,15 @@ Expr Simplify::visit(const Add *op, ExprInfo *bounds) {
+                rewrite(max(x, y) + min(x, y), x + y) ||
+                rewrite(max(x, y) + min(y, x), x + y))) ||
+              (no_overflow_int(op->type) &&
+-              (rewrite((x/y)*y + x%y, x) ||
+-               rewrite((z + x/y)*y + x%y, z*y + x) ||
+-               rewrite((x/y + z)*y + x%y, x + z*y) ||
+-               rewrite(x%y + ((x/y)*y + z), x + z) ||
+-               rewrite(x%y + ((x/y)*y - z), x - z) ||
+-               rewrite(x%y + (z + (x/y)*y), x + z) ||
+-               rewrite((x/y)*y + (x%y + z), x + z) ||
+-               rewrite((x/y)*y + (x%y - z), x - z) ||
+-               rewrite((x/y)*y + (z + x%y), x + z) ||
++              (rewrite((x/c0)*c0 + x%c0, x, c0 != 0) ||
++               rewrite((z + x/c0)*c0 + x%c0, z*c0 + x, c0 != 0) ||
++               rewrite((x/c0 + z)*c0 + x%c0, x + z*c0, c0 != 0) ||
++               rewrite(x%c0 + ((x/c0)*c0 + z), x + z, c0 != 0) ||
++               rewrite(x%c0 + ((x/c0)*c0 - z), x - z, c0 != 0) ||
++               rewrite(x%c0 + (z + (x/c0)*c0), x + z, c0 != 0) ||
++               rewrite((x/c0)*c0 + (x%c0 + z), x + z, c0 != 0) ||
++               rewrite((x/c0)*c0 + (x%c0 - z), x - z, c0 != 0) ||
++               rewrite((x/c0)*c0 + (z + x%c0), x + z, c0 != 0) ||
+                rewrite(x/2 + x%2, (x + 1) / 2) ||
+
+                rewrite(x + ((c0 - x)/c1)*c1, c0 - ((c0 - x) % c1), c1 > 0) ||
+diff --git a/src/Simplify_Cast.cpp b/src/Simplify_Cast.cpp
+index 722026d598ed..f79e8ead931c 100644
+--- a/src/Simplify_Cast.cpp
++++ b/src/Simplify_Cast.cpp
+@@ -17,13 +17,8 @@ Expr Simplify::visit(const Cast *op, ExprInfo *bounds) {
+         double f = 0.0;
+         int64_t i = 0;
+         uint64_t u = 0;
+-        if (call && (call->is_intrinsic(Call::indeterminate_expression) ||
+-                     call->is_intrinsic(Call::signed_integer_overflow))) {
+-            if (call->is_intrinsic(Call::indeterminate_expression)) {
+-                return make_indeterminate_expression(op->type);
+-            } else {
+-                return make_signed_integer_overflow(op->type);
+-            }
++        if (call && call->is_intrinsic(Call::signed_integer_overflow)) {
++            return make_signed_integer_overflow(op->type);
+         } else if (value.type() == op->type) {
+             return value;
+         } else if (op->type.is_int() &&
+diff --git a/src/Simplify_Div.cpp b/src/Simplify_Div.cpp
+index ac768022c282..0bffff94f1e3 100644
+--- a/src/Simplify_Div.cpp
++++ b/src/Simplify_Div.cpp
+@@ -53,6 +53,25 @@ Expr Simplify::visit(const Div *op, ExprInfo *bounds) {
+         bounds->max_defined = ((a_bounds.max_defined && b_positive) ||
+                                (a_bounds.min_defined && b_negative));
+
++        // That's as far as we can get knowing the sign of the
++        // denominator. For bounded numerators, we additionally know
++        // that div can't make anything larger in magnitude, so we can
++        // take the intersection with that.
++        if (a_bounds.max_defined && a_bounds.min_defined) {
++            int64_t v = std::max(a_bounds.max, -a_bounds.min);
++            if (bounds->min_defined) {
++                bounds->min = std::max(bounds->min, -v);
++            } else {
++                bounds->min = -v;
++            }
++            if (bounds->max_defined) {
++                bounds->max = std::min(bounds->max, v);
++            } else {
++                bounds->max = v;
++            }
++            bounds->min_defined = bounds->max_defined = true;
++        }
++
+         // Bounded numerator divided by constantish
+         // denominator can sometimes collapse things to a
+         // constant at this point
+@@ -81,9 +100,10 @@ Expr Simplify::visit(const Div *op, ExprInfo *bounds) {
+     }
+
+     bool denominator_non_zero =
+-        ((b_bounds.min_defined && b_bounds.min > 0) ||
+-         (b_bounds.max_defined && b_bounds.max < 0) ||
+-         (b_bounds.alignment.remainder != 0));
++        (no_overflow_int(op->type) &&
++         ((b_bounds.min_defined && b_bounds.min > 0) ||
++          (b_bounds.max_defined && b_bounds.max < 0) ||
++          (b_bounds.alignment.remainder != 0)));
+
+     if (may_simplify(op->type)) {
+
+@@ -91,17 +111,14 @@ Expr Simplify::visit(const Div *op, ExprInfo *bounds) {
+
+         auto rewrite = IRMatcher::rewriter(IRMatcher::div(a, b), op->type);
+
+-        if (rewrite(IRMatcher::Indeterminate() / x, a) ||
+-            rewrite(x / IRMatcher::Indeterminate(), b) ||
+-            rewrite(IRMatcher::Overflow() / x, a) ||
++        if (rewrite(IRMatcher::Overflow() / x, a) ||
+             rewrite(x / IRMatcher::Overflow(), b) ||
+             rewrite(x / 1, x) ||
+-            (!op->type.is_float() &&
+-             rewrite(x / 0, IRMatcher::Indeterminate())) ||
+-            (denominator_non_zero &&
+-             (rewrite(0 / x, 0) ||
+-              rewrite(x / x, 1))) ||
+-            rewrite(c0 / c1, fold(c0 / c1))) {
++            rewrite(c0 / c1, fold(c0 / c1)) ||
++            (!op->type.is_float() && rewrite(x / 0, 0)) ||
++            (!op->type.is_float() && denominator_non_zero && rewrite(x / x, 1)) ||
++            rewrite(0 / x, 0) ||
++            false) {
+             return rewrite.result;
+         }
+
+@@ -109,6 +126,8 @@ Expr Simplify::visit(const Div *op, ExprInfo *bounds) {
+         if (EVAL_IN_LAMBDA
+             (rewrite(broadcast(x) / broadcast(y), broadcast(x / y, lanes)) ||
+              rewrite(select(x, c0, c1) / c2, select(x, fold(c0/c2), fold(c1/c2))) ||
++             (!op->type.is_float() &&
++              rewrite(x / x, select(x == 0, 0, 1))) ||
+              (no_overflow(op->type) &&
+               (// Fold repeated division
+                rewrite((x / c0) / c2, x / fold(c0 * c2),                          c0 > 0 && c2 > 0 && !overflows(c0 * c2)) ||
+@@ -152,25 +171,30 @@ Expr Simplify::visit(const Div *op, ExprInfo *bounds) {
+                rewrite((w + (z + (x * c0 + y))) / c1, (y + z + w) / c1 + x * fold(c0 / c1), c0 % c1 == 0 && c1 > 0) ||
+                rewrite((w + (z + (y + x * c0))) / c1, (y + z + w) / c1 + x * fold(c0 / c1), c0 % c1 == 0 && c1 > 0) ||
+
+-               rewrite((x + c0) / c1, x / c1 + fold(c0 / c1),                     c0 % c1 == 0) ||
+-               rewrite((x + y)/x, y/x + 1) ||
+-               rewrite((y + x)/x, y/x + 1) ||
+-               rewrite((x - y)/x, (-y)/x + 1) ||
+-               rewrite((y - x)/x, y/x - 1) ||
+-               rewrite(((x + y) + z)/x, (y + z)/x + 1) ||
+-               rewrite(((y + x) + z)/x, (y + z)/x + 1) ||
+-               rewrite((z + (x + y))/x, (z + y)/x + 1) ||
+-               rewrite((z + (y + x))/x, (z + y)/x + 1) ||
+-               rewrite((x*y)/x, y) ||
+-               rewrite((y*x)/x, y) ||
+-               rewrite((x*y + z)/x, y + z/x) ||
+-               rewrite((y*x + z)/x, y + z/x) ||
+-               rewrite((z + x*y)/x, z/x + y) ||
+-               rewrite((z + y*x)/x, z/x + y) ||
+-               rewrite((x*y - z)/x, y + (-z)/x) ||
+-               rewrite((y*x - z)/x, y + (-z)/x) ||
+-               rewrite((z - x*y)/x, z/x - y) ||
+-               rewrite((z - y*x)/x, z/x - y) ||
++               // Finally, pull out constant additions that are a multiple of the denominator
++               rewrite((x + c0) / c1, x / c1 + fold(c0 / c1), c0 % c1 == 0 && c1 > 0) ||
++               rewrite((c0 - y)/c1, fold(c0 / c1) - y / c1, (c0 + 1) % c1 == 0 && c1 > 0) ||
++               (denominator_non_zero &&
++                (rewrite((x + y)/x, y/x + 1) ||
++                 rewrite((y + x)/x, y/x + 1) ||
++                 rewrite((x - y)/x, (-y)/x + 1) ||
++                 rewrite((y - x)/x, y/x - 1) ||
++                 rewrite(((x + y) + z)/x, (y + z)/x + 1) ||
++                 rewrite(((y + x) + z)/x, (y + z)/x + 1) ||
++                 rewrite((z + (x + y))/x, (z + y)/x + 1) ||
++                 rewrite((z + (y + x))/x, (z + y)/x + 1) ||
++                 rewrite((x*y)/x, y) ||
++                 rewrite((y*x)/x, y) ||
++                 rewrite((x*y + z)/x, y + z/x) ||
++                 rewrite((y*x + z)/x, y + z/x) ||
++                 rewrite((z + x*y)/x, z/x + y) ||
++                 rewrite((z + y*x)/x, z/x + y) ||
++                 rewrite((x*y - z)/x, y + (-z)/x) ||
++                 rewrite((y*x - z)/x, y + (-z)/x) ||
++                 rewrite((z - x*y)/x, z/x - y) ||
++                 rewrite((z - y*x)/x, z/x - y) ||
++                 false)) ||
++
+                (op->type.is_float() && rewrite(x/c0, x * fold(1/c0))))) ||
+              (no_overflow_int(op->type) &&
+               (rewrite(ramp(x, c0) / broadcast(c1), ramp(x / c1, fold(c0 / c1), lanes), c0 % c1 == 0) ||
+diff --git a/src/Simplify_EQ.cpp b/src/Simplify_EQ.cpp
+index 34ef3609b028..ef3a966df082 100644
+--- a/src/Simplify_EQ.cpp
++++ b/src/Simplify_EQ.cpp
+@@ -79,10 +79,19 @@ Expr Simplify::visit(const EQ *op, ExprInfo *bounds) {
+         rewrite(y - min(y, x) == 0, y <= x) ||
+         rewrite(max(x, c0) + c1 == 0, x == fold(-c1), c0 + c1 < 0) ||
+         rewrite(min(x, c0) + c1 == 0, x == fold(-c1), c0 + c1 > 0) ||
++        rewrite(max(x, c0) + c1 == 0, false, c0 + c1 > 0) ||
++        rewrite(min(x, c0) + c1 == 0, false, c0 + c1 < 0) ||
+         rewrite(max(x, c0) + c1 == 0, x <= c0, c0 + c1 == 0) ||
+         rewrite(min(x, c0) + c1 == 0, c0 <= x, c0 + c1 == 0) ||
++        // Special case the above where c1 == 0
++        rewrite(max(x, c0) == 0, x == 0, c0 < 0) ||
++        rewrite(min(x, c0) == 0, x == 0, c0 > 0) ||
++        rewrite(max(x, c0) == 0, false, c0 > 0) ||
++        rewrite(min(x, c0) == 0, false, c0 < 0) ||
+         rewrite(max(x, 0) == 0, x <= 0) ||
+-        rewrite(min(x, 0) == 0, 0 <= x)) {
++        rewrite(min(x, 0) == 0, 0 <= x) ||
++
++        false) {
+
+         return mutate(std::move(rewrite.result), bounds);
+     }
+diff --git a/src/Simplify_LT.cpp b/src/Simplify_LT.cpp
+index 0b9f97a2b43c..5e2d2dabd13d 100644
+--- a/src/Simplify_LT.cpp
++++ b/src/Simplify_LT.cpp
+@@ -344,9 +344,9 @@ Expr Simplify::visit(const LT *op, ExprInfo *bounds) {
+
+               // Comparison of two mins/maxes that don't cancel when subtracted
+               rewrite(min(x, c0) < min(x, c1), false, c0 >= c1) ||
+-              rewrite(min(x, c0) < min(x, c1) + c2, false, c0 >= c1 + c2) ||
++              rewrite(min(x, c0) < min(x, c1) + c2, false, c0 >= c1 + c2 && c2 <= 0) ||
+               rewrite(max(x, c0) < max(x, c1), false, c0 >= c1) ||
+-              rewrite(max(x, c0) < max(x, c1) + c2, false, c0 >= c1 + c2) ||
++              rewrite(max(x, c0) < max(x, c1) + c2, false, c0 >= c1 + c2 && c2 <= 0) ||
+
+               // Comparison of aligned ramps can simplify to a comparison of the base
+               rewrite(ramp(x * c3 + c2, c1) < broadcast(z * c0),
+diff --git a/src/Simplify_Max.cpp b/src/Simplify_Max.cpp
+index b4da7e6f4a67..7969284fb5d0 100644
+--- a/src/Simplify_Max.cpp
++++ b/src/Simplify_Max.cpp
+@@ -46,8 +46,6 @@ Expr Simplify::visit(const Max *op, ExprInfo *bounds) {
+         if (EVAL_IN_LAMBDA
+             (rewrite(max(x, x), x) ||
+              rewrite(max(c0, c1), fold(max(c0, c1))) ||
+-             rewrite(max(IRMatcher::Indeterminate(), x), a) ||
+-             rewrite(max(x, IRMatcher::Indeterminate()), b) ||
+              rewrite(max(IRMatcher::Overflow(), x), a) ||
+              rewrite(max(x,IRMatcher::Overflow()), b) ||
+              // Cases where one side dominates:
+diff --git a/src/Simplify_Min.cpp b/src/Simplify_Min.cpp
+index 5b11cf885f64..7e67f4ec7ac6 100644
+--- a/src/Simplify_Min.cpp
++++ b/src/Simplify_Min.cpp
+@@ -46,8 +46,6 @@ Expr Simplify::visit(const Min *op, ExprInfo *bounds) {
+         if (EVAL_IN_LAMBDA
+             (rewrite(min(x, x), x) ||
+              rewrite(min(c0, c1), fold(min(c0, c1))) ||
+-             rewrite(min(IRMatcher::Indeterminate(), x), a) ||
+-             rewrite(min(x, IRMatcher::Indeterminate()), b) ||
+              rewrite(min(IRMatcher::Overflow(), x), a) ||
+              rewrite(min(x,IRMatcher::Overflow()), b) ||
+              // Cases where one side dominates:
+diff --git a/src/Simplify_Mod.cpp b/src/Simplify_Mod.cpp
+index 8899ae14e909..3dce0a8507a2 100644
+--- a/src/Simplify_Mod.cpp
++++ b/src/Simplify_Mod.cpp
+@@ -13,13 +13,32 @@ Expr Simplify::visit(const Mod *op, ExprInfo *bounds) {
+     // are tight enough.
+     ExprInfo mod_bounds;
+
+-    // Just use the bounds of the RHS
+     if (no_overflow_int(op->type)) {
+-        mod_bounds.min_defined = mod_bounds.max_defined =
+-            (b_bounds.min_defined && b_bounds.max_defined &&
+-             (b_bounds.min > 0 || b_bounds.max < 0));
++        // The result is at least zero.
++        mod_bounds.min_defined = true;
+         mod_bounds.min = 0;
+-        mod_bounds.max = std::max(std::abs(b_bounds.min), std::abs(b_bounds.max)) - 1;
++
++        // Mod by produces a result between 0
++        // and max(0, abs(modulus) - 1). However, if b is unbounded in
++        // either direction, abs(modulus) could be arbitrarily
++        // large.
++        if (b_bounds.max_defined && b_bounds.min_defined) {
++            mod_bounds.max_defined = true;
++            mod_bounds.max = 0;                                            // When b == 0
++            mod_bounds.max = std::max(mod_bounds.max, b_bounds.max - 1);   // When b > 0
++            mod_bounds.max = std::max(mod_bounds.max, -1 - b_bounds.min);  // When b < 0
++        }
++
++        // If a is positive, mod can't make it larger
++        if (a_bounds.min_defined && a_bounds.min >= 0 && a_bounds.max_defined) {
++            if (mod_bounds.max_defined) {
++                mod_bounds.max = std::min(mod_bounds.max, a_bounds.max);
++            } else {
++                mod_bounds.max_defined = true;
++                mod_bounds.max = a_bounds.max;
++            }
++        }
++
+         mod_bounds.alignment = a_bounds.alignment % b_bounds.alignment;
+         mod_bounds.trim_bounds_using_alignment();
+         if (bounds) {
+@@ -30,6 +49,9 @@ Expr Simplify::visit(const Mod *op, ExprInfo *bounds) {
+     if (may_simplify(op->type)) {
+         if (a_bounds.min_defined && a_bounds.min >= 0 &&
+             a_bounds.max_defined && b_bounds.min_defined && a_bounds.max < b_bounds.min) {
++            if (bounds) {
++                *bounds = a_bounds;
++            }
+             return a;
+         }
+
+@@ -41,22 +63,14 @@ Expr Simplify::visit(const Mod *op, ExprInfo *bounds) {
+
+         auto rewrite = IRMatcher::rewriter(IRMatcher::mod(a, b), op->type);
+
+-        bool modulus_non_zero =
+-            ((b_bounds.min_defined && b_bounds.min > 0) ||
+-             (b_bounds.max_defined && b_bounds.max < 0) ||
+-             (b_bounds.alignment.remainder != 0));
+-
+         if (rewrite(c0 % c1, fold(c0 % c1)) ||
+-            rewrite(IRMatcher::Indeterminate() % x, a) ||
+-            rewrite(x % IRMatcher::Indeterminate(), b) ||
+             rewrite(IRMatcher::Overflow() % x, a) ||
+             rewrite(x % IRMatcher::Overflow(), b) ||
+-            (modulus_non_zero &&
+-             (rewrite(0 % x, 0) ||
+-              rewrite(x % x, 0))) ||
++            rewrite(0 % x, 0) ||
++            rewrite(x % x, 0) ||
++            rewrite(x % 0, 0) ||
+             (!op->type.is_float() &&
+-             (rewrite(x % 0, IRMatcher::Indeterminate()) ||
+-              rewrite(x % 1, 0)))) {
++             rewrite(x % 1, 0))) {
+             return rewrite.result;
+         }
+
+diff --git a/src/Simplify_Mul.cpp b/src/Simplify_Mul.cpp
+index e00e27bb0509..d01a6f616635 100644
+--- a/src/Simplify_Mul.cpp
++++ b/src/Simplify_Mul.cpp
+@@ -72,8 +72,6 @@ Expr Simplify::visit(const Mul *op, ExprInfo *bounds) {
+
+         auto rewrite = IRMatcher::rewriter(IRMatcher::mul(a, b), op->type);
+         if (rewrite(c0 * c1, fold(c0 * c1)) ||
+-            rewrite(IRMatcher::Indeterminate() * x, a) ||
+-            rewrite(x * IRMatcher::Indeterminate(), b) ||
+             rewrite(IRMatcher::Overflow() * x, a) ||
+             rewrite(x * IRMatcher::Overflow(), b) ||
+             rewrite(0 * x, 0) ||
+diff --git a/src/Simplify_Select.cpp b/src/Simplify_Select.cpp
+index 2d171f82aadf..bca33c2437d2 100644
+--- a/src/Simplify_Select.cpp
++++ b/src/Simplify_Select.cpp
+@@ -35,18 +35,7 @@ Expr Simplify::visit(const Select *op, ExprInfo *bounds) {
+              rewrite(select(x, y, intrin(Call::likely, y)), false_value) ||
+              rewrite(select(x, intrin(Call::likely_if_innermost, y), y), true_value) ||
+              rewrite(select(x, y, intrin(Call::likely_if_innermost, y)), false_value) ||
+-
+-             // Select evaluates both sides, so if we have an
+-             // unreachable expression on one side we can't use a
+-             // signalling error. Call it UB and assume it can't
+-             // happen. The tricky case to consider is:
+-             // select(x > 0, a/x, select(x < 0, b/x, indeterminate()))
+-             // If we use a signalling error and x > 0, then this will
+-             // evaluate indeterminate(), because the top-level select
+-             // evaluates both sides.
+-
+-             rewrite(select(x, y, IRMatcher::Indeterminate()), y) ||
+-             rewrite(select(x, IRMatcher::Indeterminate(), y), y))) {
++             false)) {
+             return rewrite.result;
+         }
+         // clang-format on
+diff --git a/src/Simplify_Sub.cpp b/src/Simplify_Sub.cpp
+index 5f2d266fc9c8..557b0b7a3e6a 100644
+--- a/src/Simplify_Sub.cpp
++++ b/src/Simplify_Sub.cpp
+@@ -36,8 +36,6 @@ Expr Simplify::visit(const Sub *op, ExprInfo *bounds) {
+         const int lanes = op->type.lanes();
+
+         if (rewrite(c0 - c1, fold(c0 - c1)) ||
+-            rewrite(IRMatcher::Indeterminate() - x, a) ||
+-            rewrite(x - IRMatcher::Indeterminate(), b) ||
+             rewrite(IRMatcher::Overflow() - x, a) ||
+             rewrite(x - IRMatcher::Overflow(), b) ||
+             rewrite(x - 0, x)) {
+
+diff --git a/test/correctness/simplify.cpp b/test/correctness/simplify.cpp
+index 028e82be9666..3dc4133d6ce1 100644
+--- a/test/correctness/simplify.cpp
++++ b/test/correctness/simplify.cpp
+@@ -410,6 +410,16 @@ void check_algebra() {
+     check(1 - (-y + 1) / 2 - 1, y / 2);
+     check(1 - (0 - y) / 5, (y + 9) / 5);
+
++    // Div/mod can't make things larger
++    check(5 / x < 6, const_true());
++    check(5 / x > -6, const_true());
++    check(5 / x < 5, 5 / x < 5);
++    check(5 / x > -5, -5 < 5 / x);
++    check(5 % x < 6, const_true());
++    check(5 % x < 5, 5 % x < 5);
++    check(5 % x >= 0, const_true());
++    check(5 % x > 0, 0 < 5 % x);
++
+     // Test case with most negative 32-bit number, as constant to check that it is not negated.
+     check(((x * (int32_t)0x80000000) + (z * (int32_t)0x80000000 + y)),
+           ((x * (int32_t)0x80000000) + (z * (int32_t)0x80000000 + y)));
+@@ -1150,10 +1160,10 @@ void check_boolean() {
+     check(x >= 20 && x <= 20, 20 <= x && x <= 20);
+
+     check(min(x, 20) < min(x, 19), const_false());
+-    check(min(x, 23) < min(x, 18) + 3, const_false());
++    check(min(x, 23) < min(x, 18) - 3, const_false());
+
+     check(max(x, 19) > max(x, 20), const_false());
+-    check(max(x, 19) > max(x, 18) + 3, const_false());
++    check(max(x, 18) > max(x, 23) + 3, const_false());
+
+     // check for substitution patterns
+     check((b1 == t) && (b1 && b2), b1 && b2);
