@@ -1436,6 +1436,9 @@ Superoptimization, a process of finding a shorter or more desirable program that
 SMT solvers seek to achieve practical results in theoretically challenging problems, such as the theory of non-linear integer arithmetic. For example, Jovanovic~\cite{jovanovic2017solving} describes a satisfiability procedure for NLIA that is effective in practice and implements it in the Yices2 solver. In this work we leverage Z3's NLIA solving abilities and extend synthesis to include certain types of non-linear expressions by using constants as operands and later generalizing.
 
 \section{Conclusion}
+\sk{This section needs to use the same numbers as all other sections.  In
+  particular it seems like the number of new rules is different here than in
+  eval}
 In this work, we improved the Halide term rewriting system by applying formal
 techniques to verify rewrite rules and to ensure termination.  In this process,
 we discovered \NumRulesFixed incorrect rules and \NumPredicatesRelaxed cases
