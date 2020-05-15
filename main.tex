@@ -703,6 +703,7 @@ if the constant was non-zero.
 %divide-by-zero fault but the simplified expression will not.
 
 \subsubsection{Evolving semantics}
+\label{sub:evolvingsemantics}
 
 This mostly-automated approach to verification assists with changing
 the language semantics. Our initial work on verification was not on
@@ -726,6 +727,7 @@ submitted a patch to amend them.
 Overall results of verifying rule correctness are described in Section~\ref{sec:eval-correctness}.
 
 \subsection{Termination}
+\label{sub:termination}
 
 Term rewriting systems are not guaranteed to terminate. Consider a term
 rewriting system containing only one rule: $x + y \rightarrow y + x$. The term
@@ -1102,7 +1104,39 @@ auditing.
 
 \section{Evaluation}
 
-In this section we evaluate the benefits of our verifier and synthesizer in three ways. First we examine bug reports from Halide’s past and evaluate whether the machinery presented in this paper could have fixed them automatically. Second, we examine cases where beta versions of our verifier and synthesizer assisted humans in both fixing bugs and also correctly making larger changes to the compiler. Third, we fuzz the compiler to mine for issues that could be fixed with new simplifier rules, and automatically fix them before they ever appear as a bug in a real program. In this way we demonstrate that this machinery would have been useful in the past, is useful in the present, and will help avoid entire classes of bugs in the future.
+In this section we first lay out some high-level conclusions reached in our evaluation of the verifier and synthesizer. We then delve into our claims more deeply through three case studies: how this machinery could have been used to solve past issues with the TRS, how it is currently being used in Halide development, and how it is preventing entire classes of bugs from occuring in the future.
+
+\paragraph{What role can verification play in the Halide TRS?}
+Halide TRS has a stringent development process; new rules are peer reviewed after they are proven on paper, and fuzzing has been discovering bugs for months. It is thus reasonable to ask whether mechanized verification can add any value. 
+
+Our verification discovered five new soundness bugs and 17 overly-strict precondition bugs. The former bugs eluded the fuzzer; the latter are deemed too hard so the fuzzer does not look for them. We found verification to be invaluable also because it allows adding new rules to the production TRS immediately. In contrast, we observed that fuzzing requires months to discover some bugs, which may delay deploying updates.
+
+\paragraph{How important is synthesis to large-scale improvements of the TRS?}
+Fixing a few rules can be done manually but large-scale changes to the TRS may require more rules than is humanly possible to develop. Here we ask what improvements are possible when we are free to synthesize the necessary rules. 
+
+Rather than synthesizing a repair to just one incorrect rule, we attempted to synthesize rules for 100k+ expressions that failed to simplify in an instrumented TRS. We synthesized 4127 rules and added them to the TRS. In evaluating the effects of these improvements, we found 197 benchmarks that were over-allocating memory, sometimes dramatically, due to imprecise bounds reasoning caused by missing rules. Those benchmarks were fixed by the improved TRS. Synthesis allowed us to make this dramatic change to the ruleset without fear of introducing non-terminating behavior, since synthesized rules must satisfy the reduction order (see Section~\ref{sub:termination}). Satisfying this additional restriction would further complicate manual rule development. 
+
+\paragraph{To what extent is verification automatic?}
+Ideally, TRS rules are verified fully automatically by automatic translation to an SMT solver. Rules that require proofs in a proof assistant should be easily updatable should the operation semantics change.
+
+When we started this work, the TRS had 999 rules.  Out of those rules, we managed to verify 876 rules automatically, by translation to Z3.  We verified the remaining Z rules in Coq. When the semantics of Halide div and mod have changed (Section~\ref{sub:evolvingsemantics}), the manual reverification effort of the 141 rules took approximately half the time compared to the original verification. 
+
+\paragraph{Are synthesized rules comparable to those created by a human expert?}
+We expect a human expert to create rules that are as general as possible while also including rules that take advantage of less general situations, such as when special cases allow stronger rewrites.  Can a synthesizer produce rules that are both general and expressive? 
+
+We compared synthesized rules against five sets of rules added manually. We have found that the expert wrote rules that were less general than the synthesized rules, and in some cases were incorrect. Additionally, the synthesizer avoided adding a specialized rule because the TRS could already achieve its effect with rules present in the TRS. We discuss in Section~\ref{sec:limitations} the limitations of when the synthesizer cannot achieve such general rules. 
+
+\paragraph{What is the favorite method to use the tool in rule development?}
+Is the expert equipped with synthesizer better at developing rules than the expert alone or the synthesizer alone?
+
+The synthesizer can accelerate rule development because it is correct and also faster than a human expert. (On average, the expert needed about 30 minutes to develop a rule, including a paper proof and the code review. Our synthesizer produces a set of ten (verified) rules in about 5 minutes.) We have found that human experts can leverage the strengths of the synthesis tool by using it as an assistant: for example by synthesizing a rule and then generalizing or simplifying it by hand, or by writing a rule and asking the tool to synthesize a valid predicate.
+
+\paragraph{What fraction of the Halide rules could have been synthesized?}
+To bootstrap a TRS, we could start with a TRS equipped with a basic set of rules and synthesize the remaining rules as the TRS encounters expressions needing those rules.  How far is the synthesizer from supporting this ambitious vision?
+
+We have found that the synthesizer can currently produce about K\% of rules that exist in the current TRS. We find this to be a promising state of the technology. The obstacles to synthesizing all human written rules include (i)~the inability to automatically verify some rules or preconditions (see Question 3 above); (ii)~lack of support for some operators in our synthesizer. \jln{numbers to come after experiment tomorrow}
+
+In the remainder of this section we evaluate the benefits of our verifier and synthesizer in three ways. First we examine bug reports from Halide’s past and evaluate whether the machinery presented in this paper could have fixed them automatically. Second, we examine cases where beta versions of our verifier and synthesizer assisted humans in both fixing bugs and also correctly making larger changes to the compiler. Third, we fuzz the compiler to mine for issues that could be fixed with new simplifier rules, and automatically fix them before they ever appear as a bug in a real program. In this way we demonstrate that this machinery would have been useful in the past, is useful in the present, and will help avoid entire classes of bugs in the future.
 
 Note for reviewers: For the purposes of this anonymous submission, we will refer to code changes by letter, with corresponding diffs found in supplemental material. In this final version of the paper these will be replaced with github issue and pull request IDs with links to Halide’s github page.
 
@@ -1324,6 +1358,7 @@ $max(x, c0) < max(x, c1) + c2 \rightarrow_R \textrm{false if } c0 >= c1 + c2$ & 
 \end{table*}
 
 \section{Limitations \& Future Work}
+\label{sec:limitations}
 For this work, we considered only the subset of the term rewriting system that
 is used to prove properties over infinite integers; the full TRS includes rules
 for simplifying expressions with floating point values as well as rules for
