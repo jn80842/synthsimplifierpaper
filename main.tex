@@ -1438,26 +1438,32 @@ Superoptimization, a process of finding a shorter or more desirable program that
 SMT solvers seek to achieve practical results in theoretically challenging problems, such as the theory of non-linear integer arithmetic. For example, \citet{jovanovic2017solving} describes a satisfiability procedure for NLIA that is effective in practice and implements it in the Yices2 solver. In this work we leverage Z3's NLIA solving abilities and extend synthesis to include certain types of non-linear expressions by using constants as operands and later generalizing.
 
 \section{Conclusion}
-\sak{This section needs to use the same numbers as all other sections.  In
-  particular it seems like the number of new rules is different here than in
-  eval}
 In this work, we improved the Halide term rewriting system by applying formal
 techniques to verify rewrite rules and to ensure termination.  In this process,
-we discovered \NumRulesFixed incorrect rules and \NumPredicatesRelaxed cases
+we discovered \NumRulesFixed incorrect rules (which is remarkable,
+given that the TRS has been extensively fuzz tested) and \NumPredicatesRelaxed cases
 where we could make rules more general, as well as \NumOrderingProblems rules
-that could potentially cause termination problems.  We additionally built
-an automated synthesis-based pipeline for constructing new rewrite rules from
-proof failures, augmenting the compiler with \NumRulesSynthesized synthesized
-rewrite rules and demonstrating that our system can be used to automatically fix
-user-reported compiler bugs.
+that could potentially cause termination problems.  We built
+an automated synthesis-based pipeline for constructing new rewrite rules
+and demonstrated that it can produce better rewrite rules than hand-authored ones
+in five historical bug fixes. We further described four case studies in which the
+synthesizer has served as an assistant to a human compiler engineer. Finally,
+we showed that applying the synthesizer can proactively improve weaknesses
+in the Halide compiler by bulk-synthesizing a large number of rules automatically
+and demonstrating this ruleset lowers peak memory usage of compiled code with nearly
+no increase in compilation time.
+%from
+%proof failures, augmenting the compiler with \NumRulesSynthesized synthesized
+%rewrite rules and demonstrating that our system can be used to automatically fix
+%user-reported compiler bugs.
 
 Our improvements guarantee the soundness of the term rewriting system
-and increase its robustness and coverage, while (counterintuitively)
-decreasing total compile times. There are no significant costs or
+and increase its robustness and coverage, with no significant costs or
 downsides we could identify. Indeed, augmenting this part of the
 Halide compiler using verification and synthesis seems to constitute a
 free lunch, and we expect to be able to make a strong case for the
-inclusion of this work into the compiler.
+inclusion of this work into Halide while replacing additional
+rewriting systems currently used within the compiler.
 
 
 %% Acknowledgments
