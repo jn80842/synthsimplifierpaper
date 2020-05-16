@@ -307,17 +307,18 @@ phones, tablets, desktops, and servers. Halide separates what is computed (the
 \textit{algorithm}) from how the computation executes (the \textit{schedule});
 the compiler ensures that different schedules for different platforms correctly
 compute the algorithm. Schedules often require the compiler to prove specific
-properties in order to guarantee correctness or to ensure the resulting code
+properties or compute bounds on quantities in order to guarantee correctness or to ensure the resulting code
 performs as well as possible.  For example, to fully unroll a loop, the compiler
 must prove the loop has a constant extent.
 
-Many of these code properties relate regions of computation, which Halide
-represents as intervals over the integers. Whether a property is true is
-answered  with a \textit{term rewriting system} (TRS). For efficiency reasons,
-the Halide TRS traverses expressions bottom-up, greedily applying the first
-matching rule from an ordered set of about a thousand handwritten rewrite
-rules. These rules were constructed by developers based on observed
-compilation failures over many years, and ordered to avoid non-termination.
+Many of these properties and quantities relate regions of computation, which Halide
+represents as intervals over the integers. Halide utilizes a \textit{term rewriting system}
+(TRS) to compute bounds on regions of computation and prove required properties. For
+efficiency reasons, the Halide TRS traverses expressions bottom-up, greedily
+applying the first matching rule from an ordered set of about a thousand
+handwritten rewrite rules. These rules were constructed by developers based on
+observed compilation failures over many years, and ordered to avoid
+non-termination.
 
 In this work, we develop tools that improve the Halide term rewriting
 system thorugh verification and synthesis of rules.  
@@ -328,9 +329,10 @@ system thorugh verification and synthesis of rules.
 Our tools target  (1)~incorrect rules, which cause cause miscompilations
 resulting in undefined behavior at runtime, such as writes beyond the end of a
 buffer;  (2)~missing rules, which lead  the compiler to produce worse code,
-for example when failing to prove the legality of an optimization; and
-(3)~cycles among rules that  keep generating the same subterm, causing
-non-termination of the TRS, resulting in crashes during compilation.
+for example when failing to compute tight bounds on intermediate arrays, resulting
+in over-allocations; and (3)~cycles among rules that keep generating the same
+subterm, causing non-termination of the TRS, resulting in crashes during
+compilation.
 
 % For example, if a boolean-valued
 % expression is semantically equivalent to the literal true but the TRS
