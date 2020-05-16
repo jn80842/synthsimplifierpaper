@@ -246,7 +246,7 @@
   %% in response to user-reported bugs.  We demonstrate that the new
   %% term rewriting system is provably sound, more robust, and more general, without
   %% slowing down the compiler.
-  We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and describe four cases in which it has served as an assistant to a human compiler engineer. We further show that it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset lowers peak memory usage of compiled code without notably increasing compilation times.
+  We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and describe four cases in which it has served as an assistant to a human compiler engineer. We further show that it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset lowers peak memory usage of compiled code without appreciably increasing compilation times.
 \end{abstract}
 
 
@@ -300,16 +300,16 @@
 % requirements, compute cost, and battery life.
 
 Halide~\cite{ragankelley2012halide, ragankelley2013halide} has proven to be an
-effective domain-specific language for writing tensor and image processing
-code and obtaining cross-platform high performance. Multiple industrial
-vendors rely on Halide to power applications used by millions of users on
-mobile phones, tablets, desktops, and servers.  Halide separates what is
-computed (the \textit{algorithm}) from how the computation executes (the
-\textit{schedule}); the compiler ensures that different schedules for
-different platforms correctly compute the algorithm. Schedules often require
-the compiler to prove specific properties in order to guarantee correctness or
-to ensure the resulting code performs as well as possible.  For example, to
-fully unroll a loop, the compiler must prove the loop has a constant extent.
+effective domain-specific language for writing cross-platform high-performance
+image processing and tensor computations, with multiple industrial vendors
+relying on Halide to power applications used by millions of users on mobile
+phones, tablets, desktops, and servers. Halide separates what is computed (the
+\textit{algorithm}) from how the computation executes (the \textit{schedule});
+the compiler ensures that different schedules for different platforms correctly
+compute the algorithm. Schedules often require the compiler to prove specific
+properties in order to guarantee correctness or to ensure the resulting code
+performs as well as possible.  For example, to fully unroll a loop, the compiler
+must prove the loop has a constant extent.
 
 Many of these code properties relate regions of computation, which Halide
 represents as intervals over the integers. Whether a property is true is
@@ -1146,7 +1146,7 @@ auditing.
 % (1186-367)/1186
 \newcommand{\PercentPossibleToSynth}{69\%}
 \newcommand{\NumRulesInCorrectnessExperiment}{321}
-\newcommand{\PercentRulesResynthesized}{54\%}
+\newcommand{\PercentRulesResynthesized}{58\%}
 
 In evaluating the benefits of the verifier and synthesizer, we answer the following questions:
 
@@ -1227,7 +1227,7 @@ To bootstrap a TRS, we could start with a TRS equipped with a basic set of rules
 
 Given the space of possible rewrites explored by the synthesizer, we believe that it can currently produce at most \PercentPossibleToSynth{} of rules that exist in the current TRS. The obstacles to synthesizing all human-written rules include (i)~the inability to automatically verify some rules or preconditions (see Question 3 above); (ii)~lack of support for some operators in our synthesizer. 
 
-We tested the synthesizer's ability to recreate the original ruleset in the following experiment. We instrumented the ruleset to associate expressions from compilations of Halide's correctness test suite with individual rules invoked when those expressions are rewritten. We gathered a set of rules for which we had at least three expressions that matched the rule, and filtered out those rules that are out of scope for the current synthesizer, because their right-hand sides contain operators we do not support. This gave us a set of \NumRulesInCorrectnessExperiment{} rules. For each of these rules, we disabled the rule in the TRS, then used its matching expressions as input to the synthesizer. The synthesizer was able to find rules in 172 cases, or about \PercentRulesResynthesized{} of the rules. Of the other 149 cases, in 43 of them other rules in the existing TRS happened to combine to rewrite the specific input expression even without the target rule; for example, this often occurred when the matching expression contained combinations of constants that could be exploited by other rules. 10 of the 106 failure cases were due to timeouts in the synthesis process, while 26 specifically failed to synthesize a predicate. Given that it was difficult to target the desired rule precisely, we find these results to be a promising state of the technology.
+We tested the synthesizer's ability to recreate the original ruleset in the following experiment. We instrumented the ruleset to associate expressions from compilations of Halide's correctness test suite with individual rules invoked when those expressions are rewritten. We gathered a set of rules for which we had at least three expressions that matched the rule, and filtered out those rules that are out of scope for the current synthesizer, because their right-hand sides contain operators we do not support. This gave us a set of \NumRulesInCorrectnessExperiment{} rules. For each of these rules, we disabled the rule in the TRS, then used its matching expressions as input to the synthesizer. The synthesizer was able to find rules in 186 cases, or about \PercentRulesResynthesized{} of the rules. Of the other 135 cases, in 43 of them other rules in the existing TRS happened to combine to rewrite the specific input expression even without the target rule; for example, this often occurred when the matching expression contained combinations of constants that could be exploited by other rules. 10 of the 92 failure cases were due to timeouts in the synthesis process, while 15 specifically failed to synthesize a predicate. Given that it was difficult to target the desired rule precisely, we find these results to be a promising state of the technology.
 
 
 \subsection{Practical Uses of the Synthesizer and Verifier}
