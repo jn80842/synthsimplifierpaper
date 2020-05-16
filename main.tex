@@ -326,11 +326,11 @@ system thorugh verification and synthesis of rules.
 % inefficiencies.
 %
 Our tools target  (1)~incorrect rules, which cause cause miscompilations
-resulting in undefined behavior at runtime, for example writes beyond the end of a
+resulting in undefined behavior at runtime, such as writes beyond the end of a
 buffer;  (2)~missing rules, which lead  the compiler to produce worse code,
 for example when failing to prove the legality of an optimization; and
-(3)~cycles among rules that  keep generate the same subterm, which cause
-non-termination of the TRS.
+(3)~cycles among rules that  keep generating the same subterm, causing
+non-termination of the TRS, resulting in crashes during compilation.
 
 % For example, if a boolean-valued
 % expression is semantically equivalent to the literal true but the TRS
@@ -342,7 +342,7 @@ non-termination of the TRS.
 
 
 \textbf{Verification of rules.} While fuzz testing has been able to find bugs in
-rewrite rules, it cannot provide formal guarantees and in fact our verifier was
+rewrite rules, it cannot provide formal guarantees; in fact our, verifier was
 able to find bugs in the current version of the term rewriter, which has been
 extensively fuzz tested (see Section~\ref{sec:eval-correctness}). Bugs in the
 TRS rules are not surprising:  adding additional rules requires expert
@@ -383,16 +383,18 @@ satisfiability modulo theory (SMT) solver~\cite{de2008z3} and the Coq
 interactive theorem prover~\cite{coq19}.  Additionally, to prove termination, we
 design a termination measure function specific to the Halide TRS and show that every
 application of every rule monotonically decreases this measure for any input
-expression expression.  Finally, we demonstrate the utility of formal
+expression.  Finally, we demonstrate the utility of formal
 verification by (i)~finding, in the well-tested TRS,  five unsoundness bugs that eluded fuzzing;
-(ii)~modifying the TRS to be provably terminating;  and (iii)~proving that TRS rules remain sound even after a recent change to the semantics of some
-Halide operators. 
+(ii)~modifying the TRS to be provably terminating; and (iii)~proving that TRS
+rules remain sound even after a recent change to the semantics of some Halide
+operators.
 
-\textbf{Synthesis of rules.}  Our synthesizer of new rules mines failed input
+\textbf{Synthesis of rules.}  Our synthesizer for new rules mines failed input
 expressions for candidate left-hand sides and synthesizes an equivalent
 right-hand side expression together with a guard that specifies when the rule is
-safe to apply. By comparing with five sets of expert-written rules that were previously added to the TRS to address the TRS limitations, we
-demonstrate that the synthesizer can produce better rules than hand-authored
+safe to apply. By comparing with five sets of expert-written rules that were
+previously added to the TRS to address TRS limitations, we demonstrate that the
+synthesizer can produce better rules than hand-authored
 ones.  We also show that the synthesizer can proactively improve weaknesses in
 the compiler by synthesizing a large number of rules without human supervision;
 specifically, we show (i)~that the enhanced ruleset lowers peak memory usage in
@@ -402,15 +404,15 @@ compilation times.
 We make three main contributions:
 \begin{itemize}
   % \item We guarantee soundness by verifying the existing Halide TRS.
-  \item We develop algorithms for proving correctness and termination of the TRS. The termination proof is based on a reduction order that we designed to allow both proving termination and automatic synthesis of new rules that obey this reduction order. 
+  \item We develop algorithms for proving correctness and termination of the TRS. The termination proof is based on a reduction order that we designed to allow both proving termination of existing rules and automatic synthesis of new rules that obey this reduction order. 
   % \item We guarantee termination by defining a rule strategy that prevents rewriter cycles.
   \item We develop a synthesis algorithm for synthesis of rules in the undecidable theory of integers. 
   The algorithm has a new approach for synthesizing rule preconditions and generates rules that obey the reduction order and preserve termination.
 
-  \item{We evaluate our tools on a number of experiments, including two case studies: adapting the TRS to the change of the semantics of division and modulo; and a large-scale addition of more than 4,000 rules synthesized from more than 100,000 failed expressions. The former yielded a verified TRS for the latest version of Halide.  The latter eliminate over-allocation problems caused by the failures of the previous TRS.}
+  \item{We evaluate our tools on a number of experiments, including two case studies: adapting the TRS to the change of the semantics of division and modulo; and a large-scale addition of more than 4,000 rules synthesized from more than 100,000 failed expressions. The former yielded a verified TRS for the latest version of Halide.  The latter eliminated over-allocation problems caused by the failures of the previous TRS.}
 \end{itemize}
 
-In this paper, we first provide some background on term rewriting systems and the Halide rewriting algorithm. We then describe our approach to verifying rule correction and discuss the relation between LHS and RHS terms that guarantees termination. Once semantics and the termination property have been formalized, we present our synthesis algorithm. We demonstrate the effectiveness of our approach through several experiments and case studies, and finish with a discussion of our current limitations and a review of related work.
+In this paper, we first provide some background on term rewriting systems and the Halide rewriting algorithm. We then describe our approach to verifying rule correctness and discuss the relation between LHS and RHS terms that guarantees termination. Once semantics and the termination property have been formalized, we present our synthesis algorithm. We demonstrate the effectiveness of our approach through several experiments and case studies, and finish with a discussion of our current limitations and a review of related work.
 
 \section{Background \& Overview}
 \subsection{Term Rewriting Systems}
