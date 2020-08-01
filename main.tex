@@ -326,7 +326,7 @@ system thorugh verification and synthesis of rules.
 % synthesizing new rewrite rules to help fix bugs and ameliorate
 % inefficiencies.
 %
-Our tools target  (1)~incorrect rules, which cause cause miscompilations
+Our tools target  (1)~incorrect rules, which cause miscompilations
 resulting in undefined behavior at runtime, such as writes beyond the end of a
 buffer;  (2)~missing rules, which lead  the compiler to produce worse code,
 for example when failing to compute tight bounds on intermediate arrays, resulting
@@ -344,7 +344,7 @@ compilation.
 
 
 \textbf{Verification of rules.} While fuzz testing has been able to find bugs in
-rewrite rules, it cannot provide formal guarantees; in fact our, verifier was
+rewrite rules, it cannot provide formal guarantees; in fact, our verifier was
 able to find bugs in the current version of the term rewriter, which has been
 extensively fuzz tested (see Section~\ref{sec:eval-correctness}). Bugs in the
 TRS rules are not surprising:  adding additional rules requires expert
@@ -722,7 +722,7 @@ ask Z3 to search for a variable assignment such that the LHS and RHS are not
 equivalent.  If Z3 indicates no such assignment exists, the LHS must be equivalent to
 the RHS and the rule must be correct. We implemented an SMT2 printer for 
 Halide rewrite rules that constructs a verification problem for each rule
-suitable for passing to Z3 or other SMT system.  Rule verification using Z3 is fully automated
+suitable for passing to Z3 or another SMT solver.  Rule verification using Z3 is fully automated
 and can be run for the current set of rewrite rules used in the compiler via a script.
 
 However, for 123
@@ -777,7 +777,7 @@ rewriting system containing only one rule: $x + y \rewrites y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
 be matched to the rule and rewritten to $3 + 5$, and so on. The Halide TRS has been observed to fail to terminate in the past\footnote{See for example https://github.com/halide/Halide/pull/1525}, causing unbounded recursion and eventually a stack overflow in the compiler. This issue is tricky to debug, and may not always be reported by users, since the error is fairly opaque. To show that this type of error has been eliminated, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some sequence of rules that form a cycle.
 
-Intuitively, we can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rule always rewrites expressions such that they move monotonically in some direction through expression space, then it will be impossible for any sequence of rules to form a cycle. These directions correspond to our intuition about why certain rules are useful: we may want to write rules that cancel expressions and make them smaller, replace expensive operations with cheaper ones, or canonicalize expressions so we can more easily prove an equivalence. We can consider each of these properties as a dimension in the expression space, in which rewrites should move expressions in the desired direction. If we can formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
+Intuitively, we can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rule always rewrites expressions such that they move monotonically in some direction through the expression space, then it will be impossible for any sequence of rules to form a cycle. These directions correspond to our intuition about why certain rules are useful: we may want to write rules that cancel expressions and make them smaller, replace expensive operations with cheaper ones, or canonicalize expressions so we can more easily prove an equivalence. We can consider each of these properties as a dimension in the expression space, in which rewrites should move expressions in the desired direction. If we can formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
 
 We provide this formalism and prove that the Halide term rewriting system must terminate by constructing a \emph{reduction order}, a strict order with properties that ensure that, for an order $>$ and a rule $l \rewrites r$, if $l > r$, then for any expression $e_1$ that matches $l$ and is rewritten by $l \rewrites r$ into $e_2$, it must be true that $e_1 > e_2$. Crucially, this order is evaluated over rule terms, and not over all expressions that those terms may match. We take the definition of a reduction order and the next two theorems from~\citet{baader1999term}.
 
@@ -837,7 +837,7 @@ For example, one existing rule is the canonicalization $(c_0 - x) + y \rewrites 
 
 Relying on non-local reasoning makes our order more brittle; if the simplifier algorithm were to be changed, the termination guarantee could be lost. However, we use only a small number of basic rules in this way, which are unlikely to be changed.
 
-Besides giving a termination guarantee, the reduction order is necessary if we want to synthesizing new rewrite rules. If we do not constrain newly-synthesized rules to obey a consistent reduction order with the existing human-written ones, they form cycles with the existing rules and cause infinite recursion in the TRS. Additionally, the reduction order is the formal encoding of the types of transformations we find desirable, so the reduction order limits synthesis to rules that rewrite expressions in a useful direction.
+Besides giving a termination guarantee, the reduction order is necessary if we want to synthesize new rewrite rules. If we do not constrain newly-synthesized rules to obey a consistent reduction order with the existing human-written ones, they form cycles with the existing rules and cause infinite recursion in the TRS. Additionally, the reduction order is the formal encoding of the types of transformations we find desirable, so the reduction order limits synthesis to rules that rewrite expressions in a useful direction.
 
 In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. To ensure this guarantee is preserved, we build a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order. A full description of the reduction order is given in the supplemental material.
 
@@ -1196,7 +1196,7 @@ The synthesizer produced effectively the same rule, along with a variant:
 Case $\mathbb{D}$ is the most interesting. It contains four rules involving comparisons of min and max operations. What happened for each was identical, so we will only discuss the min rules. The first rule is:
 
 \[
-\hmin(x, c_0) < \hmin(x, c_1) + c_2, \hfalse, c_0 \geq c_1 + c_2)
+\hmin(x, c_0) < \hmin(x, c_1) + c_2 \rewrites \hfalse \pred c_0 \geq c_1 + c_2)
 \]
 
 This rule is incorrect (consider $c_0 = c_2 = 1$, $x = c_1 = 0$). It can be fixed by adding the term $c_2 \leq 0$ to the predicate. The synthesizer produced the correct version of this rule, along with two generalizations of it:
@@ -1209,11 +1209,11 @@ This rule is incorrect (consider $c_0 = c_2 = 1$, $x = c_1 = 0$). It can be fixe
 
 The second human rule was:
 \[
-\hmin(x, c_0) < \hmin(x, c_1) \rewrites \hfalse \pred c_0 \geq c_1) 
+\hmin(x, c_0) < \hmin(x, c_1) \rewrites \hfalse \pred c_0 \geq c_1
 \]
 The synthesizer found a more general rule, along with three other commuted variants (elided for space):
 \[
-\hmin(x, y) < \hmin(x, z)) \rewrites y < \hmin(x, z)
+\hmin(x, y) < \hmin(x, z) \rewrites y < \hmin(x, z)
 \]
 Any expression which matches the human-written rule would also match the synthesized one. The synthesized version does not simplify to the constant “false” in a single step. However, after applying this rule to the case considered by the human, we get $c_0 < \hmin(x, c_1)$ where $c_0 \geq c_1$. The simplifier then reduces this to “false” in a second step, so the human-written rule becomes unnecessary. The synthesizer considered the human-written rule, but discarded it as less general than the one above.
 
@@ -1247,7 +1247,7 @@ The first use of verification took place when the TRS had not yet been merged in
 Case $\mathbb{H}$ is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by Alex Reinking~\cite{reinkingthesis}. Existing tests and real uses of Halide were useless as a test of this change, as \emph{they were all carefully written to never divide by zero}. Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now it was necessary to either show that the rule was still correct in the case where a denominator was zero, or constrain the rule to only trigger when the denominator was known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 141 rules were reverified with a human in the loop by revisiting and modifying existing Coq proofs. The mechanical re-verification was all but push-button; the manual effort for updating the Coq proofs was non-trivial, but about half of the effort of writing the original proofs from scratch. In this process, 44 existing rules were found to be incorrect in the new semantics and fixed. (Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case $\mathbb{D}$ above.) The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of now-incorrect rules were:
 
 \begin{align*}
-((x/y)*y + x\%y \rewrites & x \\
+(x/y)*y + x\%y \rewrites & x \\
   -1 / x \rewrites & select(x < 0, 1, -1) \\
 (x + y)/x \rewrites & y/x + 1
 \end{align*}
