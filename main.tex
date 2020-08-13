@@ -65,8 +65,10 @@
 \definecolor{uwpurple}{RGB}{128,0,128}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
 \newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
-\newcommand{\aba}[1]{\textcolor{red}{\textit{[{#1} --AA]}}}
+\newcommand{\aba}[1]{\textcolor{green}{\textit{[{#1} --AA]}}}
 \newcommand{\rb}[1]{\textcolor{blue}{\textit{[{#1} --RB]}}}
+
+\newcommand{\modified}[1]{\textcolor{red}{{#1}}}
 
 \newcommand{\hmax}[0]{\texttt{max}}
 \newcommand{\hmin}[0]{\texttt{min}}
@@ -311,17 +313,29 @@ properties or compute bounds on quantities in order to guarantee correctness or 
 performs as well as possible.  For example, to fully unroll a loop, the compiler
 must prove the loop has a constant extent.
 
-Many of these properties and quantities relate regions of computation, which Halide
-represents as intervals over the integers. Halide utilizes a \textit{term rewriting system}
-(TRS) to compute bounds on regions of computation and prove required properties. For
-efficiency reasons, the Halide TRS traverses expressions bottom-up, greedily
-applying the first matching rule from an ordered set of about a thousand
-handwritten rewrite rules. These rules were constructed by developers based on
-observed compilation failures over many years, and ordered to avoid
-non-termination.
+%% OLD
+%% Many of these properties and quantities relate regions of computation, which Halide
+%% represents as intervals over the integers. Halide utilizes a \textit{term rewriting system}
+%% (TRS) to compute bounds on regions of computation and prove required properties. For
+%% efficiency reasons, the Halide TRS traverses expressions bottom-up, greedily
+%% applying the first matching rule from an ordered set of about a thousand
+%% handwritten rewrite rules. These rules were constructed by developers based on
+%% observed compilation failures over many years, and ordered to avoid
+%% non-termination.
+\modified{Many of these properties and quantities require reasoning over the
+  undecidable theory of integers.  Halide relies on a \textit{term rewriting system}
+  (TRS) as a proof engine; since these properties must be proved during compilation,
+  the Halide TRS is designed to be efficient and deterministic, by traversing
+  expressions bottom-up, greedily applying the first matching rule from an ordered
+  set of about a thousand handwritten rewrite rules.  These rules were constructed
+  by developers based on observed compilation failures over many years, and
+  hand-ordered to avoid non-termination.  Since the underlying theory is undecidable,
+  it is impossible to obtain a complete TRS, as such a proof engine would constitute
+  a decision procedure. 
+}
 
 In this work, we develop tools that improve the Halide term rewriting
-system thorugh verification and synthesis of rules.  
+system through verification and synthesis of rules.  
 % verifying rewrite rules to find and prevent bugs, and
 % synthesizing new rewrite rules to help fix bugs and ameliorate
 % inefficiencies.
@@ -332,7 +346,8 @@ buffer;  (2)~missing rules, which lead  the compiler to produce worse code,
 for example when failing to compute tight bounds on intermediate arrays, resulting
 in over-allocations; and (3)~cycles among rules that keep generating the same
 subterm, causing non-termination of the TRS, resulting in crashes during
-compilation.
+compilation.  \modified{Since completeness is impossible, 
+  we concentrate on adding rules that apply to expressions observed in practice.}
 
 % For example, if a boolean-valued
 % expression is semantically equivalent to the literal true but the TRS
@@ -389,12 +404,16 @@ expression.  Finally, we demonstrate the utility of formal
 verification by (i)~finding, in the well-tested TRS,  five unsoundness bugs that eluded fuzzing;
 (ii)~modifying the TRS to be provably terminating; and (iii)~proving that TRS
 rules remain sound even after a recent change to the semantics of some Halide
-operators.
+operators.  \modified{Our successful verification of the TRS, and the utilization
+  of our formal verification artifacts during this change of semantics, demonstrates
+  how formal methods can enable better maintenance of a complex, real-world compiler.}
 
 \textbf{Synthesis of rules.}  Our synthesizer for new rules mines failed input
 expressions for candidate left-hand sides and synthesizes an equivalent
 right-hand side expression together with a guard that specifies when the rule is
-safe to apply. By comparing with five sets of expert-written rules that were
+safe to apply. \modified{Unlike a completion procedure, the synthesis algorithm discovers new rules that
+  are not derivable from the set of existing rules}.
+By comparing with five sets of expert-written rules that were
 previously added to the TRS to address TRS limitations, we demonstrate that the
 synthesizer can produce better rules than hand-authored
 ones.  We also show that the synthesizer can proactively improve weaknesses in
