@@ -335,7 +335,11 @@ must prove the loop has a constant extent.
 }
 
 In this work, we develop tools that improve the Halide term rewriting
-system through verification and synthesis of rules.  
+system through verification and synthesis of rules; \modified{though it
+  may be possible to improve the overall rewriting algorithm, we
+  constrain our improvements to modifying the ruleset, while preserving
+  the important efficiency and determinism requirements of the Halide
+  TRS as a whole.}
 % verifying rewrite rules to find and prevent bugs, and
 % synthesizing new rewrite rules to help fix bugs and ameliorate
 % inefficiencies.
