@@ -678,6 +678,66 @@ Finally, although Z3 can be used to simplify expressions, simply reducing the si
 
 %The Halide TRS gives a nice starting point for synthesis because a failed call to the simplifier yields an expression the simplifier can make no progress on. A failed egraph call gives an equivalence class that should include the goal state but doesn't, so it's not as clear how to debug that.
 
+\subsection{\modified{Completeness of the Halide TRS}}
+
+\modified{We know by observation that the current Halide TRS cannot prove certain equalities 
+that are in fact true, or reduce certain expressions that can be further simplified. 
+Our goal is to learn new rules that would strengthen the TRS and allow it to make
+further progress on these ``stuck'' expressions. This goal seems similar to that of 
+\emph{completion}, which constructs a decision procedure through syntatic rewrites
+for a set of identities. We do not use completion directly in this work, although
+our synthesis algorithm could be considered analogous to completion in some ways.}
+
+\modified{In the standard Knuth-Bendix completion algorithm~\cite{knuth1983simple}, we take a
+finite set of identities $E$ and a reduction order $>$ on terms; if successful, the
+algorithm will return a finite, convergent set of rules $R$ that is equivalent to 
+$E$. The algorithm may also fail, or fail to terminate. At each step the algorithm
+maintains a set of identities and a set of rules, both of which can be updated; the 
+algorithm may transform an identity into a new rule, find a new identity as a 
+consequence of the ruleset, or use the present ruleset to refine either an identity 
+or a rule. The algorithm runs until the ruleset has converged; specific implementations
+may use some conditions under which to terminate with a failure.}
+
+\modified{Naturally, no finite set of identities exists for the theory of integers. We could
+fix a set of identities to use in a completion procedure, but choosing these axioms
+is a non-trivial task. One issue is that the theory contains axioms such as commutativity;
+an identity such as $x + y \equiv y + x$ cannot be oriented by any possible reduction 
+order, so our completion algorithm cannot make use of this fact. Another is that any
+sufficiently powerful set of identities would almost certainly result in a non-terminating
+completion procedure.}
+
+\modified{One approach might be to transform the existing Halide TRS into a set of undirected
+identities $E_R$ and use it together with a reduction order as inputs to a completion procedure. 
+If successful, this would yield a convergent TRS, for which any order of rewrites to 
+an expression would ultimately yield the same result. (It is not immediately clear how 
+to handle rule predicates in this case however.) While this is certainly desirable, 
+our intuition is that most proof failures in the current Halide TRS is not due to a 
+lack of confluence, but because of knowledge of the Halide expression langauge semantics 
+not emcompassed by the identities in $E_R$.}
+
+\modified{Instead, our synthesis algorithm seeks to learn rules which cannot (necessarily) be 
+deduced from the existing ruleset. In the absence of a finite set of identities, we 
+treat an SMT solver as an oracle that can be queried to find if a suggested identity 
+holds in our theory. If the identity holds and can be oriented using our reduction order, 
+it is added as a rule. It is possible that the newly synthesized rule may be a consequence 
+of the existing ruleset and thus could have been found by running completion on $E_R$, 
+but we believe the case in which synthesized rules contain information that is previously 
+unknown to the TRS is more common. }
+
+\modified{If we consider our solver as standing in for an infinite set of identities that make up
+our theory, we clearly could synthesize an infinite number of rules. Here we make use
+of the fact that the types of expressions encountered by the compiler have some bias; 
+that is, they are not sampled randomly from the entire expression space. In a preliminary 
+experiment, we tried generating LHSs at random within a certain expression size and 
+synthesizing RHSs to serve as new rules. We were able to find an extremely large number of 
+``missing'' rules that were not represented in the current TRS, but the new ruleset had 
+no measurable performance impact on benchmarks. Even using commutativity and associativity 
+laws to produce all permutations of existing rule LHSs caused the number of rules to 
+explode with no clear benefit. Thus, we only synthesize rules if their LHS could be 
+applied to at least one expression observed by the compiler under realistic usecases. Even 
+without a formal definition of the bias on encountered expressions, we are able to 
+target synthesis to produce new rules that have some impact on compiler output.}
+
 \subsection{Program Synthesis}
 Our pipeline for automatically generating new rules relies on program synthesis.
 Syntax-guided synthesis (SyGuS)~\cite{sygus} searches a space of possible programs in order to find one that meets
