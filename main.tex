@@ -710,19 +710,70 @@ both vectors and scalars, because the most important uses of the TRS within the 
 apply to these types.}
 
 \subsubsection{\modified{Uses of the TRS}}
+\label{sec:uses-of-trs}
 \modified{While the Halide compiler makes use of the TRS in numerous ways, the most important
-  application of the TRS is when the compiler uses it as a proof engine.  These uses arise
-  when the compiler must prove properties about the code in order to guarantee the
+  applications of the TRS are its use as a fast simplifier and as a proof engine.  
+  In many parts of the compiler, the TRS is used to rewrite expressions into simpler forms,
+  which are easier for the compiler to reason about, and result in less code being generated for
+  LLVM to consume at the backend.  Most importantly, the compiler uses the TRS to simplify expressions
+  into constants or monotonic with respect to loop bounds; these simplifications are core to Halide's
+  ability to generate drastically different loop nests for different schedules.}
+
+\modified{For example, consider the simple two-stage imaging pipeline $(g(x) = f(x - 1) + f(x) + f(x + 1)$.
+  Halide enables programmers to fuze the computation of $f$ into $g$ at an arbitrary granularity
+  using the \texttt{compute\_at} scheduling directive.  This requires Halide to automatically reason
+  about which region of $f$ is required for a specific sub-region (or tile) of $g$, using interval
+  arithmetic over symbolic values for the size of a tile of $g$.  For a tile size of 8, a tile of $g$
+  is the region \texttt{[g.tile\_min, g.tile\_min+7]}, and the region of $f$ required is
+  \texttt{[g.tile\_min-1, g.tile\_min+8]}, and the number of values of $f$ to compute is then
+  \texttt{g.tile\_min + 8 + 1 - (g.tile\_min - 1)}.  If the TRS can determine this is a static value
+  of 10, the Halide compiler can then safely perform transformations requested by the user.  In this
+  case, the compiler can use stack memory instead of inserting a dynamic allocation; or the loop can be
+  completely unrolled; the loop can be vectorized; or $f$ can be mapped to GPU threads (since a single
+  threadblock must have a compile-time-known size).  More generally, this kind of region analysis
+  operates most effectively when the expressions are monotonic in the loop bounds; otherwise, interval
+  arithmetic can result in vast overestimates of required regions.  These kinds of simplifications are essential
+  for the compiler to work, and are often not as simple as this example.}
+
+\modified{The specific rules for simplifying to perform cancellations and ensure monotonicity are incredibly important
+  for compiler performance.  As a simple experiment, we remove these rules and instead
+  only allow Halide to perform constant folding simplifications.  This results in a geometric mean
+  compile time increase of 510\% and the runtime of the resulting code increases by a geometric
+  mean of 2642\%.  This three order of magnitude slowdown would make the Halide compiler unusable.}
+
+
+%% Fodder from synthesis section:
+%% For example, Halide relies on symbolic interval arithmetic to determine how much memory
+%% to allocate and how many values to compute for each stage.  Symbolic interval arithmetic
+%% is exact when an expression monotonically increases or decreases over a loop.}
+%% For example, if $x \in [0, 100]$, then symbolic interval arithmetic states that
+%% $\hmax(x, x/2 + 20) \in [20, 100]$, which is the tightest correct
+%% bound; this bound is obtained by substituting in the lower and upper bounds of $x$
+%% into the expression. However, in the presence of anti-correlated subexpressions
+%% interval arithmetic becomes inexact, and is prone to overestimating
+%% bounds. The expression $\hmin(x, 100 - x)$ when $x \in [0, 100]$ is bounded above by 50, but
+%% symbolic interval arithmetic makes the weaker claim that it is bounded
+%% above by 100, by setting the first instance of $x$ to 100 and the
+%% second instance of $x$ to zero.
+
+\modified{The use as a proof engine occurs when the compiler must prove properties about the code in order to guarantee the
   correctness of specific transformations or the relationships between bounds of
   different loops or producer-consumer relationships.  In such cases, the compiler constructs
   an expression that must be true or false in order to guarantee correctness, then applies
   the TRS to see if the expression simplifies to a single boolean value.}
 
-\modified{For example, TODO: insert examples here}.
+\modified{For example, Halide uses Euclidean division, which rounds according to the sign of the
+  denominator.  Lowering this to code requires emitting several instructions, which can be
+  slower than native division.  When the compiler can statically prove the signs of the numerator
+  and denominator, in some cases the code can be replaced by native division or even a different
+  instruction altogether.  For example, for an expression \texttt{x / max(y, 1)} the compiler
+  will try to prove $0 < max(y, 1)$.  The TRS first invokes a rule to transform this to
+  $0 < y || 0 < 1$, which then is transformed to true (since the second clause is always true).
+  Thus, the compiler replaces the Euclidean division with machine division.}
 
-\modified{Proof failures have adverse results on the compiler, making it flaky and
-  difficult for programmers to use.  When the TRS fails to prove a property, the consequences
-include: }
+\modified{TRS failures have adverse results on the compiler, making it flaky and
+  difficult for programmers to use.  When the TRS fails to properly simplify an expression or
+  prove a property, the consequences include: }
 \begin{itemize}
 \item Insufficiently tight bounds on loops and allocations, which may result in
   runtime failures (e.g. due to memory overallocation) or performance issues;
@@ -1213,40 +1264,48 @@ The aim of the synthesis pipeline is to learn new rules useful for
 reasoning about a corpus of input expressions. Depending on the task,
 these expressions might be gathered from a bug report, or gathered
 from compiler logs. With logging enabled, the compiler records two
-kinds of problematic expression for which new TRS rules may be helpful.
+kinds of problematic expression for which new TRS rules may be helpful:
+\modified{non-monotonic expressions, which can result in over-conservative
+bounds for loops and memory allocations; and proof failures,
+which may prevent Halide from performing certain optimizations
+(see Section~\ref{sec:uses-of-trs}).  To filter the list of failed proofs,
+the logging machinery attempts to substitute random values for any remaining
+wildcards to check for counterexamples, and only logs expressions for which
+no counterexamples are found after 100 attempts.}
 
-\paragraph{Non-monotonic expressions}
-First, Halide relies on symbolic interval arithmetic for determining
-how much memory to allocate and how many values to compute. Symbolic
-interval arithmetic is exact in cases where an expression
-monotonically increases or decreases over a loop. For example, if $x
-\in [0, 100]$, then symbolic interval arithmetic states that $\hmax(x,
-x/2 + 20) \in [20, 100]$, which is the tightest correct
-bound; this bound is obtained by substituting in the lower and upper bounds of $x$
-into the expression. However, in the presence of anti-correlated subexpressions
-interval arithmetic becomes inexact, and is prone to overestimating
-bounds. The expression $\hmin(x, 100 - x)$ when $x \in [0, 100]$ is bounded above by 50, but
-symbolic interval arithmetic makes the weaker claim that it is bounded
-above by 100, by setting the first instance of $x$ to 100 and the
-second instance of $x$ to zero. The compiler therefore logs all
-instances of expressions which are non-monotonic in some containing
-loop, to make it easier to find inefficiencies caused by this
-overestimation. Any new TRS rule which reduces a non-monotonic
-expression to a monotonic one helps the compiler avoid these
-inefficiencies.
 
-\paragraph{Failed proofs}
-Second, Halide uses the TRS as a prover, to check the legality of
-certain transformations. For example, if a user asks to parallelize a
-loop that scatters values to memory, the compiler constructs a
-boolean-typed expression that encodes the claim that there is no race
-condition and passes this expression to the TRS. If it reduces to the
-constant ``true'', the loop can be parallelized. Otherwise the code is
-rejected. When logging is enabled, in cases where the expression is
-not reduced to a constant the compiler substitutes random values for
-any remaining wildcards to check for counterexamples. If none are
-found after 100 attempts, the expression is logged as something which
-might be reducible to true with more rewrite rules.
+%%\paragraph{Non-monotonic expressions}
+%% First, Halide relies on symbolic interval arithmetic for determining
+%% how much memory to allocate and how many values to compute. Symbolic
+%% interval arithmetic is exact in cases where an expression
+%% monotonically increases or decreases over a loop. For example, if $x
+%% \in [0, 100]$, then symbolic interval arithmetic states that $\hmax(x,
+%% x/2 + 20) \in [20, 100]$, which is the tightest correct
+%% bound; this bound is obtained by substituting in the lower and upper bounds of $x$
+%% into the expression. However, in the presence of anti-correlated subexpressions
+%% interval arithmetic becomes inexact, and is prone to overestimating
+%% bounds. The expression $\hmin(x, 100 - x)$ when $x \in [0, 100]$ is bounded above by 50, but
+%% symbolic interval arithmetic makes the weaker claim that it is bounded
+%% above by 100, by setting the first instance of $x$ to 100 and the
+%% second instance of $x$ to zero. The compiler therefore logs all
+%% instances of expressions which are non-monotonic in some containing
+%% loop, to make it easier to find inefficiencies caused by this
+%% overestimation. Any new TRS rule which reduces a non-monotonic
+%% expression to a monotonic one helps the compiler avoid these
+%% inefficiencies.
+
+%% \paragraph{Failed proofs}
+%% Second, Halide uses the TRS as a prover, to check the legality of
+%% certain transformations. For example, if a user asks to parallelize a
+%% loop that scatters values to memory, the compiler constructs a
+%% boolean-typed expression that encodes the claim that there is no race
+%% condition and passes this expression to the TRS. If it reduces to the
+%% constant ``true'', the loop can be parallelized. Otherwise the code is
+%% rejected. When logging is enabled, in cases where the expression is
+%% not reduced to a constant the compiler substitutes random values for
+%% any remaining wildcards to check for counterexamples. If none are
+%% found after 100 attempts, the expression is logged as something which
+%% might be reducible to true with more rewrite rules.
 
 %We obtain scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compile
 % random but realistic Halide pipelines with random schedules for
