@@ -288,10 +288,15 @@
 
 \section{Introduction}
 
+\jln{from 8/24 meeting: the term solver might be misleading. First two para were meant to
+first lay out the problem, then present a TRS as the Halide implementation. Also: need to be 
+clear how we're presenting the TRS's goals: simplifying expressions, prover, a simplifier that
+proves things by reducing them to true?}
+
 \modified{The compiler for the image processing language Halide uses a solver to resolve a 
 variety of queries over properties of image processing pipelines. 
 For example, the solver may prove a loop extent can be reduced to a constant, allowing the loop 
-to be vectorized or allocated on the stack; it may be used in dependency analysis 
+to be fully unrolled; it may be used in dependency analysis 
 to show that two loops contain no hazards and can be parallelized; or it may prove that certain 
 optimizations are safe, such as lowering code to cheaper instructions. This solver
 is so vital to the compiler that removing it results in 5.1x increases in compilation 
@@ -299,24 +304,26 @@ times and 26.4x increases in runtimes over simple benchmarks. }
 \jln{slightly contradictory point here: TRS is used for lots of different things so needs to be general, but 
 we believe there is still enough of a bias that it's still not attempting to be a true general purpose solver?}
 
-\modified{This solver must balance competing criteria. It must work in 
+\modified{This solver must balance three key criteria:}
+
+\begin{itemize}
+  \item \modified{\textbf{Completeness}
+It must work in 
 the theory of integers, which is undecidable, and makes use of operations such as 
 Euclidean division and maximum/minimum which can be especially difficult for 
 automated reasoning. A solver in this theory is necessarily incomplete, but the more powerful
-the solver in the Halide compiler is, the better overall performance the compiler can achieve. 
-But, the solver is also called many thousands of times over the course of a single compilation, 
-and so needs extremely high performance in terms of 
-both time and memory use. The compiler must always return the same result for the same program,
-regardless of what platform it is run on, 
-so the solver must be deterministic. These last two requirements are in opposition to the first; 
-a more powerful solver will almost certainly be slower, and the determinism requirement 
-means the solver cannot depend on timeouts. Thus the solver's design must balance:}
-
-\begin{itemize}
-  \item \modified{fast performance}
-  \item \modified{deterministic output}
-  \item \modified{completeness}
+the solver in the Halide compiler is, the better overall performance the compiler can achieve. }
+  \item \modified{\textbf{High performance} But, the solver is also called many thousands of 
+times over the course of a single compilation, and so needs extremely high performance in terms of 
+both time and memory use. }
+  \item \modified{\textbf{Determinism} The compiler must always return the same 
+result for the same program, regardless of what platform it is run on, 
+so the solver must be deterministic.}
 \end{itemize}
+
+\modified{The determinism requirement constraints the design of the solver; for example 
+it rules out the use of timeouts. Given that constraint, the Halide solver must optimize 
+both the competing performance and completeness criteria as much as possible.}
 
 \modified{Halide addresses this problem with a \emph{term rewriting system}. Using an algorithm 
 that greedily applies rules in a fixed order and keeps only the expression being currently 
@@ -352,6 +359,20 @@ as well as several rules which could be made more general by relaxing their pred
 The Halide semantics for division was changed during this work; we reran our verification 
 process to find 44 rules which were incorrect under the new semantics, demonstrating 
 the usefulness of our technique.}
+
+\jln{add para here about the TRS philosopher toward increasing robustness. Adding new rules 
+is cheap, but the space of possible rules is too large. Instead, TRS is grown lazily,
+in a data driven way: 
+devs observe failures and add rules to address them. Three types of new rules: add confluence 
+(but does this actually happen?), address rules that could match if we had full AC 
+matching, add rules that are based on axioms that cannot be derived from the existing 
+ruleset at all.}
+
+\jln{recast the termination para to put motivation first: the TRS has an underlying 
+philosophy/strategy of cancelling correlated subexprs, reducing size of exprs, canonicalization, 
+factoring out vector ops, trying to make exprs monotonic. Some of these strategies can 
+fight with each other. Canonicalization has caused non-termination bugs in the past. 
+We formalize with an order etc etc}
 
 \modified{Next, we define an \emph{ordering} over the left-hand and right-hand terms of 
 the rules in the TRS that encodes the intentions behind the rewrites. This ordering 
@@ -579,9 +600,26 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 (y_1 \diamondsuit y_1) \diamondsuit (y_2 \clubsuit y_3)
 \]
 
-(talk here about TRS desirable properties )
+\subsubsection{Properties of Term Rewriting Systems}
+\jln{These are probably all concepts the reader should have in mind. I will rewrite this and possibly move parts of it to more relevant sections.}
 
+\paragraph{Term Rewriting Algorithms}
+A term rewriting system is a set of undirected identities. As described above, when we use one rule to rewrite an expression, we first find a substitution that unifies the expression with the rule's left-hand side, then apply that same substitution to the RHS to get the rewritten expression. We must define an algorithm that selects which rule to apply when using a full ruleset. The algorithm Halide uses is detailed in section~\ref{sec:customalgo}.
 
+\paragraph{Termination}
+Term rewriting systems are not guaranteed to be terminating. Any ruleset could be made terminating through its algorithm: for example, imagine an algorithm that halts once it has successfully applied one rule. However, we will refer to a TRS as terminating when it contains no cycles; in other words, it is not possible to construct an infinite chain of rewrites even if we allow any rewrite to be applied at any time.
+
+\paragraph{Confluence}
+Two terms $x$ and $y$ are said to be \emph{joinable} in some TRS if that TRS can rewrite them both to some term $z$. A TRS is \emph{confluent} if, for any term $x$ that can be rewritten to either $y_1$ or $y_2$, $y_1$ and $y_2$ must be joinable. This essentially means a confluent TRS cannot make bad decisions and get stuck in a local minimum; if it has a choice of different possible rewrites, all choices can lead to the same destination. (Of course, this is only true for a rewrite algorithm that runs to convergence; a more restrictive algorithm might still allow bad choices.)
+
+\paragraph{Normalization}
+Any terminating TRS will put expressions in a normal form. In cases such as proving equalities or canceling like terms, the Halide TRS attempts something stronger: if two terms are semantically equivalent, they should be in the same normal form. This is impossible in the general case, as such a TRS would constitute a decision procedure for the undecidable theory of integers. However, as we attempt to make the Halide TRS more robust, this is something to strive for.
+
+\paragraph{Syntactic rewrites in a semantic theory}
+A term rewriting system on its own is purely syntactic; it manipulates the symbols in expressions with no knowledge of their meaning. However, the Halide TRS must be sound with regard to the Halide expression semantics; all rewrites must be semantics-preserving. 
+
+\paragraph{AC matching}
+Associativity and commutativity laws are particularly troublesome for term rewriting systems. For one expression $e$, the number of semantically equivalent expressions grows exponentially in terms of the number of AC operations $e$ contains. Some term rewriting systems perform a full \emph{AC matching} step during rewriting. Halide does not, but: performs a limited, local canonicalization for commutative expressions; adds variant rules for common AC permutations. 
 \begin{figure*}
 \begin{tabular}{cccc}
 
@@ -810,6 +848,7 @@ algorithm and instead never backtracks, maintaining minimal state-- only the
 current expression being rewritten.}
 
 \subsubsection{\modified{Halide's Custom TRS Algorithm}}
+\label{sec:customalgo}
 The Halide term rewriting algorithm simplifies an input expression in a
 depth-first, bottom-up traversal of the expression DAG. At each node, it looks
 up the list of rewrite rules that correspond to the node's function symbol, then
@@ -830,6 +869,7 @@ constants\footnote{Existing rules sometimes have predicates that check if
   time, but these are expensive and used sparingly.}; when the LHS of a rule
 matches an expression, its predicate is evaluated and only if it
 is true will the rewrite be applied.
+\jln{Should we talk about rule priority order here?}
 
 \subsubsection{Scope: Robust, Fast, Non-backtracking Ruleset}
 \modified{In this work, we operate within the scope of Halide's TRS algorithm
@@ -1124,8 +1164,8 @@ Overall results of verifying rule correctness are described in Section~\ref{sec:
 
 \subsection{Termination}
 \label{sub:termination}
-\jln{talk more about termination order as specification here. Also talk about desire to 
-maintain common subexpressions?}
+\jln{First motivate the reduction order as a formalization of the strategy behind the Halide TRS. Cancel common terms, maintain common subterms, reduce size of expressions, eliminate expensive operations, canonicalize.}
+
 Term rewriting systems are not guaranteed to terminate. Consider a term
 rewriting system containing only one rule: $x + y \rewrites y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
@@ -1356,7 +1396,6 @@ and commutations of their input arguments.  For example, the expression $(x/2 + 
 does not match an existing rewrite rule, but a reassociated version does: $y + (x/2 - (x + 11)/2)$
 would be rewritten to $(-10 - (x \% 2)/2) + y)$.  Thus, we construct the candidate rewrite:
 $$(x/2 + y) - (x + 11)/2 \equiv (-10 - (x \% 2)/2) + y)$$
-
 If the first method fails, we apply CEGIS to superoptimize the left-hand side pattern.
 We build a CEGIS loop on top of Z3~\cite{de2008z3}, encoding the LHS as a set of op-codes
 and searching for a semantically equivalent but shorter sequence of operations, similar
