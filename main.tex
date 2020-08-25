@@ -572,7 +572,7 @@ have been able to integrate our techniques into their workflow. Finally, we clos
 
 % In this paper, we first provide some background on term rewriting systems and the Halide rewriting algorithm. We then describe our approach to verifying rule correctness and discuss the relation between LHS and RHS terms that guarantees termination. Once semantics and the termination property have been formalized, we present our synthesis algorithm. We demonstrate the effectiveness of our approach through several experiments and case studies, and finish with a discussion of our current limitations and a review of related work. (refer to sections throughout)
 
-\section{Background \& Overview}
+\section{Backgroundw}
 \subsection{Term Rewriting Systems}
 Term rewriting systems~\cite{gorn1967} are sets of \textit{rewrite rules} used to transform expressions into a new form.  Such systems are widely
 used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{cousot1977abstract, cousot1979systematic}.
@@ -738,7 +738,32 @@ Associativity and commutativity laws are particularly troublesome for term rewri
 (move rationale for Halide to diff section, cite Andrew rationale, strategy)
 (ordering of rules??? what should we explain?)
 (put part of lang here)
-\subsection{Term Rewriting in Halide}
+\subsection{Program Synthesis}
+\label{sec:program-synthesis}
+Our pipeline for automatically generating new rules relies on program synthesis.
+Syntax-guided synthesis (SyGuS)~\cite{sygus} searches a space of possible programs in order to find one that meets
+a semantic specification.  One of the most popular techniques is counterexample-guided
+inductive synthesis (CEGIS), which leverages the power of satisfiability modulo theories
+(SMT) and SAT solvers to make search over a large space of programs more intelligent.
+The task is to find some program in the search space such that for all possible
+inputs, the found program fulfills some semantic criteria, usually equivalence with
+a specification.
+
+The CEGIS loop alternates between a learning query, which finds a new candidate program over a small set of inputs, and a verification query which checks to see if the program satisfies the specification for all inputs. We begin with a specification $\phi$, choose an initial input $i_0$, and issue a learning query to find a candidate program:
+
+$$\exists P . \phi(P(i_0))$$
+
+When some program $P_1$ is found, we ask a verification query to see if there is some input on which $P_1$ does not fulfill the specification:
+
+$$\exists i . \neg \phi(P_1(i))$$
+
+If no such input can be found, the program satisfies the specification on all inputs and we are done. If not, the query returns some $i_1$ as a counterexample. We then return to our learning query, enhanced with the newly found counterexample:
+
+$$\exists P . \phi(P(i_0)) \wedge \phi(P(i_1))$$
+
+We continue in this way until either a program is found for which the verification query can find no counterexample, or until the learning query cannot find a program that fulfills the specification when applied to all of the learned counterexample set.
+
+\section{Term Rewriting in Halide}
 The Halide compiler contains a term rewriting system composed of over a thousand
 rules, operating over the space of Halide expressions\footnote{See Supplemental Material for
 the full Halide expression grammar}.  \modified{The language of Halide expressions
@@ -1051,30 +1076,8 @@ applied to at least one expression observed by the compiler under realistic usec
 without a formal definition of the bias on encountered expressions, we are able to 
 target synthesis to produce new rules that have some impact on compiler output.}
 
-\subsection{Program Synthesis}
-\label{sec:program-synthesis}
-Our pipeline for automatically generating new rules relies on program synthesis.
-Syntax-guided synthesis (SyGuS)~\cite{sygus} searches a space of possible programs in order to find one that meets
-a semantic specification.  One of the most popular techniques is counterexample-guided
-inductive synthesis (CEGIS), which leverages the power of satisfiability modulo theories
-(SMT) and SAT solvers to make search over a large space of programs more intelligent.
-The task is to find some program in the search space such that for all possible
-inputs, the found program fulfills some semantic criteria, usually equivalence with
-a specification.
 
-The CEGIS loop alternates between a learning query, which finds a new candidate program over a small set of inputs, and a verification query which checks to see if the program satisfies the specification for all inputs. We begin with a specification $\phi$, choose an initial input $i_0$, and issue a learning query to find a candidate program:
 
-$$\exists P . \phi(P(i_0))$$
-
-When some program $P_1$ is found, we ask a verification query to see if there is some input on which $P_1$ does not fulfill the specification:
-
-$$\exists i . \neg \phi(P_1(i))$$
-
-If no such input can be found, the program satisfies the specification on all inputs and we are done. If not, the query returns some $i_1$ as a counterexample. We then return to our learning query, enhanced with the newly found counterexample:
-
-$$\exists P . \phi(P(i_0)) \wedge \phi(P(i_1))$$
-
-We continue in this way until either a program is found for which the verification query can find no counterexample, or until the learning query cannot find a program that fulfills the specification when applied to all of the learned counterexample set.
 
 \section{Soundness}
 \label{sec:soundness}
