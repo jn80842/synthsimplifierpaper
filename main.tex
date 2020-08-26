@@ -1240,6 +1240,17 @@ Besides giving a termination guarantee, the reduction order is necessary if we w
 
 In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. To ensure this guarantee is preserved, we build a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order. A full description of the reduction order is given in the supplemental material.
 
+\section{Lazy AC Matching}
+
+As mentioned in Section [desing rationale], our TRS performs no AC matching during rewriting.  AC matching is performed entirely by the offline simplifier and memoized with a rewrite rule inserted into the TRS ruleset.  This section details the offline simplifier and the memoization. 
+
+The offline simplifier is invoked on an expression $e$ that failed to be simplifed further by the TRS. [Let's find a term that concisely names such "terminal" expressions.]  In the baseline algorithm, the offline simplifier reassociates $e$ into all possible equivalent expressions $\{ e_i \}$ and attempts to simplify each of them with the (online) TRS.  If an $e_i$ can be simplified into $e_i'$, the rule $e\rightarrow e_i'$ is inserted into the ruleset $R$. 
+
+The actual algorithm is more efficient.  First, the rule inserted into $R$ is more general: it matches not only $e$ but also other expressions of the same syntactic shape. Second, the LHS of the mew rule is the smallest LHS that matches $e$. 
+
+This algorithm has the property that it achieves full AC matching on all expressions that have been encountered previously, as well as their up-to-renaming variants. [Is this a correct claim? And how do we make up-to-renaming more precise?]. This is possible thanks to the laziness: we insert "AC rules" only for actually encountered expressions; achieving AC matching by encoding all possible reasociations in the rule LHSs would create an unbounded number of rules because the TRS can encounter expressions of unbounded size. 
+
+
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \begin{figure*}
 %\includegraphics[width=1.\columnwidth,natwidth=610,natheight=642]{figures/synthesis-flow.pdf}
