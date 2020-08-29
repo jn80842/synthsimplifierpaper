@@ -1326,10 +1326,11 @@ kinds of problematic expression for which new TRS rules may be helpful:
 \modified{non-monotonic expressions, which can result in over-conservative
 bounds for loops and memory allocations; and proof failures,
 which may prevent Halide from performing certain optimizations
-(see Section~\ref{sec:uses-of-trs}).  To filter the list of failed proofs,
+(see Section~\ref{sec:uses-of-trs}). Of course, some proof failures may genuinely have
+no solution. To filter the list of failed proofs,
 the logging machinery attempts to substitute random values for any remaining
-wildcards to check for counterexamples, and only logs expressions for which
-no counterexamples are found after 100 attempts.}
+wildcards to check for counterexamples. If no counterexamples are found after 100
+attempts, we log the expression as one that could potentially be further rewritten.}
 
 
 %%\paragraph{Non-monotonic expressions}
@@ -1377,22 +1378,71 @@ no counterexamples are found after 100 attempts.}
 %lowering to LLVM IR. These expressions have been reduced as far as the current rewriter can, so we attempt
 %to learn rules that could reduce them even further. 
 
+\begin{figure*}
+\begin{tabular}{lll}
+\begin{tikzpicture}[level distance=12mm,baseline=(current bounding box.center)]
+\tikzstyle{level 1}=[sibling distance=15mm]
+\tikzstyle{level 2}=[sibling distance=8mm]
+\tikzstyle{level 3}=[level distance=10mm,sibling distance=5mm]
+
+% tried to label subtrees but positioning looks weird, fix later
+\node (+) {+}
+  child { node (+2) {+}
+    child { node (z) {z}  } % edge from parent node[left,draw=none] {$v_1$}
+    child { node (2) {2} }}
+  child { node (min) {min}
+    child { node (x) {x}}
+    child { node (-) {-} %edge from parent node[right,draw=none] {$v_2$}
+      child {node (y) {y}}
+      child {node (z1) {z} } % edge from parent node[right,draw=none] {$v_3$}}
+    }};
+
+
+\begin{pgfonlayer}{background}
+\fill[red,opacity=0.3] \convexpath{x, min, z1}{10pt};
+\fill[blue,opacity=0.3] \convexpath{y, -, z1}{10pt};
+\fill[green,opacity=0.3] \convexpath{z, +2, 2}{10pt};
+\end{pgfonlayer}
+\end{tikzpicture} &
+\begin{tabular}{llll}
+$(z + 2) + \textrm{min}(x, y - z)$ & $\textrm{min}(x, y - z)$ & $z + 2$ & $y - z$ \\
+$v_1 + \textrm{min}(x, y - z)$ & $\textrm{min}(x, v_2)$ & & \\
+$v_1 + \textrm{min}(x, v_3)$ & & & \\
+$(z + 2) + \textrm{min}(x, v_3)$ & & & \\
+$v_1 + v_2$ & & &
+\end{tabular}
+\end{tabular}
+\caption{Given the input expression $e = (z + 2) + \textrm{min}(x, y - z)$, we find all possible 
+LHS patterns by substituting fresh variables for subterms, for all valid combinations. Then, we repeat the process for 
+each individual subterm. This process yields the list of candidate LHS terms on the right.}
+\label{fig:lhspatterns}
+\end{figure*}
+
 \paragraph{Generating LHS Patterns}
-Whatever their source, for each given input expression the first step
-is to construct all left-hand-side patterns that match some portion of
-the expression.  We constrain the maximum length of a pattern to be
-seven leaf nodes, to ensure fast matching during term rewriting. At
-this stage, patterns preserve any constant values, and subtrees that
-exactly match syntactically are assigned the same wildcard. For
-example, given the expression $(a*b + c/b)$, where all nodes are
-non-constant, we extract the following LHS patterns: $x + y$, $x * y$,
-$x / y$, $x * y + z$, $x + y/z$, and $x*y + z/y$.  We then filter out
-any patterns that do not either contain a repeated wildcard or more
-than one constant. Such patterns are unlikely to result in a useful
-general rewrite.  Thus, of the set above, we would only consider the
-last pattern, since it contains a repeated $y$.  Although the set of
-candidate LHS patterns is exponential in the size of the original
-expression, our filtering reduces the set to a tractable size.
+Our goal is to find a set of candidate LHSs which we know would be able to match the target expression.
+ For each candidate, if we could find an equivalent RHS and 
+form a valid rule, we would be able to make progress on an expression that the current TRS is stuck on. 
+(Note that the candidate LHSs are also expressions that the Halide TRS cannot rewrite; 
+if it could, it would have been able to rewrite the original expression.)
+
+First, we need to find a candidate LHS term that will match the target expression, 
+or some portion of it. We do this through a kind of inverse matching. When we want 
+to attempt to rewrite an expression $e$ with a rule $l \rewrites r$, the first step is to 
+match $e$ to $l$ by finding a substitution $\sigma$ that unifies the two expressions 
+such that $\sigma(l) = e$. To find a candidate LHS, we pick an inverse substitution $\sigma^{-1}$
+that maps subterms of $e$ to fresh variables, then substitute to construct the LHS term $l$
+such that $\sigma^{-1}(e) = l$. We repeat to find all possible LHSs that could match the
+target expression, then perform the procedure again to find all LHSs that could match 
+any subterm of the expression as well. Once this is done, we have a set of all possible
+LHSs that could be matched with any part of our input expression. See figure~\ref{fig:lhspatterns} 
+for a worked example.
+
+This process is exponential in the size of $e$, so we use a few heuristics to narrow 
+our search. We bound the size of candidate LHSs at 12 nodes; longer terms are unlikely to 
+yield usefully general rules. We process target expressions in batches so we can remove 
+duplicates, as well as LHS that are identical except for the values of their constants. 
+We also found it helpful to keep a blacklist of LHSs we could not find rules for in 
+previous runs (for example, $v_1 + v_3$ is not likely to form a useful rule).
 
 \paragraph{Synthesizing Right-Hand Sides} Given a candidate left-hand side, we 
 synthesize a right-hand side that is semantically equivalent and
