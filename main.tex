@@ -286,20 +286,16 @@
 \maketitle
 
 
+\jln{TODO: check all the numbers for various evaluations and make sure they agree}
 \section{Introduction}
 
-\jln{from 8/24 meeting: the term solver might be misleading. First two para were meant to
-first lay out the problem, then present a TRS as the Halide implementation. Also: need to be 
-clear how we're presenting the TRS's goals: simplifying expressions, prover, a simplifier that
-proves things by reducing them to true?}
-
-\modified{The compiler for the image processing language Halide uses a solver to resolve a 
-variety of queries over properties of image processing pipelines. 
-For example, the solver may prove a loop extent can be reduced to a constant, allowing the loop 
-to be fully unrolled; it may be used in dependency analysis 
-to show that two loops contain no hazards and can be parallelized; or it may prove that certain 
-optimizations are safe, such as lowering code to cheaper instructions. This solver
-is so vital to the compiler that removing it results in 5.1x increases in compilation 
+\modified{When the Halide language compiles an image processing pipeline, its compiler must issue a 
+variety of queries over the pipeline's properties. For example, it may attempt to prove a 
+loop extent can be reduced to a constant, allowing the loop to be fully unrolled; it may 
+check properties as part of dependency analysis to show that two loops contain no hazards 
+and can be parallelized; or it may try to prove that certain optimizations can be safely 
+performed, such as lowering code to cheaper instructions. The solver that addresses these 
+queries is so vital to the compiler that removing it results in 5.1x increases in compilation 
 times and 26.4x increases in runtimes over simple benchmarks. }
 
 \modified{This solver must balance three key criteria:}
@@ -318,13 +314,13 @@ result for the same program, regardless of what platform runs the compiler,
 so the solver must be deterministic.}
 \end{itemize}
 
-\modified{Determinism is hard requirement for the design of the solver; for example 
-it rules out the use of timeouts. Given that constraint, the Halide solver must optimize 
-the competing criteria of performance and completeness as much as possible.}
+\modified{Determinism is a hard requirement for the design of the solver, which rules out
+techniques such as the use of timeouts. Given that constraint, the Halide solver must address 
+as many of the compiler's queries as possible while maintaining high performance.}
 
 \modified{Halide addresses this problem with a \emph{term rewriting system}. Using a custom algorithm 
-that greedily applies rules in a fixed order and keeps only the single expression being currently 
-rewritten as state, the term rewriting system gives the performance and determinism 
+that greedily applies rules in a fixed order and keeps only the expression being currently 
+rewritten in state, the term rewriting system (TRS) gives the performance and determinism 
 that the compiler requires. This algorithm scales well in terms of the number of rules
 in the TRS, so Halide developers have continued to improve and increase its solving 
 power by refining the ruleset and adding new rules by hand.}
@@ -357,33 +353,18 @@ The Halide semantics for division changed during this work; we reran our verific
 process to find 44 rules which were incorrect under the new semantics, demonstrating 
 the usefulness of our technique.}
 
-\jln{add para here about the TRS philosopher toward increasing robustness. Adding new rules 
-is cheap, but the space of possible rules is too large. Instead, TRS is grown lazily,
-in a data driven way: 
-devs observe failures and add rules to address them. Three types of new rules: add confluence 
-(but does this actually happen?), address rules that could match if we had full AC 
-matching, add rules that are based on axioms that cannot be derived from the existing 
-ruleset at all.}
-
-\jln{recast the termination para to put motivation first: the TRS has an underlying 
-philosophy/strategy of cancelling correlated subexprs, reducing size of exprs, canonicalization, 
-factoring out vector ops, trying to make exprs monotonic. Some of these strategies can 
-fight with each other. Canonicalization has caused non-termination bugs in the past. 
-We formalize with an order etc etc}
-\sak{Tried to do that, take a look}
-
-\modified{Next, we encode the meaning of simplification in the context of the Halide TRS
-by defining what it means for a rule to usefully modify an expression.  While
+\modified{Next, we define the meaning of simplification in the context of the Halide TRS
+by formalizing what it means for a rule to usefully modify an expression.  While
 many notions of ``simpler'' are possible, we encode the specific criteria for Halide
 expressions by defining an \emph{ordering} over the left-hand and right-hand terms of 
-the rules in the TRS that encodes the intentions behind the rewrites. This ordering 
+the rules in the TRS that captures the intentions behind the rewrites. This ordering 
 means that every local change caused by the application of a rewrite rule moves the 
 expression in some useful direction. By composing several orders lexicographically, 
-we can express many different intuitions about what makes an expression simpler: 
-we may want to remove as many vector operations as possible, 
+we can express many different intuitions about what makes an expression simpler in a
+defined priority: we may want to remove as many vector operations as possible, 
 then reduce the overall size of the expression, and so on. Usefully, this order also provides a termination guarantee: 
 if every rewrite leaves the rewritten expression strictly less in terms of our order, 
-then it is impossible for any sequence of rewrites to form cycles and the rewrite 
+then it is impossible for any sequence of rewrites to form cycles, so the rewrite 
 algorithm must terminate. This is not a hypothetical issue; Halide developers have previously
 observed non-termination when adding rules.  We devise an ordering that fits as many of the existing rules as 
 possible; by removing the few rules that do not obey this ordering, we prove 
@@ -415,164 +396,12 @@ and the Halide rewriting algorithm. We then describe our approach to verifying
 rule correctness and discuss the relation between LHS and RHS terms that guarantees 
 termination. Once semantics and the termination property have been formalized, 
 we present our synthesis algorithm. We demonstrate the effectiveness of our approach 
-through several experiments and case studies, with observations on how Halide developers 
+through several experiments and case studies, with observations on the ways Halide developers 
 have been able to integrate our techniques into their workflow. Finally, we close
  with a discussion of our current limitations and a review of related work.}
 % possibly add some high-level results from the evaluation here
 \jln{TODO: add references to sections to the above}
 
-%%% RB: I dont think we need to start by motivating Halide.  It's well known enough.
-%%% Skipping this allows us to start talking about our contribs in the 3rd para, 
-%%% as is common. If we really want a more general intro paragraph, I would add one on 
-%%% how every array compiler needs a decision proedure or a solver.  We can point
-%%% to some polyhedral compilers and say what solver engines they use, and then 
-%%% bring up Halide. 
-%
-% Tensor and image processing pipelines power a large number of applications,
-% including computational photography, medical imaging, machine learning,
-% and computer vision, which run on a large variety of platforms, from
-% mobile phones to large-scale servers in the cloud.  For many of these
-% applications, high performance is an essential requirement due to real-time
-% requirements, compute cost, and battery life.
-
-% \subsection{Old introduction}
-% Halide~\cite{ragankelley2012halide, ragankelley2013halide} has proven to be an
-% effective domain-specific language for writing cross-platform high-performance
-% image processing and tensor computations, with multiple industrial vendors
-% relying on Halide to power applications used by millions of users on mobile
-% phones, tablets, desktops, and servers. Halide separates what is computed (the
-% \textit{algorithm}) from how the computation executes (the \textit{schedule});
-% the compiler ensures that different schedules for different platforms correctly
-% compute the algorithm. Schedules often require the compiler to prove specific
-% properties or compute bounds on quantities in order to guarantee correctness or to ensure the resulting code
-% performs as well as possible.  For example, to fully unroll a loop, the compiler
-% must prove the loop has a constant extent.
-
-%% OLD
-%% Many of these properties and quantities relate regions of computation, which Halide
-%% represents as intervals over the integers. Halide utilizes a \textit{term rewriting system}
-%% (TRS) to compute bounds on regions of computation and prove required properties. For
-%% efficiency reasons, the Halide TRS traverses expressions bottom-up, greedily
-%% applying the first matching rule from an ordered set of about a thousand
-%% handwritten rewrite rules. These rules were constructed by developers based on
-%% observed compilation failures over many years, and ordered to avoid
-%% non-termination.
-% \modified{Many of these properties and quantities require reasoning over the
-%   undecidable theory of integers.  Halide relies on a \textit{term rewriting system}
-%   (TRS) as a proof engine; since these properties must be proved during compilation,
-%   the Halide TRS is designed to be efficient and deterministic, by traversing
-%   expressions bottom-up, greedily applying the first matching rule from an ordered
-%   set of about a thousand handwritten rewrite rules.  These rules were constructed
-%   by developers based on observed compilation failures over many years, and
-%   hand-ordered to avoid non-termination.  Since the underlying theory is undecidable,
-%   it is impossible to obtain a complete TRS, as such a proof engine would constitute
-%   a decision procedure. 
-% }
-
-% In this work, we develop tools that improve the Halide term rewriting
-% system through verification and synthesis of rules; \modified{though it
-%   may be possible to improve the overall rewriting algorithm, we
-%   constrain our improvements to modifying the ruleset, while preserving
-%   the important efficiency and determinism requirements of the Halide
-%   TRS as a whole.}
-% verifying rewrite rules to find and prevent bugs, and
-% synthesizing new rewrite rules to help fix bugs and ameliorate
-% inefficiencies.
-%
-% Our tools target  (1)~incorrect rules, which cause miscompilations
-% resulting in undefined behavior at runtime, such as writes beyond the end of a
-% buffer;  (2)~missing rules, which lead  the compiler to produce worse code,
-% for example when failing to compute tight bounds on intermediate arrays, resulting
-% in over-allocations; and (3)~cycles among rules that keep generating the same
-% subterm, causing non-termination of the TRS, resulting in crashes during
-% compilation.  \modified{Since completeness is impossible, 
-%   we concentrate on adding rules that apply to expressions observed in practice.}
-
-% For example, if a boolean-valued
-% expression is semantically equivalent to the literal true but the TRS
-% cannot rewrite it to that form, the compiler may be unable to apply a
-% valid optimization, resulting in suboptimal code output and possibly
-% even errors during compilation if that optimization was explicitly
-% requested in the \textit{schedule}.
-
-
-
-% \textbf{Verification of rules.} While fuzz testing has been able to find bugs in
-% rewrite rules, it cannot provide formal guarantees; in fact, our verifier was
-% able to find bugs in the current version of the term rewriter, which has been
-% extensively fuzz tested (see Section~\ref{sec:eval-correctness}). Bugs in the
-% TRS rules are not surprising:  adding additional rules requires expert
-% programmers to meticulously analyze compilation failures and handcraft rules
-% that mitigate the problems without creating new errors, such as introducing
-% cycles that cause non-termination. Rule creation is a notoriously difficult
-% process that is the subject of numerous complaints from the developers the
-% Halide TRS.
-
-
-%%% RB: I feel that this is too mich info for the Intro.  A better place for this is 
-%%% Section 2. If we want to keep something in the intro, it could be the point 
-%%% about the expressions being non-linear, hence answering them is undecidable, 
-%%% hence Halide is best effort, like other solvers for that fragment of logic. 
-%
-% An ideal TRS for our purpose would fully express the semantics of the Halide
-% expression language and be \emph{convergent}, meaning that if two expressions
-% are equivalent, the TRS will return the same canonical form for both of them. If
-% so, the rewriter could take any two expressions and determine their equivalence
-%  by rewriting them and checking to see if they have the same form.
-% However, since the Halide expression language contains nonlinear integer
-% arithmetic, the problem of constructing such a term rewriting system is
-% undecidable~\cite{matiyasevich1993hilberts10th}. Thus, the challenge for the
-% Halide TRS is to reason about as much of the Halide expression space
-% as it can, while remaining deterministic and performant.
-
-
-% ... formally checking the existing
-% set of rules to ensure correctness, and then constructing a rule rewrite strategy that 
-% ensures termination.  We then automate the task of writing new rules by building a program
-% synthesis system that automatically checks proof failures (expressions that are
-% correct but not provable by the current TRS), and produces new rules with predicates to guard their application.
-% These synthesized rules preserve correctness and termination properties by construction.
-
-
-% We verified the soundness of existing rules using a combination of the Z3
-% satisfiability modulo theory (SMT) solver~\cite{de2008z3} and the Coq
-% interactive theorem prover~\cite{coq19}.  Additionally, to prove termination, we
-% design a termination measure function specific to the Halide TRS and show that every
-% application of every rule monotonically decreases this measure for any input
-% expression.  Finally, we demonstrate the utility of formal
-% verification by (i)~finding, in the well-tested TRS,  five unsoundness bugs that eluded fuzzing;
-% (ii)~modifying the TRS to be provably terminating; and (iii)~proving that TRS
-% rules remain sound even after a recent change to the semantics of some Halide
-% operators.  \modified{Our successful verification of the TRS, and the utilization
-%   of our formal verification artifacts during this change of semantics, demonstrates
-%   how formal methods can enable better maintenance of a complex, real-world compiler.}
-
-% \textbf{Synthesis of rules.}  Our synthesizer for new rules mines failed input
-% expressions for candidate left-hand sides and synthesizes an equivalent
-% right-hand side expression together with a guard that specifies when the rule is
-% safe to apply. \modified{Unlike a completion procedure, the synthesis algorithm discovers new rules that
-%   are not derivable from the set of existing rules}.
-% By comparing with five sets of expert-written rules that were
-% previously added to the TRS to address TRS limitations, we demonstrate that the
-% synthesizer can produce better rules than hand-authored
-% ones.  We also show that the synthesizer can proactively improve weaknesses in
-% the compiler by synthesizing a large number of rules without human supervision;
-% specifically, we show (i)~that the enhanced ruleset lowers peak memory usage in
-% the compiled code, and (ii)~that adding new rules does not notably increase
-% compilation times.
-
-% We make three main contributions:
-% \begin{itemize}
-%   % \item We guarantee soundness by verifying the existing Halide TRS.
-%   \item We develop algorithms for proving correctness and termination of the Halide TRS. The termination proof is based on a reduction order that we designed to allow both proving termination of existing rules and automatic synthesis of new rules that obey this reduction order. \modified{This proof demonstrates that a combination of automated and hand-written verifications can scale to the size of a large, hand-written ruleset over the undecidable theory of integers.} (red part is good, reduce the rest)
-%   % \item We guarantee termination by defining a rule strategy that prevents rewriter cycles.
-%   \item We develop a synthesis algorithm for synthesis of rules in the undecidable theory of integers. 
-%   The algorithm has a new approach for synthesizing rule preconditions and generates rules that obey the reduction order and preserve termination.  \modified{The synthesis algorithm can discover new transformations that are not derivable from existing rules, unlike the usual completion algorithms for term rewriting systems.} (find 1-2 examples where synth'd rules have new knowledge)
-
-%   \item{We evaluate our tools on a number of experiments, including two case studies: adapting the TRS to the change of the semantics of division and modulo; and a large-scale addition of more than 4,000 rules synthesized from more than 100,000 failed expressions. The former yielded a verified TRS for the latest version of Halide.  The latter eliminated over-allocation problems caused by the failures of the previous TRS.} (talk about what to do with this if you are not Halide dev; can be used to create/grow other TRSs)
-% \end{itemize}
-
-% In this paper, we first provide some background on term rewriting systems and the Halide rewriting algorithm. We then describe our approach to verifying rule correctness and discuss the relation between LHS and RHS terms that guarantees termination. Once semantics and the termination property have been formalized, we present our synthesis algorithm. We demonstrate the effectiveness of our approach through several experiments and case studies, and finish with a discussion of our current limitations and a review of related work. (refer to sections throughout)
 
 \section{Background}
 \subsection{Term Rewriting Systems}
@@ -1171,7 +1000,11 @@ Overall results of verifying rule correctness are described in Section~\ref{sec:
 
 \subsection{Termination}
 \label{sub:termination}
-\jln{First motivate the reduction order as a formalization of the strategy behind the Halide TRS. Cancel common terms, maintain common subterms, reduce size of expressions, eliminate expensive operations, canonicalize.}
+
+\jln{First motivate the reduction order as a formalization of the strategy behind the Halide TRS. the TRS has an underlying 
+philosophy/strategy of cancelling correlated subexprs, reducing size of exprs, canonicalization, 
+factoring out vector ops, trying to make exprs monotonic. Some of these strategies can 
+fight with each other. Canonicalization has caused non-termination bugs in the past. }
 
 Term rewriting systems are not guaranteed to terminate. Consider a term
 rewriting system containing only one rule: $x + y \rewrites y + x$. The term
@@ -1302,6 +1135,14 @@ This algorithm has the property that it achieves full AC matching on all express
   }
   \caption{\label{alg:synthesis-algorithm} Pseudocode of the synthesis algorithm.}
 \end{algorithm}
+
+\jln{add para here about the TRS philosopher toward increasing robustness. Adding new rules 
+is cheap, but the space of possible rules is too large. Instead, TRS is grown lazily,
+in a data driven way: 
+devs observe failures and add rules to address them. Three types of new rules: add confluence 
+(but does this actually happen?), address rules that could match if we had full AC 
+matching, add rules that are based on axioms that cannot be derived from the existing 
+ruleset at all.}
 
 The Halide term rewriting system is not complete: there
 exist expressions checked by the compiler running on real-world pipelines that
