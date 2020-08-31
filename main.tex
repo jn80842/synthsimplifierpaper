@@ -1279,7 +1279,7 @@ LHSs that could be matched with any part of our input expression. See figure~\re
 for a worked example.
 
 This process is exponential in the size of $e$, so we use a few heuristics to narrow 
-our search. We bound the size of candidate LHSs at 12 nodes; longer terms are unlikely to 
+our search. We bound the size of candidate LHSs; longer terms are unlikely to 
 yield usefully general rules. We process target expressions in batches so we can remove 
 duplicates, as well as LHS that are identical except for the values of their constants. 
 We also found it helpful to keep a blacklist of LHSs we could not find rules for in 
@@ -1292,19 +1292,38 @@ We employ two strategies for synthesizing right-hand sides:
 reassociating and applying a known rewrite, and counter-example guided
 inductive synthesis (CEGIS).
 
-The first strategy comes from the insight that in many cases existing rewrite rules would apply
-if the expression were in a different form.  Therefore, we generate all possible
-reassociations and commutations of the LHS expression, by unpacking sub-expressions
-into a flattened list of leaves, and then enumerating every valid binary
-tree over permutations of the leaves that is semantically equivalent to the original
-expression.  We then check whether an existing rule rewrites any enumerated reassociation.
-When enumerating trees, we consider every reassociation and commutation
-of associative and commutative node types, including addition and subtraction, max, and
-min.  For non-associative/non-commutative nodes, we use the outer product of all reassociations
-and commutations of their input arguments.  For example, the expression $(x/2 + y) - (x + 11)/2$
-does not match an existing rewrite rule, but a reassociated version does: $y + (x/2 - (x + 11)/2)$
-would be rewritten to $(-10 - (x \% 2)/2) + y)$.  Thus, we construct the candidate rewrite:
-$$(x/2 + y) - (x + 11)/2 \equiv (-10 - (x \% 2)/2) + y)$$
+\modified{The first strategy comes from the insight that in many cases the term rewriting system 
+already ``knows'' an axiom that could transform the candidate LHS term if it could be freely 
+rewritten modulo associativity and commutativity laws. Thus, we generate all possible 
+reassociations and commutations of the candidate term and pass them to the existing TRS. 
+If the TRS is able to transform one of them, we can create a new rule that rewrites 
+the original (untransformed) LHS term to the end result of passing a transformed expression to the simplifier.}
+
+\modified{For example, assume our TRS includes the rule $(x + y) - x \rewrites y$, 
+and let $((u + 2) + v) - u$ be a candidate LHS term. The original term does not match
+the rule, but a reassociated/commuted variant does: $(u + (v + 2)) - u$, which the rule 
+rewrites to $v + 2$. This gives us the rule $((u + 2) + v) - u \rewrites v + 2$. }
+
+\begin{equation*}
+\begin{split}
+\boxed{((u + 2) + v) - u} &  \\
+(x + y) - x & \rewrites  y \\
+(u + (v + 2)) - u & \rewrites  \boxed{v + 2} \\
+\end{split}
+\end{equation*}
+
+\modified{We can consider this procedure a kind of lazy, offline AC matching. If the Halide TRS algorithm 
+used full AC matching while rewriting expressions, we would be able to apply the rule above to this 
+expression and get back $v + 2$. Instead, this procedure has the effect of using a single 
+round of AC matching when applying the existing TRS to the candidate LHS term, and 
+memoizing the result if it is productive. Theoretically we could add a rule for every reassociated/commuted 
+version of this term on the left-hand side and $v + 2$ on the right-hand side, but 
+the number of rules would be exponential in the size of the original term. Instead 
+we rely on our assumption that the form of this expression as it occurred in our logged 
+compiler output is far more likely to occur than the others.
+Note that the synthesis procedure below could have found this rule, but checking for AC
+variants of existing rules is far cheaper.}
+
 If the first method fails, we apply CEGIS to superoptimize the left-hand side pattern.
 We build a CEGIS loop on top of Z3~\cite{de2008z3}, encoding the LHS as a set of op-codes
 and searching for a semantically equivalent but shorter sequence of operations, similar
@@ -1314,21 +1333,7 @@ then iteratively increase the number of operations, in order to find shorter seq
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
 operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the leaf node count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
 
-\modified{For example, assume our TRS includes the rule $(x + y) - x \rewrites y$, 
-and consider the input expression $((u + 2) + v) - u$. The expression 
-cannot match the rule's LHS syntactically, so we find all reassociated variants on the 
-expression:
 
-\begin{equation}
-\begin{split}
-(u + (2 + v)) - u \\
-(u + 2) + (v - u) \\
-u + (2 + (v - u)) \\
-u + ((2 + v) - u)
-\end{split}
-\end{equation}
-  
-}
 
 \paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, there are certain types of expressions 
 containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
