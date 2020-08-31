@@ -69,6 +69,7 @@
 \newcommand{\rb}[1]{\textcolor{blue}{\textit{[{#1} --RB]}}}
 
 \newcommand{\modified}[1]{\textcolor{red}{{#1}}}
+\newcommand{\modifiedagain}[1]{\textcolor{blue}{{#1}}}
 
 \newcommand{\hmax}[0]{\texttt{max}}
 \newcommand{\hmin}[0]{\texttt{min}}
@@ -314,41 +315,60 @@
 
 \jln{TODO: check all the numbers for various evaluations and make sure they agree}
 \section{Introduction}
+\label{sec:introduction}
+\modifiedagain{To compile an image processing pipeline written in the
+  Halide language, the compiler must perform a variety of analyses of
+  the pipeline's properties. For example, if the user has marked a
+  loop as fully unrolled, the compiler must infer a constant upper
+  bound for the extent of the loop. Similarly, if the user has marked
+  a loop as parallel, the compiler must prove the absence of data
+  races. These analyses also affect performance more than in most
+  compilers. In Halide, loop bounds and allocation sizes are inferred
+  by the compiler. If these are overestimated, the generated code may
+  perform an amount of wasted work sufficient to alter the
+  computational complexity of the algorithm. These analyses all depend
+  critically on the quality of Halide's expression simplifier. In
+  fact, Halide relies so heavily on its simplifier that restricting it
+  to mere constant-folding causes a geomean 5.1$\times$ increase in
+  compilation times and a 26.4$\times$ increase in runtimes across
+  Halide's benchmark suite.  }
 
-\modified{When the Halide language compiles an image processing pipeline, its compiler must issue a 
-variety of queries over the pipeline's properties. For example, it may attempt to prove a 
-loop extent can be reduced to a constant, allowing the loop to be fully unrolled; it may 
-check properties as part of dependency analysis to show that two loops contain no hazards 
-and can be parallelized; or it may try to prove that certain optimizations can be safely 
-performed, such as lowering code to cheaper instructions. The solver that addresses these 
-queries is so vital to the compiler that removing it results in 5.1$\times$ increase in compilation 
-times and 26.4$\times$ increase in runtimes for even simple benchmarks. }
+%\modified{When the Halide language compiles an image processing pipeline, its compiler must issue a 
+%variety of queries over the pipeline's properties. For example, it may attempt to prove a 
+%loop extent can be reduced to a constant, allowing the loop to be fully unrolled; it may 
+%check properties as part of dependency analysis to show that two loops contain no hazards 
+%and can be parallelized; or it may try to prove that certain optimizations can be safely 
+%performed, such as lowering code to cheaper instructions. The solver that addresses these 
+%queries is so vital to the compiler that removing it results in 5.1$\times$ increase in compilation 
+%times and 26.4$\times$ increase in runtimes for even simple benchmarks. }
 
-\modified{This solver must balance three key criteria:}
+\modified{This simplifier must balance three key criteria:}
 
 \begin{itemize}
   \item \modified{\textbf{Completeness:}
 It must work in 
-the theory of integers, which is undecidable, and makes use of operations such as 
+the theory of integers, which is undecidable, and make use of operations such as 
 Euclidean division and maximum/minimum which can be especially difficult for 
-automated reasoning. A solver in this theory is necessarily incomplete, but in general, 
-the compiler can generate higher-performing code as the solver becomes more powerful.}
-  \item \modified{\textbf{High performance:} However, the solver is called many thousands of 
+automated reasoning. Any solver in this theory is necessarily incomplete, but in general, 
+the compiler can generate higher-performing code as the simplifier becomes more powerful.}
+  \item \modified{\textbf{High performance:} However, the simplifier is called many thousands of 
 times over the course of a single compilation, and so requires high performance and low memory usage. }
   \item \modified{\textbf{Determinism:} The compiler must always return the same 
 result for the same program, regardless of what platform runs the compiler, 
-so the solver must be deterministic.}
+so the simplifier must be deterministic.}
 \end{itemize}
 
-\modified{Determinism is a hard requirement for the design of the solver, which rules out
-techniques such as the use of timeouts. Given that constraint, the Halide solver must address 
-as many of the compiler's queries as possible while maintaining high performance.}
+\modified{Determinism is a hard requirement for the design of the
+  simplifier, which rules out techniques with unbounded runtimes that
+  rely on timeouts.  Given that constraint, the Halide simplifier must
+  address as many of the compiler's queries as possible while
+  maintaining high performance.}
 
 \modified{Halide addresses this problem with a \emph{term rewriting system}. Using a custom algorithm 
 that greedily applies rules in a fixed order and keeps only the expression being currently 
-rewritten in state, the term rewriting system (TRS) gives the performance and determinism 
+rewritten as state, the term rewriting system (TRS) gives the performance and determinism 
 that the compiler requires. This algorithm scales well in terms of the number of rules
-in the TRS, so Halide developers have continued to improve and increase its solving 
+in the TRS, so Halide developers have continued to improve and increase its
 power by refining the ruleset and adding new rules by hand.}
 
 \modified{However, maintaining a TRS by hand presents significant challenges. Rules are 
@@ -360,22 +380,22 @@ undesired behavior. The TRS is not complete enough to address all compiler queri
 (for example, it may fail to compute tight bounds on intermediate arrays, leading to over-allocations).
 Finally, although the overarching goal of the TRS is to simplify 
 expressions, ``simplify'' is an imprecise notion. If developers are not familiar with 
-the entire ruleset, or the full variety of applications of the solver, they may inadvertently 
-add a rule that makes the abilities of the solver worse in some instances. }
+the entire ruleset, or the full variety of applications of the simplifier, they may inadvertently 
+add a rule that makes the abilities of the simplifier worse in some instances. }
 
-\modified{ In this work, we show how techniques based in formal methods can aid developers in
+\modified{ In this work, we show how techniques based on formal methods can aid developers in
  maintaining a complex term rewriting system, first by providing formal guarantees 
- of soundness and termination, then by growing the ruleset to increase the solver's 
+ of soundness and termination, then by growing the ruleset to increase the simplifier's 
  power while ensuring the performance and determinism required by a compiler in heavy
- industrial use.  We further demonstrate a strategy for growing a solver's power
+ industrial use.  We further demonstrate a strategy for growing a simplifier's power
  when completeness is impossible, by attempting to craft new rules that operate in
  the subset of the theory encountered during real-world compilation.}
 
 \modified{First, we formally verify the existing 
 ruleset, demonstrating that proofs of soundness are possible despite the lack of a 
 decision procedure for our theory. We model the Halide expression language and verify 
-the ruleset via an SMT solver. The SMT solver cannot prove about 12\% of the existing ruleset;
-we prove these rules by hand via the proof assistant Coq~\cite{Coq19}. We find three unsound rules, 
+the ruleset via an SMT solver. The SMT solver can prove about 88\% of the existing ruleset;
+we prove the remaining rules by hand via the proof assistant Coq~\cite{Coq19}. We find three unsound rules, 
 as well as several rules which could be made more general by relaxing their predicate guards. 
 The Halide developers changed the language's semantics for division during this work; we reran our verification 
 process to find 44 rules which were incorrect under the new semantics, demonstrating 
@@ -410,10 +430,9 @@ seen by the compiler on realistic inputs over the full expression space. We take
 of this bias by gathering expressions from realistic compilations on which the current 
 TRS is ``stuck'' and can make no further progress. We choose candidate left-hand sides 
 for rules from this corpus and synthesize equivalent right-hand terms that obey the 
-termination order. These expressions frequently contain constants; in the case where 
-the left- and right-hand sides are no longer equivalent when those constants are replaced 
-with fresh variables, we synthesize predicate guards that indicate when it is safe to apply 
-the rule. Our synthesis procedure is able to find large numbers of useful rules without
+termination order. \modifiedagain{These expressions frequently contain constants; we generalize the rules by replacing these constants  
+with fresh variables and synthesizing predicate guards on these variables that indicate when it is safe to apply 
+the rule.} Our synthesis procedure is able to find large numbers of useful rules without
 human oversight; although the existing compiler is very mature 
 and well-tuned for our suite of benchmarks, we are able to show some performance 
 gains without increases in compilation time when our newly synthesized suite 
@@ -660,12 +679,14 @@ of our work.}
   arithmetic can result in vast overestimates of required regions.  These kinds of simplifications are essential
   for the compiler to work, and are often not as simple as this example.}
 
-\modified{The specific rules for simplifying to perform cancellations and ensure monotonicity are incredibly important
-  for compiler performance.  As a simple experiment, we remove these rules and instead
-  only allow Halide to perform constant folding simplifications.  This results in a geometric mean
-  compile time increase of 510\% and the runtime of the resulting code increases by a geometric
-  mean of 2642\%.  This three order of magnitude slowdown would make the Halide compiler unusable.}
-
+\modifiedagain{The rules for simplifying to perform cancellations and
+  ensure monotonicity are incredibly important for compiler
+  performance. When we disabled all but the constant-folding rules to
+  measure the importance of the simplifier, it was the absence of
+  these specific rules that caused the (26.4$\times$) slow-down
+  mentioned in Section~\ref{sec:introduction}. Without these rules,
+  Halide is useless for its stated purpose: high-performance image
+  processing.}
 
 %% Fodder from synthesis section:
 %% For example, Halide relies on symbolic interval arithmetic to determine how much memory
@@ -895,7 +916,7 @@ identities $E_R$ and use it together with a reduction order as inputs to a compl
 If successful, this would yield a convergent TRS, for which any order of rewrites to 
 an expression would ultimately yield the same result. (It is not immediately clear how 
 to handle rule predicates in this case however.) While this is certainly desirable, 
-our intuition is that most proof failures in the current Halide TRS is not due to a 
+our experience is that many proof failures in the current Halide TRS is not due to a 
 lack of confluence, but because of knowledge of the Halide expression langauge semantics 
 not encompassed by the identities in $E_R$.}
 
@@ -1351,7 +1372,7 @@ the number of rules would be exponential in the size of the original term. Inste
 we rely on our assumption that the form of this expression as it occurred in our logged 
 compiler output is far more likely to occur than the others.
 Note that the synthesis procedure below could have found this rule, but checking for AC
-variants of existing rules is far cheaper.}
+variants of existing rules is far cheaper.} \modifiedagain{About three quarters of our synthesized rules are generated by this method.}
 
 If the first method fails, we apply CEGIS to superoptimize the left-hand side pattern.
 We build a CEGIS loop on top of Z3~\cite{de2008z3}, encoding the LHS as a set of op-codes
