@@ -1,5 +1,5 @@
 %% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
-\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For double-blind review submission, w/ CCS and ACM Reference
 %\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true}
 %% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
@@ -176,51 +176,77 @@
 %% appropriate command.
 %% Many elements are not rendered, but should be provided for metadata
 %% extraction tools.
+\author{Julie Newcomb}
+\affiliation{
+  \institution{University of Washington}
+  \country{USA}
+}
+\email{newcombj@cs.washington.edu}
 
+\author{Andrew Adams}
+\affiliation{
+  \institution{Adobe Research}
+  \country{USA}
+}
+\email{anadams@adobe.com}
+
+\author{Rastislav Bodik}
+\affiliation{
+  \institution{University of Washington}
+  \country{USA}
+}
+\email{bodik@cs.washington.edu}
+
+\author{Shoaib Kamil}
+\affiliation{
+  \institution{Adobe Research}
+  \country{USA} 
+}
+\email{kamil@adobe.com}
 %% Author with single affiliation.
-\author{First1 Last1}
-\authornote{with author1 note}          %% \authornote is optional;
-                                        %% can be repeated if necessary
-\orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
-\affiliation{
-  \position{Position1}
-  \department{Department1}              %% \department is recommended
-  \institution{Institution1}            %% \institution is required
-  \streetaddress{Street1 Address1}
-  \city{City1}
-  \state{State1}
-  \postcode{Post-Code1}
-  \country{Country1}                    %% \country is recommended
-}
-\email{first1.last1@inst1.edu}          %% \email is recommended
+% \author{First1 Last1}
+% \authornote{with author1 note}          %% \authornote is optional;
+%                                         %% can be repeated if necessary
+% \orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
+% \affiliation{
+%   \position{Position1}
+%   \department{Department1}              %% \department is recommended
+%   \institution{Institution1}            %% \institution is required
+%   \streetaddress{Street1 Address1}
+%   \city{City1}
+%   \state{State1}
+%   \postcode{Post-Code1}
+%   \country{Country1}                    %% \country is recommended
+% }
+% \email{first1.last1@inst1.edu}          %% \email is recommended
 
-%% Author with two affiliations and emails.
-\author{First2 Last2}
-\authornote{with author2 note}          %% \authornote is optional;
-                                        %% can be repeated if necessary
-\orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
-\affiliation{
-  \position{Position2a}
-  \department{Department2a}             %% \department is recommended
-  \institution{Institution2a}           %% \institution is required
-  \streetaddress{Street2a Address2a}
-  \city{City2a}
-  \state{State2a}
-  \postcode{Post-Code2a}
-  \country{Country2a}                   %% \country is recommended
-}
-\email{first2.last2@inst2a.com}         %% \email is recommended
-\affiliation{
-  \position{Position2b}
-  \department{Department2b}             %% \department is recommended
-  \institution{Institution2b}           %% \institution is required
-  \streetaddress{Street3b Address2b}
-  \city{City2b}
-  \state{State2b}
-  \postcode{Post-Code2b}
-  \country{Country2b}                   %% \country is recommended
-}
-\email{first2.last2@inst2b.org}         %% \email is recommended
+% %% Author with two affiliations and emails.
+% \author{First2 Last2}
+% \authornote{with author2 note}          %% \authornote is optional;
+%                                         %% can be repeated if necessary
+% \orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
+% \affiliation{
+%   \position{Position2a}
+%   \department{Department2a}             %% \department is recommended
+%   \institution{Institution2a}           %% \institution is required
+%   \streetaddress{Street2a Address2a}
+%   \city{City2a}
+%   \state{State2a}
+%   \postcode{Post-Code2a}
+%   \country{Country2a}                   %% \country is recommended
+% }
+% \email{first2.last2@inst2a.com}         %% \email is recommended
+% \affiliation{
+%   \position{Position2b}
+%   \department{Department2b}             %% \department is recommended
+%   \institution{Institution2b}           %% \institution is required
+%   \streetaddress{Street3b Address2b}
+%   \city{City2b}
+%   \state{State2b}
+%   \postcode{Post-Code2b}
+%   \country{Country2b}                   %% \country is recommended
+% }
+% \email{first2.last2@inst2b.org}         %% \email is recommended
 
 
 %% Abstract
@@ -295,21 +321,21 @@ loop extent can be reduced to a constant, allowing the loop to be fully unrolled
 check properties as part of dependency analysis to show that two loops contain no hazards 
 and can be parallelized; or it may try to prove that certain optimizations can be safely 
 performed, such as lowering code to cheaper instructions. The solver that addresses these 
-queries is so vital to the compiler that removing it results in 5.1x increases in compilation 
-times and 26.4x increases in runtimes over simple benchmarks. }
+queries is so vital to the compiler that removing it results in 5.1$\times$ increase in compilation 
+times and 26.4$\times$ increase in runtimes for even simple benchmarks. }
 
 \modified{This solver must balance three key criteria:}
 
 \begin{itemize}
-  \item \modified{\textbf{Completeness}
+  \item \modified{\textbf{Completeness:}
 It must work in 
 the theory of integers, which is undecidable, and makes use of operations such as 
 Euclidean division and maximum/minimum which can be especially difficult for 
 automated reasoning. A solver in this theory is necessarily incomplete, but in general, 
 the compiler can generate higher-performing code as the solver becomes more powerful.}
-  \item \modified{\textbf{High performance} However, the solver is called many thousands of 
+  \item \modified{\textbf{High performance:} However, the solver is called many thousands of 
 times over the course of a single compilation, and so requires high performance and low memory usage. }
-  \item \modified{\textbf{Determinism} The compiler must always return the same 
+  \item \modified{\textbf{Determinism:} The compiler must always return the same 
 result for the same program, regardless of what platform runs the compiler, 
 so the solver must be deterministic.}
 \end{itemize}
@@ -326,7 +352,7 @@ in the TRS, so Halide developers have continued to improve and increase its solv
 power by refining the ruleset and adding new rules by hand.}
 
 \modified{However, maintaining a TRS by hand presents significant challenges. Rules are 
-carefully inspected and fuzz-tested, but are not formally proven to be sound. The 
+carefully inspected and fuzz-tested, but are not formally proven sound. The 
 rule application algorithm itself is not guaranteed to terminate, so changing, adding, or 
 reordering rules may result in cycles on untested inputs. Debugging the system can be 
 difficult, since it is not clear which rule or combination of rules is responsible for 
@@ -341,15 +367,17 @@ add a rule that makes the abilities of the solver worse in some instances. }
  maintaining a complex term rewriting system, first by providing formal guarantees 
  of soundness and termination, then by growing the ruleset to increase the solver's 
  power while ensuring the performance and determinism required by a compiler in heavy
- industrial use.}
+ industrial use.  We further demonstrate a strategy for growing a solver's power
+ when completeness is impossible, by attempting to craft new rules that operate in
+ the subset of the theory encountered during real-world compilation.}
 
 \modified{First, we formally verify the existing 
 ruleset, demonstrating that proofs of soundness are possible despite the lack of a 
-decision procedure for our theory. We model the Halide expression langauge and verify 
+decision procedure for our theory. We model the Halide expression language and verify 
 the ruleset via an SMT solver. The SMT solver cannot prove about 12\% of the existing ruleset;
-we prove these rules by hand via the proof assistant Coq. We find three unsound rules, 
+we prove these rules by hand via the proof assistant Coq~\cite{Coq19}. We find three unsound rules, 
 as well as several rules which could be made more general by relaxing their predicate guards. 
-The Halide semantics for division changed during this work; we reran our verification 
+The Halide developers changed the language's semantics for division during this work; we reran our verification 
 process to find 44 rules which were incorrect under the new semantics, demonstrating 
 the usefulness of our technique.}
 
@@ -391,13 +419,14 @@ and well-tuned for our suite of benchmarks, we are able to show some performance
 gains without increases in compilation time when our newly synthesized suite 
 of rules is added to the TRS. }
 
+
 \modified{In the rest of the paper, we first provide some background on term rewriting systems 
 and the Halide rewriting algorithm. We then describe our approach to verifying 
 rule correctness and discuss the relation between LHS and RHS terms that guarantees 
 termination. Once semantics and the termination property have been formalized, 
 we present our synthesis algorithm. We demonstrate the effectiveness of our approach 
 through several experiments and case studies, with observations on the ways Halide developers 
-have been able to integrate our techniques into their workflow. Finally, we close
+have been able to integrate our techniques into their workflows. Finally, we close
  with a discussion of our current limitations and a review of related work.}
 % possibly add some high-level results from the evaluation here
 \jln{TODO: add references to sections to the above}
