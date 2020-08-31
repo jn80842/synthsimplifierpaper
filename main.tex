@@ -191,6 +191,13 @@
 }
 \email{anadams@adobe.com}
 
+\author{Steven Johnson}
+\affiliation{
+  \institution{Google}
+  \country{USA}
+}
+\email{srj@google.com}
+
 \author{Rastislav Bodik}
 \affiliation{
   \institution{University of Washington}
@@ -660,16 +667,16 @@ of our work.}
   In many parts of the compiler, the TRS is used to rewrite expressions into simpler forms,
   which are easier for the compiler to reason about, and result in less code being generated for
   LLVM to consume at the backend.  Most importantly, the compiler uses the TRS to simplify expressions
-  into constants or monotonic with respect to loop bounds; these simplifications are core to Halide's
+  into constants or expressions monotonic with respect to loop bounds; these simplifications are core to Halide's
   ability to generate drastically different loop nests for different schedules.}
 
 \modified{For example, consider the simple two-stage imaging pipeline $(g(x) = f(x - 1) + f(x) + f(x + 1)$.
-  Halide enables programmers to fuze the computation of $f$ into $g$ at an arbitrary granularity
+  Halide enables programmers to fuse the computation of $f$ into $g$ at an arbitrary granularity
   using the \texttt{compute\_at} scheduling directive.  This requires Halide to automatically reason
   about which region of $f$ is required for a specific sub-region (or tile) of $g$, using interval
   arithmetic over symbolic values for the size of a tile of $g$.  For a tile size of 8, a tile of $g$
-  is the region \texttt{[g.tile\_min, g.tile\_min+7]}, and the region of $f$ required is
-  \texttt{[g.tile\_min-1, g.tile\_min+8]}, and the number of values of $f$ to compute is then
+  is the region \texttt{[g.tile\_min, g.tile\_min+7]};  the region of $f$ required is
+  \texttt{[g.tile\_min-1, g.tile\_min+8]}; and the number of values of $f$ to compute is then
   \texttt{g.tile\_min + 8 + 1 - (g.tile\_min - 1)}.  If the TRS can determine this is a static value
   of 10, the Halide compiler can then safely perform transformations requested by the user.  In this
   case, the compiler can use stack memory instead of inserting a dynamic allocation; or the loop can be
@@ -677,7 +684,7 @@ of our work.}
   threadblock must have a compile-time-known size).  More generally, this kind of region analysis
   operates most effectively when the expressions are monotonic in the loop bounds; otherwise, interval
   arithmetic can result in vast overestimates of required regions.  These kinds of simplifications are essential
-  for the compiler to work, and are often not as simple as this example.}
+  for the compiler to work, and are usually not as simple as this example.}
 
 \modifiedagain{The rules for simplifying to perform cancellations and
   ensure monotonicity are incredibly important for compiler
@@ -812,7 +819,9 @@ always return the same schedule every time it encounters a particular pipeline.
 This precludes any non-deterministic search strategy for the best sequence of
 rules to apply, or directly invoking a solver such as Z3, since even with a
 fixed random seed, machines with different computational power may return
-different results within a given timeout.
+different results within a given timeout.  \modified{Along with these two requirements,
+the TRS must be able to reason about as much of the Halide expression language
+as possible; since the language is undecidable, the TRS cannot be truly complete.}
 
 \modified{For these reasons, the Halide TRS does not use a traditional term rewriting
 algorithm and instead never backtracks, maintaining minimal state-- only the
