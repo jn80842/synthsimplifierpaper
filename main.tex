@@ -1314,6 +1314,22 @@ then iteratively increase the number of operations, in order to find shorter seq
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
 operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the leaf node count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
 
+\modified{For example, assume our TRS includes the rule $(x + y) - x \rewrites y$, 
+and consider the input expression $((u + 2) + v) - u$. The expression 
+cannot match the rule's LHS syntactically, so we find all reassociated variants on the 
+expression:
+
+\begin{equation}
+\begin{split}
+(u + (2 + v)) - u \\
+(u + 2) + (v - u) \\
+u + (2 + (v - u)) \\
+u + ((2 + v) - u)
+\end{split}
+\end{equation}
+  
+}
+
 \paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, there are certain types of expressions 
 containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
 Therefore we limit the use of division and modulo in our op-codes to be division
