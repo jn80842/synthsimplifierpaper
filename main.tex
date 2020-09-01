@@ -326,7 +326,7 @@
 \modifiedagain{To compile an image processing pipeline written in the
   Halide language, the compiler must perform a variety of analyses of
   the pipeline's properties. For example, if the user has marked a
-  loop as fully unrolled, the compiler must infer a constant upper
+  loop to be fully unrolled, the compiler must infer a constant upper
   bound for the extent of the loop. Similarly, if the user has marked
   a loop as parallel, the compiler must prove the absence of data
   races. These analyses also affect performance more than in most
@@ -1135,6 +1135,7 @@ Besides giving a termination guarantee, the reduction order is necessary if we w
 In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. To ensure this guarantee is preserved, we build a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order. A full description of the reduction order is given in the supplemental material.
 
 \section{Lazy AC Matching}
+\label{sec:acmatching}
 
 As mentioned in Section [desing rationale], our TRS performs no AC matching during rewriting.  AC matching is performed entirely by the offline simplifier and memoized with a rewrite rule inserted into the TRS ruleset.  This section details the offline simplifier and the memoization. 
 
@@ -1148,8 +1149,101 @@ This algorithm has the property that it achieves full AC matching on all express
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \begin{figure*}
 %\includegraphics[width=1.\columnwidth,natwidth=610,natheight=642]{figures/synthesis-flow.pdf}
-\includegraphics[width=1.\columnwidth]{figures/synthesis-flow.pdf}
-\caption{Overall flow of the synthesis pipeline.}
+%\includegraphics[width=1.\columnwidth]{figures/synthesis-flow.pdf}
+
+% x_1 < select(x_2, c_0, c_1) + x_1 -> !x_2
+
+  \tikzstyle{stage}=[fill=blue!10, draw=none, minimum height=3em, minimum width=11em]
+  \tikzstyle{example}=[fill=orange!10, draw=none, minimum height=3em, minimum width=23em]
+\tikzstyle{label}=[fill=blue!10, draw=none, minimum height=3em, minimum width=1em]    
+  \begin{tikzpicture}[node distance=1.5cm,auto,>=latex']
+    \node (s1) [stage] {Input Expression};
+    \node (s2) [stage] [below of=s1] {\shortstack{Generated LHS \\ Patterns (Fig.~\ref{fig:lhspatterns})}};
+    \node (s3) [stage] [below of=s2] {AC Matching (Sec.~\ref{sec:acmatching})};
+    \node (s4) [stage] [below of=s3] {\shortstack{Superoptimized with \\ CEGIS (Sec.~\ref{sec:synthesizing-candidate-rules})}};
+    \node (s5) [stage] [below of=s4] {\shortstack{With Symbolic \\ Constants (Sec.~\ref{sec:generalizing-constants})}};
+    \node (s6) [stage] [below of=s5] {\shortstack{Clauses from \\ Basis Vectors}};
+    \node (s7) [stage] [below of=s6] {Candidate predicate};
+    \node (s8) [stage] [below of=s7] {\shortstack{Extend with\\Counterexamples}};
+    \node (s9) [stage] [below of=s8] {Rule with Predicate};
+    \node (s10) [stage] [below of=s9] {Add Variants (Sec.~\ref{sec:filtering})};
+    \node (l1) [label] [left of=s1,node distance=6em] {(a)};
+    \node (l2) [label] [left of=s2,node distance=6em] {(b)};
+    \node (l3) [label] [left of=s3,node distance=6em] {(c)};
+    \node (l4) [label] [left of=s4,node distance=6em] {(d)};
+    \node (l5) [label] [left of=s5,node distance=6em] {(e)};
+    \node (l6) [label] [left of=s6,node distance=6em] {(f)};
+    \node (l7) [label] [left of=s7,node distance=6em] {(g)};
+    \node (l8) [label] [left of=s8,node distance=6em] {(h)};
+    \node (l9) [label] [left of=s9,node distance=6em] {(i)};
+    \node (l10) [label] [left of=s10,node distance=6em] {(j)};    
+
+    \path[->] (s1) edge node {} (s2);
+    \path[->] (s2) edge node {} (s3);
+    \path[->] (s3) edge node {} (s4);
+    \path[->] (s4) edge node {} (s5);
+    \path[->] (s5) edge node {} (s6);
+    \path[->] (s6) edge node {} (s7);
+    \path[->] (s7) edge node {} (s8);
+    \path[->] (s8) edge node {} (s9);
+    \path[->] (s9) edge node {} (s10);                
+    \path[->] ([xshift=1em] s8.north) edge node {} ([xshift=1em] s7.south);
+    
+    \node (e1) [example] [right of=s1,node distance=19em]
+          {$(y + 2) < select(u < z, -3, 4) + (y + 2)$};
+    \node (e2) [example] [right of=s2,node distance=19em]
+          {\shortstack{
+              \color{darkgray}
+              \tiny{$\ldots$} \\
+              \color{darkgray}
+              \tiny{$(x_1 + 2) < x_2 + (x_1 + 2)$} \\
+              $x_1 < select(x_2, -3, 4) + x_1$ \\
+              \color{darkgray}
+              \tiny{$select(x_1 < x_2, -3, 4)$} \\
+              \color{darkgray}
+              \tiny{$\ldots$}}};
+    \node (e3) [example] [right of=s3,node distance=19em]
+          {\shortstack{No reassociated/commuted variants \\ match an existing rule.}};
+    \node (e4) [example] [right of=s4,node distance=19em]
+          {$x_1 < select(x_2, -3, 4) + x_1 \rightarrow \neg x_2$};
+    \node (e5) [example] [right of=s5,node distance=19em]
+          {$x_1 < select(x_2, c_0, c_1) + x_1 \rewrites \neg x_2$};
+    \node (e6) [example] [right of=s6,node distance=19em]
+          {\shortstack{
+              $0 < select(false, c_0, c_1) + 0 = \neg false ~ \wedge$ \\
+              $1 < select(false, c_0, c_1) + 1 = \neg false ~ \wedge$ \\
+              $0 < select(true, c_0, c_1) + 0 = \neg true$ 
+          }};
+    \node (e7) [example] [right of=s7,node distance=19em]
+        {$0 < c_1 \wedge c_0 \le 0 $};
+    \node (e8) [example] [right of=s8,node distance=19em]
+        {\shortstack{
+            $\exists~ \hat{x}, \hat{c} ~s.t.~ (0 < \hat{c}_1 \wedge \hat{c}_0 \le 0) ~\wedge$ \\
+            $(\hat{x}_1 < select(\hat{x}_2, \hat{c}_0, \hat{c}_1) + \hat{x}_1 \neq \neg \hat{x}_2)$ ? \\
+            No solutions. Predicate is sufficient.
+        }};
+    \node (e9) [example] [right of=s9,node distance=19em]
+          {$x_1 < select(x_2, c_0, c_1) + x_1 \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $};
+    \node (e10) [example] [right of=s10,node distance=19em]
+          {\shortstack{
+              $x_1 < select(x_2, c_0, c_1) + x_1 \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $ \\
+              $x_1 < x_1 + select(x_2, c_0, c_1) \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $
+          }};
+
+
+
+    \path[->] (e1) edge node {} (e2);
+    \path[->] (e2) edge node {} (e3);
+    \path[->] (e3) edge node {} (e4);
+    \path[->] (e4) edge node {} (e5);
+    \path[->] (e5) edge node {} (e6);
+    \path[->] (e6) edge node {} (e7);
+    \path[->] (e7) edge node {} (e8);
+    \path[->] (e8) edge node {} (e9);
+    \path[->] (e9) edge node {} (e10);
+
+  \end{tikzpicture}
+  \caption{Overall flow of the synthesis pipeline (in blue) with worked example (in orange). (a) We harvest expressions from real compilations on which the TRS could make no further progress. (b) We enumerate all sub-trees of these to generate left-hand sides that would match each expression. Our example will focus on one such pattern. (c) We superoptimize each pattern to obtain a right-hand side by first checking if any reassociated or commuted variants of it match an existing TRS rule. (d) If not, we apply CEGIS. (e) This rule is specific to the particular values of any constants that appear. We then replace any constants with new variables $c_0, c_1, etc.$ to obtain a more general version of the rule. We must now synthesize a sufficient condition on these new variables under which the rule still holds. (f) To do this, we treat the rewrite as an equality and take the conjunction over a set $S$ of different values for the non-constant variables $x_0, x_1, etc.$. (g) Simplifying the result gives a candidate predicate. This is a \emph{necessary} condition. (h) We then check if it is also \emph{sufficient} condition using Z3. (i) If a counterexample is found, we add these new values of $\hat{x}$ to $S$ to obtain a new candidate predicate and repeat until we have a sufficient condition to serve as our predicate. (j) Finally, we construct variants of the rule in which the LHS has been reassociated and commuted.}
 \label{fig:synthesis-flow}
 \end{figure*}
 
@@ -1508,7 +1602,7 @@ if successful. This variable elimination simplifies the predicate, so
 we do it eagerly inside the predicate-synthesis loop described above.
 
 \subsection{Final Simplification \& Filtering}
-
+\label{sec:filtering}
 Now that we have a list of rules with predicates, we augment the list
 by enumerating all variants of the left-hand side with commutative
 operations reordered. For each variant we search over all commutations
