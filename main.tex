@@ -1134,16 +1134,7 @@ Besides giving a termination guarantee, the reduction order is necessary if we w
 
 In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. To ensure this guarantee is preserved, we build a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order. A full description of the reduction order is given in the supplemental material.
 
-\section{Lazy AC Matching}
-\label{sec:acmatching}
 
-As mentioned in Section [desing rationale], our TRS performs no AC matching during rewriting.  AC matching is performed entirely by the offline simplifier and memoized with a rewrite rule inserted into the TRS ruleset.  This section details the offline simplifier and the memoization. 
-
-The offline simplifier is invoked on an expression $e$ that failed to be simplifed further by the TRS. [Let's find a term that concisely names such "terminal" expressions.]  In the baseline algorithm, the offline simplifier reassociates $e$ into all possible equivalent expressions $\{ e_i \}$ and attempts to simplify each of them with the (online) TRS.  If an $e_i$ can be simplified into $e_i'$, the rule $e\rightarrow e_i'$ is inserted into the ruleset $R$. 
-
-The actual algorithm is more efficient.  First, the rule inserted into $R$ is more general: it matches not only $e$ but also other expressions of the same syntactic shape. Second, the LHS of the mew rule is the smallest LHS that matches $e$. 
-
-This algorithm has the property that it achieves full AC matching on all expressions that have been encountered previously, as well as their up-to-renaming variants. [Is this a correct claim? And how do we make up-to-renaming more precise?]. This is possible thanks to the laziness: we insert "AC rules" only for actually encountered expressions; achieving AC matching by encoding all possible reasociations in the rule LHSs would create an unbounded number of rules because the TRS can encounter expressions of unbounded size. 
 
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
@@ -1247,47 +1238,47 @@ This algorithm has the property that it achieves full AC matching on all express
 \label{fig:synthesis-flow}
 \end{figure*}
 
-\begin{algorithm}[htbp]
-  \SetAlgoLined
-  \KwIn{$e$, an expression}
-  \KwOut{$r=\{r_0,..\}$, a set of rewrite rules}
-  \BlankLine\BlankLine
-  \tcp{Generate candidate rules (\S\ref{sec:synthesizing-candidate-rules})}
-  Generate $P=\{p_0,..,p_n\}$ patterns that match subexpressions of $e$\;
-  Remove $p_i \in P$ if $p_i$ does not include a repeated wildcard\;
-  $r_{cand} = \{\}$\;
-  \ForEach{$p_i \in P$}{
-    \tcp{First try reassociation \& applying existing rules}
-    \ForEach{$p_{reassoc}$}{
-      \If{\texttt{rewrite($p_{reassoc}$) $\neq$ $p_{reassoc}$}}{
-          \tcp{Found a candidate rewrite}
-          Append $p_i$ $\rewrites$ \texttt{rewrite($p_{reassoc}$)} to $r_{cand}$\;
-          break\;
-      }
-    }
-    \tcp{If no candidate found yet, use CEGIS}
-    \If{\texttt{superoptimize($p_i$) $\neq$ $p_i$}}{
-      Append $p_i$ $\rewrites$ \texttt{superoptimize($p_i$)}\ to $r_{cand}$\;
-      break\;
-    }
-   }
-  \tcp{Generalize constants (\S\ref{sec:generalizing-constants})}
-  \ForEach{$r_i \in r_{cand}$}{
-    Replace concrete constants in $r_i$ with symbolic constants $c_i$\;
-    $n =$ number of non-constant wildcards in $r_i$\;
-    $S$ = standard basis vectors for $Z^n \cup \vec{0}$\;
-    \Repeat{$iter > 4$, $P_{cand}(\vec{c})$ is sufficient, or Z3 times out}{
-      $P_{cand}(\vec{c}) = \bigwedge\limits_{\vec{x} \in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )$\;
-      Find $\hat{x}, \hat{c}$ s.t. $P_{cand}(\hat{c}) \wedge LHS(\hat{x}, \hat{c}) \neq RHS(\hat{x}, \hat{c})$\;
-      \uIf{No such $\hat{x}, \hat{c}$ exists}{$P_{cand}(\vec{c})$ is sufficient}
-      \Else{$S \leftarrow S \cup \{\hat{x}\}$}
-    }
-    \If{still not sufficient}{break $P_{cand}(\vec{c})$ into disjunctive normal form and check if any clause is sufficient\;}
-    \uIf{sufficient}{Perform final filtering and add to $r$\;}
-    \Else{Reject candidate\;}
-  }
-  \caption{\label{alg:synthesis-algorithm} Pseudocode of the synthesis algorithm.}
-\end{algorithm}
+% \begin{algorithm}[htbp]
+%   \SetAlgoLined
+%   \KwIn{$e$, an expression}
+%   \KwOut{$r=\{r_0,..\}$, a set of rewrite rules}
+%   \BlankLine\BlankLine
+%   \tcp{Generate candidate rules (\S\ref{sec:synthesizing-candidate-rules})}
+%   Generate $P=\{p_0,..,p_n\}$ patterns that match subexpressions of $e$\;
+%   Remove $p_i \in P$ if $p_i$ does not include a repeated wildcard\;
+%   $r_{cand} = \{\}$\;
+%   \ForEach{$p_i \in P$}{
+%     \tcp{First try reassociation \& applying existing rules}
+%     \ForEach{$p_{reassoc}$}{
+%       \If{\texttt{rewrite($p_{reassoc}$) $\neq$ $p_{reassoc}$}}{
+%           \tcp{Found a candidate rewrite}
+%           Append $p_i$ $\rewrites$ \texttt{rewrite($p_{reassoc}$)} to $r_{cand}$\;
+%           break\;
+%       }
+%     }
+%     \tcp{If no candidate found yet, use CEGIS}
+%     \If{\texttt{superoptimize($p_i$) $\neq$ $p_i$}}{
+%       Append $p_i$ $\rewrites$ \texttt{superoptimize($p_i$)}\ to $r_{cand}$\;
+%       break\;
+%     }
+%    }
+%   \tcp{Generalize constants (\S\ref{sec:generalizing-constants})}
+%   \ForEach{$r_i \in r_{cand}$}{
+%     Replace concrete constants in $r_i$ with symbolic constants $c_i$\;
+%     $n =$ number of non-constant wildcards in $r_i$\;
+%     $S$ = standard basis vectors for $Z^n \cup \vec{0}$\;
+%     \Repeat{$iter > 4$, $P_{cand}(\vec{c})$ is sufficient, or Z3 times out}{
+%       $P_{cand}(\vec{c}) = \bigwedge\limits_{\vec{x} \in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )$\;
+%       Find $\hat{x}, \hat{c}$ s.t. $P_{cand}(\hat{c}) \wedge LHS(\hat{x}, \hat{c}) \neq RHS(\hat{x}, \hat{c})$\;
+%       \uIf{No such $\hat{x}, \hat{c}$ exists}{$P_{cand}(\vec{c})$ is sufficient}
+%       \Else{$S \leftarrow S \cup \{\hat{x}\}$}
+%     }
+%     \If{still not sufficient}{break $P_{cand}(\vec{c})$ into disjunctive normal form and check if any clause is sufficient\;}
+%     \uIf{sufficient}{Perform final filtering and add to $r$\;}
+%     \Else{Reject candidate\;}
+%   }
+%   \caption{\label{alg:synthesis-algorithm} Pseudocode of the synthesis algorithm.}
+% \end{algorithm}
 
 \jln{add para here about the TRS philosopher toward increasing robustness. Adding new rules 
 is cheap, but the space of possible rules is too large. Instead, TRS is grown lazily,
@@ -1302,10 +1293,10 @@ exist expressions checked by the compiler running on real-world pipelines that
 the TRS cannot resolve, but which are known to be true. 
 In this section, we describe a workflow for automatically augmenting the Halide
 TRS using program synthesis.
-A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow},
-and Algorithm~\ref{alg:synthesis-algorithm} shows the corresponding pseudocode.
+A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
+%and Algorithm~\ref{alg:synthesis-algorithm} shows the corresponding pseudocode.
 We begin by synthesizing candidate rules that contain concrete constants,
-then generalize those rules by replacing concrete constants with wildcards that
+then generalize those rules by replacing them with wildcards that
 match any compile-time constants, along with predicates checkable at compile-time
 that encode constraints on those constants.
 
@@ -1413,13 +1404,13 @@ each individual subterm. This process yields the list of candidate LHS terms on 
 \end{figure*}
 
 \paragraph{Generating LHS Patterns}
-Our goal is to find a set of candidate LHSs which we know would be able to match the target expression.
+\modified{Our goal is to find a set of candidate LHSs which we know would be able to match the target expression.
  For each candidate, if we could find an equivalent RHS and 
 form a valid rule, we would be able to make progress on an expression that the current TRS is stuck on. 
 (Note that the candidate LHSs are also expressions that the Halide TRS cannot rewrite; 
-if it could, it would have been able to rewrite the original expression.)
+if it could, it would have been able to rewrite the original expression.)}
 
-First, we need to find a candidate LHS term that will match the target expression, 
+\modified{First, we need to find a candidate LHS term that will match the target expression, 
 or some portion of it. We do this through a kind of inverse matching. When we want 
 to attempt to rewrite an expression $e$ with a rule $l \rewrites r$, the first step is to 
 match $e$ to $l$ by finding a substitution $\sigma$ that unifies the two expressions 
@@ -1429,14 +1420,14 @@ such that $\sigma^{-1}(e) = l$. We repeat to find all possible LHSs that could m
 target expression, then perform the procedure again to find all LHSs that could match 
 any subterm of the expression as well. Once this is done, we have a set of all possible
 LHSs that could be matched with any part of our input expression. See figure~\ref{fig:lhspatterns} 
-for a worked example.
+for a worked example.}
 
-This process is exponential in the size of $e$, so we use a few heuristics to narrow 
-our search. We bound the size of candidate LHSs; longer terms are unlikely to 
-yield usefully general rules. We process target expressions in batches so we can remove 
+\modified{This process is exponential in the size of $e$, so we use a few heuristics to narrow 
+our search. We bound the size of candidate LHSs; longer terms most likely will not
+result in rules general enough to justify inclusion. We process target expressions in batches so we can remove 
 duplicates, as well as LHS that are identical except for the values of their constants. 
 We also found it helpful to keep a blacklist of LHSs we could not find rules for in 
-previous runs (for example, $v_1 + v_3$ is not likely to form a useful rule).
+previous runs (for example, $v_1 + v_3$ is not likely to form a useful rule).}
 
 \paragraph{Synthesizing Right-Hand Sides} Given a candidate left-hand side, we 
 synthesize a right-hand side that is semantically equivalent and
@@ -1450,11 +1441,11 @@ already ``knows'' an axiom that could transform the candidate LHS term if it cou
 rewritten modulo associativity and commutativity laws. Thus, we generate all possible 
 reassociations and commutations of the candidate term and pass them to the existing TRS. 
 If the TRS is able to transform one of them, we can create a new rule that rewrites 
-the original (untransformed) LHS term to the end result of passing a transformed expression to the simplifier.}
+the original,untransformed LHS term to the end result of passing a transformed expression to the simplifier.}
 
 \modified{For example, assume our TRS includes the rule $(x + y) - x \rewrites y$, 
 and let $((u + 2) + v) - u$ be a candidate LHS term. The original term does not match
-the rule, but a reassociated/commuted variant does: $(u + (v + 2)) - u$, which the rule 
+the rule, but a variant does: $(u + (v + 2)) - u$, which the rule 
 rewrites to $v + 2$. This gives us the rule $((u + 2) + v) - u \rewrites v + 2$. }
 
 \begin{equation*}
@@ -1469,13 +1460,14 @@ rewrites to $v + 2$. This gives us the rule $((u + 2) + v) - u \rewrites v + 2$.
 used full AC matching while rewriting expressions, we would be able to apply the rule above to this 
 expression and get back $v + 2$. Instead, this procedure has the effect of using a single 
 round of AC matching when applying the existing TRS to the candidate LHS term, and 
-memoizing the result if it is productive. Theoretically we could add a rule for every reassociated/commuted 
-version of this term on the left-hand side and $v + 2$ on the right-hand side, but 
-the number of rules would be exponential in the size of the original term. Instead 
-we rely on our assumption that the form of this expression as it occurred in our logged 
-compiler output is far more likely to occur than the others.
+memoizing the result if it is productive. 
+% Theoretically we could add a rule for every reassociated/commuted 
+% version of this term on the left-hand side and $v + 2$ on the right-hand side, but 
+% the number of rules would be exponential in the size of the original term. Instead 
+% we rely on our assumption that the form of this expression as it occurred in our logged 
+% compiler output is far more likely to occur than the others. -- note this is probably not true!
 Note that the synthesis procedure below could have found this rule, but checking for AC
-variants of existing rules is far cheaper.} \modifiedagain{About three quarters of our synthesized rules are generated by this method.}
+variants of existing rules is far cheaper. About three quarters of our synthesized rules are generated by this method.}
 
 If the first method fails, we apply CEGIS to superoptimize the left-hand side pattern.
 We build a CEGIS loop on top of Z3~\cite{de2008z3}, encoding the LHS as a set of op-codes
@@ -1486,16 +1478,18 @@ then iteratively increase the number of operations, in order to find shorter seq
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
 operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the leaf node count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
 
+% \section{Lazy AC Matching}
+% \label{sec:acmatching}
+
+% As mentioned in Section [desing rationale], our TRS performs no AC matching during rewriting.  AC matching is performed entirely by the offline simplifier and memoized with a rewrite rule inserted into the TRS ruleset.  This section details the offline simplifier and the memoization. 
+
+% The offline simplifier is invoked on an expression $e$ that failed to be simplifed further by the TRS. [Let's find a term that concisely names such "terminal" expressions.]  In the baseline algorithm, the offline simplifier reassociates $e$ into all possible equivalent expressions $\{ e_i \}$ and attempts to simplify each of them with the (online) TRS.  If an $e_i$ can be simplified into $e_i'$, the rule $e\rightarrow e_i'$ is inserted into the ruleset $R$. 
+
+% The actual algorithm is more efficient.  First, the rule inserted into $R$ is more general: it matches not only $e$ but also other expressions of the same syntactic shape. Second, the LHS of the mew rule is the smallest LHS that matches $e$. 
+
+% This algorithm has the property that it achieves full AC matching on all expressions that have been encountered previously, as well as their up-to-renaming variants. [Is this a correct claim? And how do we make up-to-renaming more precise?]. This is possible thanks to the laziness: we insert "AC rules" only for actually encountered expressions; achieving AC matching by encoding all possible reasociations in the rule LHSs would create an unbounded number of rules because the TRS can encounter expressions of unbounded size. 
 
 
-\paragraph{Limitations} While Z3 is a powerful tool for powering synthesis, there are certain types of expressions 
-containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
-Therefore we limit the use of division and modulo in our op-codes to be division
-or modulo by 2 only, and rely on the generalization step described next to
-widen the set of denominators for which a rule applies.  Because of this
-restriction, our synthesized rules cannot contain non-constants in denominators
-or the right-hand side of a modulo.  As a result, our synthesis system cannot
-construct all rules a human can.
 
 \begin{table*}
 \caption{Sample rules synthesized by our process. }
@@ -1515,75 +1509,173 @@ $\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0
 \subsection{Generalizing Constants}
 \label{sec:generalizing-constants}
 
-At this point in the synthesis pipeline, we have constructed a candidate rewrite
-rule that contains concrete constants.  To make the rule as general as possible,
-we replace each constant with a fresh \emph{symbolic constant}. A symbolic constant, unlike a variable,
- matches only terms with constant values known at compile time. We first query Z3
-again to see if the equivalence still holds; if it does, the rule is valid. If
-it is not, we will need to find a predicate (a precondition) to guard
-applications of the rule in the term rewriting system. We attempt to synthesize a predicate
-such that $pred \rightarrow LHS = RHS$ and all variables appearing in the
-predicate are symbolic constants.
+\modified{At this point in the synthesis pipeline, we have constructed a candidate rewrite
+rule that contains concrete constants. To make the rule as general as possible, 
+we replace each constant with a fresh \emph{symbolic constant}. In the Halide TRS 
+algorithm, a symbolic constant can only match a constant value, while a variable 
+can match any subterm. Rule predicates can contain symbolic constants, since their
+values will be known at compile time, but not variables, which will not. This allows 
+the TRS to evaluate predicates at the time of rule application. }
 
-The ideal predicate would be one which is true for all cases in which
-the $LHS = RHS$ and false for all cases where $LHS \neq RHS$. More
-precisely, for a vector of variables $\vec{x} \in Z^n$ and a vector of
-symbolic constants $\vec{c} \in Z^m$, let $LHS(\vec{x}, \vec{c})$ be the left-hand side
-of the rewrite rule, and $RHS(\vec{x}, \vec{c})$ be our synthesized
-right-hand side. The ideal predicate is then exactly:
+\modified{Our goal now is to synthesize a predicate such that when the predicate is true, 
+the rule LHS is equivalent to the RHS no matter what values the variables or symbolic
+constants take. Ideally, we would like a stronger property: the predicate should be 
+true whenever the LHS is equivalent to the RHS and false whenever it is not. In other 
+words, if our predicate is both necessary and sufficient for the LHS and RHS equivalency, 
+we will be able to invoke the rule only when it is sound as well as every time it is sound.}
 
-\[
-P_{ideal}(\vec{c}) = \bigwedge\limits_{\vec{x} \in Z^n} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )
+\modified{For a vector of variables of length $n$, $\vec{x} \in Z^n$, and a vector of symbolic 
+constants of length $m$, $\vec{c} \in Z^m$, we write $LHS(\vec{x}, \vec{c})$ for the left-hand
+side of the proposed rule, $RHS(\vec{x},\vec{c})$ for the right-hand side, and $\phi(\vec{c})$ 
+for the boolean predicate. Thus we need to find some $\phi$ such that}
+
+\[ \forall_{\vec{c} \in Z^m} . \forall_{\vec{x} \in Z^n} . \phi(\vec{c}) \iff LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})
 \]
 
-This is of course not a predicate we can use in practice, because it
-involves an infinite conjunction over $Z^n$. We can however, unroll
-the conjunction over any finite subset $S \subset Z^n$ and use that as
-our predicate:
+\modified{We abuse notation slightly to write $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$ even 
+when the LHS and RHS terms are of boolean type. When used by boolean operators, we coerce the integer-typed variables 
+and symbolic constants in $\vec{x}, \vec{c}$ to false when they are 0 and true otherwise.}
 
-\[
-P_S(\vec{c}) = \bigwedge\limits_{\vec{x} \in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )
+\modified{First, we query our solver to see if $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$ holds
+for all values of $\vec{x}, \vec{c}$ (in other words, the necessary and sufficient 
+condition for the equivalence is $true$). If this holds, we can add the rule without 
+a predicate guard. If not, we will need to synthesize a predicate. }
+
+\modified{We can quickly find a candidate predicate by dividing up the space of all variable values. 
+If we consider $\vec{x} \in Z^n$ as an infinite set of integer vectors, we can restate 
+the equation above as:}
+
+\[ \forall_{\vec{c} \in Z^m} . \bigwedge\limits_{\vec{x} \in Z^n} . \phi(\vec{c}) \iff LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})
 \]
 
-This predicate can be evaluated at compile time (with one caveat
-below). If we set $S$ to the zero vector plus the standard basis for
-$Z^n$ then many of the terms in the conjunction are either trivially
-true or equivalent, and the unrolled conjunction often simplifies
-(using the TRS itself) to a single equality.
+\modified{To make this tractable, we choose a subset $S \subseteq Z^n$, initialized as the zero
+vector plus the standard basis vectors.}
 
-For example, consider the candidate rewrite rule
-$x_1 < select(x_2, c_0, c_1) + x_1 \rewrites !x_2$.  In this case,
-we set $S = \{\{0, 0\}, \{1, 0\}, \{0, 1\}\}$.  If we substitute the zero
-vector into $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$, we get
-$0 < select(0, c_0, c_1) + 0 = 1$, which simplifies to $c_1 > 0$.  Thus, for $S$,
-we obtain:
-$$P_S(\vec{c}) = c_1 > 0 \wedge c_1 > 0 \wedge c_0 \le 0$$
-which the Halide TRS will further simplify to remove the redundant term.
+\[ \forall_{\vec{c} \in Z^m} . \bigwedge\limits_{\vec{x} \in S} . \phi_S(\vec{c}) \iff LHS(\vec{x_s}, \vec{c}) = RHS(\vec{x_s}, \vec{c})
+\]
 
-Because we dropped terms from the infinite conjunction, $P_S$
-is now necessary but may not be sufficient. While it does recognize all the
-cases in which the rule applies, it may also capture cases in which it
-should not. However, for any given choice of $S$ we can improve it by
-finding one of these incorrect cases using Z3, adding the
-counterexample $\vec{x}$ to $S$, and iterating this until convergence in a
-CEGIS-like loop.  For our example, Z3 returns that the candidate
-predicate is indeed sufficient, so we do not need to enter this loop.
+\modified{Since all the members of $S$ are finite and known, we can perform partial evaluation to
+find an instantiation of $\phi_S$ over $\vec{c}$ that is equivalent to $LHS(\vec{x_s}, \vec{c}) = RHS(\vec{x_s}, \vec{c})$.
+For example, consider the candidate rule:}
 
+\[ x_0 < select(x_1, c_0, c_1) + x_0 \rewrites \neg x_1
+\]
 
-If the loop terminates with Z3 definitively stating that there are
-no counterexamples, then $P_S$ is necessary \emph{and} sufficient, so
-we have found our ideal predicate. If the loop does not terminate
-after a small number of iterations (we use four) then we simplify our
-$P_s$ expression using the TRS, convert it to disjunctive normal
-form \footnote{While $P_S$ is initially a conjunction of equalities,
+\modified{We initialize $S$ as $\{(0,0), (0,1), (1,0)\}$. Now, we solve for $\phi_S$:}
+
+\begin{equation*}
+\begin{split}
+ \forall_{\vec{c} \in Z^m} . \phi_S(\vec{c}) \iff &  0 < select(0, c_0, c_1) + 0 = \neg(0) \wedge \\
+                                                   & 0 < select(1, c_0, c_1) + 0 = \neg(1) \wedge \\
+                                                   & 1 < select(0, c_0, c_1) + 1 = \neg(0)
+\end{split}
+\end{equation*}
+
+\modified{We can evaluate the conjunction on the right by simply passing it to the existing Halide TRS. 
+Here, we get back:}
+
+\[  \forall_{\vec{c} \in Z^m} . \phi_S(\vec{c}) \iff 0 < c_1 \wedge c_0 \le 0
+\]
+
+\modified{Since $0 < c_1 \wedge c_0 \le 0$ is necessary and sufficient for the LHS-RHS equivalence 
+over the subset $S$, we know that it is necessary for the equivalence for any values of $\vec{x}$.}
+
+\[ \forall_{\vec{c} \in Z^m} . \bigwedge\limits_{\vec{x} \in Z^n} . LHS(\vec{x},\vec{c}) = RHS(\vec{x}, \vec{c}) \implies \phi_S(\vec{c})
+\]
+
+\modified{We query the solver to see if our candidate predicate is sufficient as well as necessary. }
+
+\[ \forall{c_0, c_1} . \forall{x_0, x_1} . c_1 \wedge c_0 \le 0 \iff (x_0 < select(x_1, c_0, c_1) + x_0) = \neg x_1
+\]
+
+\modified{For our example, this is indeed the case, so we have a completed rule:}
+
+\[ x_0 < select(x_1, c_0, c_1) + x_0) \rewrites \neg x_1 \neg c_1 \wedge c_0 \le 0
+\]
+
+\modified{If the candidate predicate is not sufficient, the solver will return a counterexample.
+We take the values it returns for $\vec{x}$, add them to $S$, and repeat the process. 
+In our experiments below we do this for four iterations. If we still have not found a 
+valid predicate, we take our current candidate $\phi_S$,} convert it to disjunctive normal
+form\footnote{While $P_S$ is initially a conjunction of equalities,
   disjunctions appear after simplification due to rewrites such as
   $c_1 \times c_2 = 0 \rewrites c_1 = 0 \vee c_2 = 0$}, and test
 each clause in turn to see if it is a sufficient condition, if not a
-necessary one. If we find one, we return this single clause. If the
-loop terminates with Z3 timing out or returning ``unknown'', we return
+necessary one. If we find one, we return this single clause; if none are valid, 
+we discard the rule.
+If the loop terminates with Z3 timing out or returning ``unknown'', we return
 the current $P_S$, but flag it for human attention as something that
 needs a manual proof. We exclude all such cases from our experiments
 below.
+% At this point in the synthesis pipeline, we have constructed a candidate rewrite
+% rule that contains concrete constants.  To make the rule as general as possible,
+% we replace each constant with a fresh \emph{symbolic constant}. A symbolic constant, unlike a variable,
+%  matches only terms with constant values known at compile time. We first query Z3
+% again to see if the equivalence still holds; if it does, the rule is valid. If
+% it is not, we will need to find a predicate (a precondition) to guard
+% applications of the rule in the term rewriting system. We attempt to synthesize a predicate
+% such that $pred \rightarrow LHS = RHS$ and all variables appearing in the
+% predicate are symbolic constants.
+
+% The ideal predicate would be one which is true for all cases in which
+% the $LHS = RHS$ and false for all cases where $LHS \neq RHS$. More
+% precisely, for a vector of variables $\vec{x} \in Z^n$ and a vector of
+% symbolic constants $\vec{c} \in Z^m$, let $LHS(\vec{x}, \vec{c})$ be the left-hand side
+% of the rewrite rule, and $RHS(\vec{x}, \vec{c})$ be our synthesized
+% right-hand side. The ideal predicate is then exactly:
+
+% \[
+% P_{ideal}(\vec{c}) = \bigwedge\limits_{\vec{x} \in Z^n} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )
+% \]
+
+% This is of course not a predicate we can use in practice, because it
+% involves an infinite conjunction over $Z^n$. We can however, unroll
+% the conjunction over any finite subset $S \subset Z^n$ and use that as
+% our predicate:
+
+% \[
+% P_S(\vec{c}) = \bigwedge\limits_{\vec{x} \in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )
+% \]
+
+% This predicate can be evaluated at compile time (with one caveat
+% below). If we set $S$ to the zero vector plus the standard basis for
+% $Z^n$ then many of the terms in the conjunction are either trivially
+% true or equivalent, and the unrolled conjunction often simplifies
+% (using the TRS itself) to a single equality.
+
+% For example, consider the candidate rewrite rule
+% $x_1 < select(x_2, c_0, c_1) + x_1 \rewrites !x_2$.  In this case,
+% we set $S = \{\{0, 0\}, \{1, 0\}, \{0, 1\}\}$.  If we substitute the zero
+% vector into $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$, we get
+% $0 < select(0, c_0, c_1) + 0 = 1$, which simplifies to $c_1 > 0$.  Thus, for $S$,
+% we obtain:
+% $$P_S(\vec{c}) = c_1 > 0 \wedge c_1 > 0 \wedge c_0 \le 0$$
+% which the Halide TRS will further simplify to remove the redundant term.
+
+% Because we dropped terms from the infinite conjunction, $P_S$
+% is now necessary but may not be sufficient. While it does recognize all the
+% cases in which the rule applies, it may also capture cases in which it
+% should not. However, for any given choice of $S$ we can improve it by
+% finding one of these incorrect cases using Z3, adding the
+% counterexample $\vec{x}$ to $S$, and iterating this until convergence in a
+% CEGIS-like loop.  For our example, Z3 returns that the candidate
+% predicate is indeed sufficient, so we do not need to enter this loop.
+
+
+% If the loop terminates with Z3 definitively stating that there are
+% no counterexamples, then $P_S$ is necessary \emph{and} sufficient, so
+% we have found our ideal predicate. If the loop does not terminate
+% after a small number of iterations (we use four) then we simplify our
+% $P_s$ expression using the TRS, convert it to disjunctive normal
+% form \footnote{While $P_S$ is initially a conjunction of equalities,
+%   disjunctions appear after simplification due to rewrites such as
+%   $c_1 \times c_2 = 0 \rewrites c_1 = 0 \vee c_2 = 0$}, and test
+% each clause in turn to see if it is a sufficient condition, if not a
+% necessary one. If we find one, we return this single clause. If the
+% loop terminates with Z3 timing out or returning ``unknown'', we return
+% the current $P_S$, but flag it for human attention as something that
+% needs a manual proof. We exclude all such cases from our experiments
+% below.
 
 Our resulting $P_S(\vec{c})$ may still not be possible to evaluate at
 compile-time in the case where some of the symbolic constants that
@@ -1629,6 +1721,16 @@ filters, and the predicate has not been flagged for human review, the
 rule can be added to the TRS ruleset automatically without any human
 auditing.
 
+\subsection{Limitations}
+While Z3 is a powerful tool for powering synthesis, there are certain types of expressions 
+containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
+Therefore we limit the use of division and modulo in our op-codes to be division
+or modulo by 2 only, and rely on the generalization step described next to
+widen the set of denominators for which a rule applies.  Because of this
+restriction, our synthesized rules cannot contain non-constants in denominators
+or the right-hand side of a modulo.  As a result, our synthesis system cannot
+construct all rules a human can.
+
 \section{Evaluation}
 
 % (1186-367)/1186
@@ -1649,6 +1751,7 @@ In evaluating the benefits of the verifier and synthesizer, we answer the follow
 
 We discuss these findings in more detail below, grouping them into three sections. First we examine bug reports from Halide’s past and evaluate whether the machinery presented in this paper could have fixed them automatically. Second, we examine cases where beta versions of our verifier and synthesizer assisted humans in both fixing bugs and also correctly making larger changes to the compiler. Third, we fuzz the compiler to mine for issues that could be fixed with new simplifier rules, and automatically fix them before they ever appear as a bug in a real program. In this way we demonstrate that this machinery would have been useful in the past, is useful in the present, and will help avoid entire classes of bugs in the future.
 
+\jln{don't forget to do this!}
 Note for reviewers: For the purposes of this anonymous submission, we will refer to code changes by letter, with corresponding diffs found in supplemental material. In this final version of the paper these will be replaced with GitHub issue and pull request IDs with links to Halide’s GitHub page.
 
 \subsection{Comparing the Synthesizer to Human-Authored Rules}
