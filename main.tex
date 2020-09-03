@@ -63,9 +63,10 @@
 }
 
 \definecolor{uwpurple}{RGB}{128,0,128}
+\definecolor{darkgreen}{RGB}{0,64,0}
 \newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
 \newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
-\newcommand{\aba}[1]{\textcolor{green}{\textit{[{#1} --AA]}}}
+\newcommand{\aba}[1]{\textcolor{darkgreen}{\textit{[{#1} --AA]}}}
 \newcommand{\rb}[1]{\textcolor{blue}{\textit{[{#1} --RB]}}}
 
 \newcommand{\modified}[1]{\textcolor{red}{{#1}}}
@@ -1172,10 +1173,10 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
     \path[->] (s4) edge node {} (s5);
     \path[->] (s5) edge node {} (s6);
     \path[->] (s6) edge node {} (s7);
-    \path[->] (s7) edge node {} (s8);
+    \path[->] ([xshift=1em] s8.north) edge node {} ([xshift=1em] s7.south);
+    \path[->] ([xshift=-1em] s7.south) edge node {} ([xshift=-1em] s8.north);
     \path[->] (s8) edge node {} (s9);
     \path[->] (s9) edge node {} (s10);                
-    \path[->] ([xshift=1em] s8.north) edge node {} ([xshift=1em] s7.south);
     
     \node (e1) [example] [right of=s1,node distance=19em]
           {$(y + 2) < select(u < z, -3, 4) + (y + 2)$};
@@ -1409,7 +1410,8 @@ each individual subterm. This process yields the list of candidate LHS terms on 
 \subsection{Generating LHS Patterns}
 
 \modified{
-Our first step is to find LHS terms that could match the target expression, or any portion of it. 
+\aba{These first few sentences are highly redundant.}
+  Our first step is to find LHS terms that could match the target expression, or any portion of it. 
 We can enumerate all such terms through a kind of inverse matching.
 First, we enumerate LHS terms that match any portion of the target expression. 
 We perform the enumeration through a kind of inverse matching. When we rewrite an expression with a rule, 
@@ -1488,7 +1490,7 @@ then iteratively increase the number of operations, in order to find shorter seq
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
 operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the leaf node count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
 
-While Z3 is a powerful tool for powering synthesis, there are certain types of expressions 
+While Z3 is a powerful tool for synthesis, there are certain types of expressions 
 containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
 Z3 is better able to reason about expressions containing concrete constants, rather than
 universally quantified variables, so we synthesize rules using candidate LHSs with 
@@ -1531,7 +1533,7 @@ $\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0
 \subsection{Generalizing Constants and Finding Predicates}
 \label{sec:generalizing-constants}
 
-\rb{The structure of subsections suggests that Generalizing Constants happens also for rules created in Section 5.2.1 (AC matching).  Is this the case? }
+\rb{The structure of subsections suggests that Generalizing Constants happens also for rules created in Section 5.2.1 (AC matching).  Is this the case? } \aba{Yes. We could skip it by tracking and composing the necessary predicates, but that would be hard.}
 \modified{At this point in the synthesis pipeline, we have constructed a candidate rewrite
 rule that contains concrete constants. To make the rule as general as possible, 
 we replace each constant with a fresh \emph{symbolic constant}. In the Halide TRS 
@@ -1608,12 +1610,12 @@ over the subset $S$, we know that it is necessary for the equivalence for any va
 
 \modified{We query the solver to see if our candidate predicate is sufficient as well as necessary. }
 
-\[ \forall{c_0, c_1} . \forall{x_0, x_1} . c_1 \wedge c_0 \le 0 \iff (x_0 < select(x_1, c_0, c_1) + x_0) = \neg x_1
+\[ \forall{c_0, c_1} . \forall{x_0, x_1} . 0 < c_1 \wedge c_0 \le 0 \iff (x_0 < select(x_1, c_0, c_1) + x_0) = \neg x_1
 \]
 
 \modified{For our example, this is indeed the case, so we have a completed rule:}
 
-\[ x_0 < select(x_1, c_0, c_1) + x_0) \rewrites \neg x_1 \neg c_1 \wedge c_0 \le 0
+\[ x_0 < select(x_1, c_0, c_1) + x_0) \rewrites \neg x_1 \pred 0 < c_1 \wedge c_0 \le 0
 \]
 
 \modified{If the candidate predicate is not sufficient, the solver will return a counterexample.
@@ -1723,7 +1725,7 @@ of AC matching in the Halide TRS by adding AC variants of the rule as well. We f
 all commuted variants of the rule's LHS (this is exponential in the size of the number 
 of commutative operators, which is tractable given our bounds on LHS term size). 
 Then, we find all reassociations of the rule's right-hand side. For each variant LHS, 
-we choose a RHS variant by casting expressions to strings and finding the RHS 
+we choose a RHS variant by serializing expressions to strings and finding the RHS 
 that has the shortest edit distance. }
 
 \modified{For example, the LHS of the first rule below has four additions and can be commuted 
@@ -1751,7 +1753,7 @@ of canceling them out later.}
 \label{sec:filtering}
 \modified{As a final step, we check each output rule for redundancy with the rule batch found
 by the synthesis pipeline. Because the Halide TRS matches expressions against rules in
-a fixed priority, if a rule can match only expressions that would be matched by an earlier rule,
+a fixed priority \aba{This is not the reason - no matter the rule application order we shouldn't include a specific rule when a more general rule is just as good, even if the specific rule were to come first}, if a rule can match only expressions that would be matched by an earlier rule,
 it is essentially dead code and should be filtered out. For each new rule, we check
 that no earlier rule has precisely the same LHS and predicate; if so, it can be discarded.
 Then, we check that no earlier rule is more general than the current rule: a rule is more 
