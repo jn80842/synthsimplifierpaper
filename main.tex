@@ -1425,8 +1425,8 @@ such that $\sigma(l) = e$.
 \rb{In the previousl sentence, should "such that" be replaced with "i.e.,".  In other words, $\sigma(l) = e$ is another way of saying that $e$ and $l$ have been unified, right?  As is, the sentence says that we want unification AND also $\sigma(l) = e$. I also changed the "such that" that was used below. }
 To find a candidate LHS, we pick an inverse substitution $\sigma^{-1}$
 that maps some subterms of $e$ to fresh variables, then inverse-substitute to construct the LHS term $l$, i.e., $\sigma^{-1}(e) = l$. 
-\rb{Do identical subterms of $e$ receiv e the same fresh variable or distinct fresh variables? }
-\rb{Is the inverse substituttion a standard thing? If yes, we should cite a textbook.  If not, we should think about whether this inverse substitution is well defined, in particular for overlapping subterms. It may be safer not to use the inverse formally; ie, we may want to stay away from using $\sigma^{-1}(e)$ since we didn't define $\sigma^{-1}$ formally. }
+\rb{Do identical subterms of $e$ receive the same fresh variable or distinct fresh variables? }
+\rb{Is the inverse substitution a standard thing? If yes, we should cite a textbook.  If not, we should think about whether this inverse substitution is well defined, in particular for overlapping subterms. It may be safer not to use the inverse formally; ie, we may want to stay away from using $\sigma^{-1}(e)$ since we didn't define $\sigma^{-1}$ formally. }
 We repeat to find all possible LHSs that could match the
 target expression, then repeat the procedure on all \emph{subterms} of the target expression.  The result is the set of all 
 LHSs that match any part of the target expression. }
@@ -1440,26 +1440,25 @@ LHSs that differ only in the values of their constants.
 Finally, we have found it helpful to keep a blacklist of LHSs for which we failed synthesize rules; for example, $v_1 + v_3$ is unlikely to form a useful rule.}
 \rb{"unlikely to form": can we replace it with "does not form a rule"?   }
 
-\subsection{Synthesizing Right-Hand Sides} Given a candidate left-hand side, we 
+\subsection{Synthesizing Right-Hand Sides} 
+\modified{%
+Given a candidate left-hand side, we attempt to 
 synthesize a right-hand side that is semantically equivalent and
-respects the reduction order such that $\mathit{LHS} > \mathit{RHS}$.
+respects the reduction order, namely $\mathit{LHS} > \mathit{RHS}$.
 We employ two strategies for synthesizing right-hand sides:
-reassociating and applying a known rewrite, and counter-example guided
-inductive synthesis (CEGIS).
+delayed AC matching, and counter-example guided inductive synthesis (CEGIS) of the RHS followed by synthesis of the rule validity predicate.} 
 
 \subsubsection{Finding Right-Hand Sides through AC matching}
 \label{sec:rhsacmatching}
-\modified{The first strategy comes from the insight that in many cases the term rewriting system 
-already ``knows'' an axiom that could transform the candidate LHS term if it could be freely 
-rewritten modulo associativity and commutativity laws. Thus, we generate all possible 
-reassociations and commutations of the candidate term and pass them to the existing TRS. 
-If the TRS is able to transform one of them, we can create a new rule that rewrites 
-the original,untransformed LHS term to the end result of passing a transformed expression to the simplifier.}
+\modified{The first strategy reflects the design decision not to perform any AC matching in the TRS, for efficiency reasons. 
+AC matching is effectively performed during rule synthesis, by checking whether the LHS could be 
+rewritten by the existing TRS after a suitable application of associativity and commutativity laws to the LHS. 
+To this end, we generate all possible reassociations and commutations of the candidate LHS term and pass them to the existing TRS. 
+If any of them can be simplified, we create a new rule that rewrites 
+the original, untransformed LHS term to the result of the simplification.  Note that this result may include applications of more than one rewriting step, so the new rule is not merely an AC-variant of an existing rule. }
 
 \modified{For example, assume our TRS includes the rule $(x + y) - x \rewrites y$, 
-and let $((u + 2) + v) - u$ be a candidate LHS term. The original term does not match
-the rule, but a variant does: $(u + (v + 2)) - u$, which the rule 
-rewrites to $v + 2$. This gives us the rule $((u + 2) + v) - u \rewrites v + 2$. }
+and let $((u + 2) + v) - u$ be a candidate LHS term. The rule does not match the candidate but it matches its variant $(u + (v + 2)) - u$, rewriting it to the result $v + 2$. The candidate and the result give us the rule $((u + 2) + v) - u \rewrites v + 2$. }
 
 \begin{equation*}
 \begin{split}
@@ -1469,19 +1468,22 @@ rewrites to $v + 2$. This gives us the rule $((u + 2) + v) - u \rewrites v + 2$.
 \end{split}
 \end{equation*}
 
-\modified{We can consider this procedure a kind of lazy, offline AC matching. If the Halide TRS algorithm 
-used full AC matching while rewriting expressions, we would be able to apply the rule above to this 
-expression and get back $v + 2$. Instead, this procedure has the effect of using a single 
-round of AC matching when applying the existing TRS to the candidate LHS term, and 
-memoizing the result if it is productive. 
+\rb{It took me a while to parse the meaning of the example above with  the boxes, perhaps because I was expecting that some derivation step was performed as we walked down lines, as in a proof. Some comments would help.  You could say this in the respective three lines:\\
+Line 1: original expression: [((u + 2) + v) - u, boxed] --- doesn't match the rule R \\
+Line 2: reassociated expression [(u + (v + 2)) - u], matches the rule; rewritten to [$v+2$]\\
+Line 3: the new rule: [give the new rule].}
+
+\modified{We can consider this procedure a kind of lazy, offline AC matching because if the Halide TRS 
+performed full AC matching while rewriting expressions, it would be able to apply the rule $(x + y) - x \rewrites  y$ to the candidate expression $((u + 2) + v) - u$ after reassociating it to $(u + (v + 2)) - u$, obtaining the result $v + 2$.  Delaying AC matching to synthesis has the effect of restricting the system to a single, offline round of AC and memoizing the result in the form of a new TRS rule if the AC matching was productive. 
+%
 % Theoretically we could add a rule for every reassociated/commuted 
 % version of this term on the left-hand side and $v + 2$ on the right-hand side, but 
 % the number of rules would be exponential in the size of the original term. Instead 
 % we rely on our assumption that the form of this expression as it occurred in our logged 
 % compiler output is far more likely to occur than the others. -- note this is probably not true!
-Note that the synthesis procedure below could have found this rule, but checking for AC
+Note that the synthesis procedure in Section~\ref{sec:rhssynthesis} could have found this rule, but checking for AC
 variants of existing rules is far cheaper. About three quarters of our synthesized rules are generated by this method.}
-
+\rb{What does "productive" mean? Same or different than "succeeds to rewrite"? }
 
 \subsubsection{Finding Right-Hand Sides through Synthesis}
 \label{sec:rhssynthesis}
