@@ -447,18 +447,17 @@ of rules is added to the TRS. }
 
 
 \modified{In the rest of the paper, we first provide some background on term rewriting systems 
-and the Halide rewriting algorithm. We then describe our approach to verifying 
-rule correctness and discuss the relation between LHS and RHS terms that guarantees 
-termination. Once semantics and the termination property have been formalized, 
-we present our synthesis algorithm. We demonstrate the effectiveness of our approach 
-through several experiments and case studies, with observations on the ways Halide developers 
-have been able to integrate our techniques into their workflows. Finally, we close
+and the Halide rewriting algorithm (section~\ref{sec:background}). We then describe our approach to verifying 
+rule correctness (section~\ref{sec:verification}) and discuss the relation between LHS and RHS terms that guarantees 
+termination (section~\ref{sec:termination}). Once semantics and the termination property have been formalized, 
+we present our synthesis algorithm (section~\ref{sec:completeness}). We demonstrate the effectiveness of our approach 
+through several experiments and case studies (section~\ref{sec:evaluation}), with observations on the ways Halide developers 
+have been able to integrate our techniques into their workflows. Finally, we close in section~\ref{sec:limitations}
  with a discussion of our current limitations and a review of related work.}
-% possibly add some high-level results from the evaluation here
-\jln{TODO: add references to sections to the above}
 
 
 \section{Background}
+\label{sec:background}
 \subsection{Term Rewriting Systems}
 Term rewriting systems~\cite{gorn1967} are sets of \textit{rewrite rules} used to transform expressions into a new form.  Such systems are widely
 used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{cousot1977abstract, cousot1979systematic}.
@@ -621,9 +620,6 @@ Associativity and commutativity laws are particularly troublesome for term rewri
 \label{fig:algoexample}
 \end{figure*}
 
-(move rationale for Halide to diff section, cite Andrew rationale, strategy)
-(ordering of rules??? what should we explain?)
-(put part of lang here)
 \subsection{Program Synthesis}
 \label{sec:program-synthesis}
 Our pipeline for automatically generating new rules relies on program synthesis.
@@ -981,7 +977,7 @@ guaranteed to terminate on all inputs by ensuring that there is no sequence of
 applications of rules, on any input expression, that can form a cycle.
 
 \subsection{Rule verification}
-
+\label{sec:verification}
 We verify each individual rule is correct by modeling Halide
 expressions in SMT2 and using the SMT solver Z3~\cite{de2008z3} to
 prove that the rule's left- and right-hand sides are equivalent. Most Halide expression
@@ -1058,7 +1054,7 @@ submitted a patch to amend them.
 Overall results of verifying rule correctness are described in Section~\ref{sec:eval-correctness}.
 
 \subsection{Termination}
-\label{sub:termination}
+\label{sec:termination}
 
 \jln{First motivate the reduction order as a formalization of the strategy behind the Halide TRS. the TRS has an underlying 
 philosophy/strategy of cancelling correlated subexprs, reducing size of exprs, canonicalization, 
@@ -1138,6 +1134,7 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
 
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
+\label{sec:completeness}
 \begin{figure*}
 %\includegraphics[width=1.\columnwidth,natwidth=610,natheight=642]{figures/synthesis-flow.pdf}
 %\includegraphics[width=1.\columnwidth]{figures/synthesis-flow.pdf}
@@ -1438,6 +1435,7 @@ Finally, we have found it helpful to keep a blacklist of LHSs for which we faile
 cannot form a rule, so we filter it out as a candidate.}
 
 \subsection{Synthesizing Right-Hand Sides} 
+\label{sec:synthesizing-candidate-rules}
 \modified{%
 Given a candidate left-hand side, we attempt to 
 synthesize a right-hand side that is semantically equivalent and
@@ -1769,6 +1767,7 @@ rule can be added to the TRS ruleset automatically without any human
 auditing.
 
 \section{Evaluation}
+\label{sec:evaluation}
 
 % (1186-367)/1186
 \newcommand{\PercentPossibleToSynth}{69\%}
