@@ -1280,43 +1280,48 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
 %   \caption{\label{alg:synthesis-algorithm} Pseudocode of the synthesis algorithm.}
 % \end{algorithm}
 
-\jln{add para here about the TRS philosopher toward increasing robustness. Adding new rules 
-is cheap, but the space of possible rules is too large. Instead, TRS is grown lazily,
-in a data driven way: 
-devs observe failures and add rules to address them. Three types of new rules: add confluence 
-(but does this actually happen?), address rules that could match if we had full AC 
-matching, add rules that are based on axioms that cannot be derived from the existing 
-ruleset at all.}
-\rb{This para would help me understand the role of synthesis but I am not sure we if still plan to structure the paper along the lines of why we are adding rules. }
+% \jln{add para here about the TRS philosopher toward increasing robustness. Adding new rules 
+% is cheap, but the space of possible rules is too large. Instead, TRS is grown lazily,
+% in a data driven way: 
+% devs observe failures and add rules to address them. Three types of new rules: add confluence 
+% (but does this actually happen?), address rules that could match if we had full AC 
+% matching, add rules that are based on axioms that cannot be derived from the existing 
+% ruleset at all.}
+% \rb{This para would help me understand the role of synthesis but I am not sure we if still plan to structure the paper along the lines of why we are adding rules. }
 
-The Halide term rewriting system is not complete: there
-exist expressions checked by the compiler running on real-world pipelines that
-the TRS cannot resolve, but which are known to be true. 
-\rb{The previous sentence is proof-centric, while we now want more of a simplification-centric description, right?  To this end, could we say that the TRS gets stuck on expressions that are known to be further simlifiable?}
-In this section, we describe a workflow for automatically augmenting the Halide TRS using program synthesis. 
-\rb{I don't know if I would agree that the AC rules are created with synthesis; they seem to be created with AC matching. }
+\modified{Although the Halide term rewriting system is necessarily incomplete, we can strengthen 
+it by finding expressions on which the TRS can no longer make progress and creating 
+rules that will further simplify them.
+In this section, we describe a workflow for automatically augmenting the Halide TRS with new rules.}
 
-\rb{Let's first state what we want to compute. I added here a possible description.}. Given an expression that the TRS failed to simplify, our goal is to find a rule that rewrites such a \emph{target expression}.  Among all such rules, we prefer the more general ones. As a heuristic of generality we use the size of the rule's LHS, since larger LHS patterns are more specific. \rb{Now we can say how it's done.} A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
+\modified{Given an expression that the TRS failed to simplify, our goal is to find a rule that rewrites such a \emph{target expression}.  Among all such rules, we prefer the more general ones. As a heuristic of generality we use the size of the rule's LHS, since larger LHS patterns are more specific. A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
 %and Algorithm~\ref{alg:synthesis-algorithm} shows the corresponding pseudocode.
-We begin by synthesizing candidate rules that contain concrete constants from the target expression.  \rb{If we call these rules "candidate" rules, we may want to add how we select a new rule from among the candidate rules. Otherwise, we can drop the adjective "candidate". }  Next we generalize those rules by replacing constants with wildcards and synthesizing compile-time predicates 
-that check the validity of the rule on the constants matched by the wildcards. 
+We begin with an expression we will attempt to further simplify; 
+first, we synthesize rules that contain concrete constants from the target expression. 
+Next we generalize those rules by replacing constants with wildcards and synthesizing compile-time predicates 
+that check the validity of the rule on the constants matched by the wildcards. If we can 
+find such a rule, we know that adding it to the TRS will enable it to simplify the target
+expression as well as any similar expressions it may encounter.}
 
 %\subsection{Synthesizing Candidate Rules With Constants}
 %\label{sec:synthesizing-candidate-rules}
 
 % The aim of the synthesis pipeline is to learn new rules useful for
 % reasoning about a corpus of input expressions. 
-\rb{This paragraph could become its own subsection, focused on how target expressions are collected and filtered.}
+\paragraph{Gathering target expressions}
 The set of target expressions may come from a bug report, or may be gathered from compiler logs. With logging enabled, the compiler records two
 kinds of problematic expression for which new TRS rules may be helpful:
 \modified{non-monotonic expressions, which can result in over-conservative
 bounds for loops and memory allocations; and proof failures,
 which may prevent Halide from performing certain optimizations
-(see Section~\ref{sec:uses-of-trs}). Of course, some proof failures may genuinely have
-no solution. To filter the list of failed proofs,
-the logging machinery tests the expression by substituting random values for any remaining wildcards.  
-\rb{This description sounds like only the second kind of expressions (failed proofs) are filtered with random testing.  Are non-monotonic failures to prove also tested and filtered?} 
-If an expression passes 100 random tests, it is logged as a target expression.}
+(see Section~\ref{sec:uses-of-trs}). 
+Of course, absent an oracle, it is difficult to know if the TRS has fully simplified 
+some expression or if it lacks the solving power to continue simplification. 
+When the TRS is used as a proof engine, it attempts to reduce an expression to true.
+In this case, we can fuzz-test failed proofs by assigning all variables in an expression
+random values and evaluating. If after 100 random assignments we have not found one
+that evaluates to false, it may be the case that the expression should be reducible 
+to true, so we log it as a target expression.}
 
 
 %%\paragraph{Non-monotonic expressions}
@@ -1405,40 +1410,32 @@ each individual subterm. This process yields the list of candidate LHS terms on 
 \end{figure*}
 
 \subsection{Generating LHS Patterns}
-\modified{
-\rb{What follows is my attempt to simplify the two sentences that were here before.}
-To synthesize a rule that rewrites the target expression, we need to first generate all possible LHSs that match the expression.  
-% Our goal is to find a set of candidate LHSs which we know would be able to match the target expression.
-% For each candidate, if we could find an equivalent RHS and 
-%form a valid rule, we would be able to make progress on an expression that the current TRS is stuck on. 
-\rb{Can we clarify why the next sentence makes the point that no generated LHS can make progress in the current TRS? I don't know why we are saying it. Is it to emphasize that by trying all LHSs, we are not doing any useless work? Or that we are guaranteed to synthesize a new useful rule? }
-(Note that the candidate LHSs are also expressions that the Halide TRS cannot rewrite; 
-if it could, it would have been able to rewrite the original expression.)}
 
 \modified{
-% First, we need to find a candidate LHS term that will match the target expression, or some portion of it. 
-First, we enumerate LHS terms that match any portion of the target expression.  Figure~\ref{fig:lhspatterns} shows a worked example. 
-We perform the enumeration through a kind of inverse matching. When we want 
-to attempt to rewrite an expression $e$ with a rule $l \rewrites r$, the first step is to 
-match $e$ to $l$ by finding a substitution $\sigma$ that unifies the two expressions 
-such that $\sigma(l) = e$. 
-\rb{In the previousl sentence, should "such that" be replaced with "i.e.,".  In other words, $\sigma(l) = e$ is another way of saying that $e$ and $l$ have been unified, right?  As is, the sentence says that we want unification AND also $\sigma(l) = e$. I also changed the "such that" that was used below. }
-To find a candidate LHS, we pick an inverse substitution $\sigma^{-1}$
-that maps some subterms of $e$ to fresh variables, then inverse-substitute to construct the LHS term $l$, i.e., $\sigma^{-1}(e) = l$. 
-\rb{Do identical subterms of $e$ receive the same fresh variable or distinct fresh variables? }
-\rb{Is the inverse substitution a standard thing? If yes, we should cite a textbook.  If not, we should think about whether this inverse substitution is well defined, in particular for overlapping subterms. It may be safer not to use the inverse formally; ie, we may want to stay away from using $\sigma^{-1}(e)$ since we didn't define $\sigma^{-1}$ formally. }
-We repeat to find all possible LHSs that could match the
-target expression, then repeat the procedure on all \emph{subterms} of the target expression.  The result is the set of all 
-LHSs that match any part of the target expression. }
+Our first step is to find LHS terms that could match the target expression, or any portion of it. 
+We can enumerate all such terms through a kind of inverse matching.
+First, we enumerate LHS terms that match any portion of the target expression. 
+We perform the enumeration through a kind of inverse matching. When we rewrite an expression with a rule, 
+we match the expression to the rule's LHS by finding a substitution for all variables in
+the LHS that will unify it with the target expression. Here, we start with a target expression,
+then fix a substitution by mapping some of its subterms to fresh variables. If we 
+replace those subterms with the new variables, we have constructed a term that can 
+be matched with the target term.
+If we perform this inverse matching for all sets of subterms, we find all possible LHSs that could match the
+target expression. 
+If a subterm occurs more than once in the target expression, we construct both LHSs that 
+use the same variable to replace it in multiple places and LHSs that replace its
+occurrences with different variables.
+We then repeat the procedure on all \emph{subterms} of the target expression.  The result is the set of all 
+LHSs that match any part of the target expression. See figure~\ref{fig:lhspatterns} for a worked example. }
 
-\modified{This number of LHSs is exponential in the size of $e$, so we use a few heuristics to narrow 
-our search. We bound the size of candidate LHSs since longer terms are less likely to 
+\modified{This number of LHSs is exponential in the size of the target expression, so we use a few heuristics to narrow 
+our search. We bound the size of candidate LHSs to have seven or fewer leaves, since longer terms are less likely to 
 result in rules general enough to justify inclusion in the ruleset. 
-\rb{Can we mention the value of the bound?}
 Additionally, since we process target expressions in batches, we remove 
-LHSs that differ only in the values of their constants. 
-Finally, we have found it helpful to keep a blacklist of LHSs for which we failed synthesize rules; for example, $v_1 + v_3$ is unlikely to form a useful rule.}
-\rb{"unlikely to form": can we replace it with "does not form a rule"?   }
+duplicate LHSs as well as LHSs that differ only in the values of their constants. 
+Finally, we have found it helpful to keep a blacklist of LHSs for which we failed synthesize rules; for example, $v_1 + v_3$ 
+cannot form a rule, so we filter it out as a candidate.}
 
 \subsection{Synthesizing Right-Hand Sides} 
 \modified{%
@@ -1460,21 +1457,19 @@ the original, untransformed LHS term to the result of the simplification.  Note 
 \modified{For example, assume our TRS includes the rule $(x + y) - x \rewrites y$, 
 and let $((u + 2) + v) - u$ be a candidate LHS term. The rule does not match the candidate but it matches its variant $(u + (v + 2)) - u$, rewriting it to the result $v + 2$. The candidate and the result give us the rule $((u + 2) + v) - u \rewrites v + 2$. }
 
-\begin{equation*}
-\begin{split}
-\boxed{((u + 2) + v) - u} &  \\
-(x + y) - x & \rewrites  y \\
-(u + (v + 2)) - u & \rewrites  \boxed{v + 2} \\
-\end{split}
-\end{equation*}
-
-\rb{It took me a while to parse the meaning of the example above with  the boxes, perhaps because I was expecting that some derivation step was performed as we walked down lines, as in a proof. Some comments would help.  You could say this in the respective three lines:\\
-Line 1: original expression: [((u + 2) + v) - u, boxed] --- doesn't match the rule R \\
-Line 2: reassociated expression [(u + (v + 2)) - u], matches the rule; rewritten to [$v+2$]\\
-Line 3: the new rule: [give the new rule].}
+\begin{center}
+\begin{tabular}{cccl}
+$(x + y) - x$ & $\rewrites$ & $y$ & an existing rule \\
+\hline
+$\textcolor{blue}{((u + 2) + v) - u}$ & $\rewrites$ & & no match \\
+$(u + (v + 2)) - u$ & $\rewrites$ & $\textcolor{blue}{v + 2}$ & AC variant of LHS matches \\
+\hline
+$((u + 2) + v) - u$ & $\rewrites$ & $v + 2$ & new rule
+\end{tabular}
+\end{center}
 
 \modified{We can consider this procedure a kind of lazy, offline AC matching because if the Halide TRS 
-performed full AC matching while rewriting expressions, it would be able to apply the rule $(x + y) - x \rewrites  y$ to the candidate expression $((u + 2) + v) - u$ after reassociating it to $(u + (v + 2)) - u$, obtaining the result $v + 2$.  Delaying AC matching to synthesis has the effect of restricting the system to a single, offline round of AC and memoizing the result in the form of a new TRS rule if the AC matching was productive. 
+performed full AC matching while rewriting expressions, it would be able to apply the rule $(x + y) - x \rewrites  y$ to the candidate expression $((u + 2) + v) - u$ after reassociating it to $(u + (v + 2)) - u$, obtaining the result $v + 2$.  Delaying AC matching to synthesis has the effect of restricting the system to a single, offline round of AC and memoizing the result in the form of a new TRS rule if we are successful. 
 %
 % Theoretically we could add a rule for every reassociated/commuted 
 % version of this term on the left-hand side and $v + 2$ on the right-hand side, but 
@@ -1483,7 +1478,6 @@ performed full AC matching while rewriting expressions, it would be able to appl
 % compiler output is far more likely to occur than the others. -- note this is probably not true!
 Note that the synthesis procedure in Section~\ref{sec:rhssynthesis} could have found this rule, but checking for AC
 variants of existing rules is far cheaper. About three quarters of our synthesized rules are generated by this method.}
-\rb{What does "productive" mean? Same or different than "succeeds to rewrite"? }
 
 \subsubsection{Finding Right-Hand Sides through Synthesis}
 \label{sec:rhssynthesis}
@@ -1496,10 +1490,12 @@ then iteratively increase the number of operations, in order to find shorter seq
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
 operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the leaf node count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
 
-\jln{mention that we keep concrete constants because it makes z3 more performant}
 While Z3 is a powerful tool for powering synthesis, there are certain types of expressions 
 containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
-Therefore we limit the use of division and modulo in our op-codes to be division
+Z3 is better able to reason about expressions containing concrete constants, rather than
+universally quantified variables, so we synthesize rules using candidate LHSs with 
+concrete constants from the target expression and generalize them later.
+We limit the use of division and modulo in our op-codes to be division
 or modulo by 2 only, and rely on the generalization step described next to
 widen the set of denominators for which a rule applies.  Because of this
 restriction, our synthesized rules cannot contain non-constants in denominators
@@ -1723,18 +1719,18 @@ we do it eagerly inside the predicate-synthesis loop described above.
 
 \subsection{Adding Rule Variants}
 \label{sec:rulevariants}
-Once we have a generalized rule with a valid predicate, we compensate for the lack
+\modified{Once we have a generalized rule with a valid predicate, we compensate for the lack
 of AC matching in the Halide TRS by adding AC variants of the rule as well. We find 
 all commuted variants of the rule's LHS (this is exponential in the size of the number 
 of commutative operators, which is tractable given our bounds on LHS term size). 
 Then, we find all reassociations of the rule's right-hand side. For each variant LHS, 
-we choose a RHS variant by casting both expressions to strings and finding the RHS 
-that has the shortest edit distance. 
+we choose a RHS variant by casting expressions to strings and finding the RHS 
+that has the shortest edit distance. }
 
-For example, the LHS of the first rule below has four additions and can be commuted 
+\modified{For example, the LHS of the first rule below has four additions and can be commuted 
 to 16 variants. The RHS of the rule can be reassociated in two different ways. For the 
 commuted variant of the LHS on the second line, we choose the other means of reassociating
-the RHS as it has a smaller edit distance.
+the RHS as it has a smaller edit distance.}
 
 \begin{equation*}
 \begin{split}
@@ -1743,24 +1739,28 @@ the RHS as it has a smaller edit distance.
 \end{split}
 \end{equation*}
 
-The intuition is that there is no a priori reason 
+\modified{The intuition is that there is no a priori reason 
 to prefer one reassociated variant to another; they are almost certainly equal in 
 terms of our reduction order. Thus, we choose the RHS that perturbs the structure of the 
 LHS as little as possible, in order to avoid rewriting common subexpressions in the hopes
-of canceling them out later.
+of canceling them out later.}
 
 \jln{should we mention the local commutative normalization Halide uses? }
 
 
-\subsection{Final Simplification \& Filtering}
+\subsection{Filtering Rule Output}
 \label{sec:filtering}
-\jln{note that redundancy checking is needed for batch synthesized rules -- 
-if we synthed rules one at a time, we wouldn't find redundant rules bc we
-use the simplifier itself as part of the synth pipeline}
-Next, we check that the rule is not redundant. For every pair of rules
-$R_1$ and $R_2$, if $R_1$ matches every left-hand side that $R_2$
-matches, and the predicate for $R_1$ implies the predicate for $R_2$,
-then we can discard $R_2$ as $R_1$ is at least as general. Finally, we
+\modified{As a final step, we check each output rule for redundancy with the rule batch found
+by the synthesis pipeline. Because the Halide TRS matches expressions against rules in
+a fixed priority, if a rule can match only expressions that would be matched by an earlier rule,
+it is essentially dead code and should be filtered out. For each new rule, we check
+that no earlier rule has precisely the same LHS and predicate; if so, it can be discarded.
+Then, we check that no earlier rule is more general than the current rule: a rule is more 
+general than another if they have similar LHSs, but a variable appears in the first rule 
+in a place where the second rule has a more specific subterm, or if they have the same LHS
+but the predicate of the first rule implies the predicate of the second.}
+
+Finally, we
 check that the candidate rule obeys our reduction order in order to
 preserve our termination guarantee. If the candidate rule passes these
 filters, and the predicate has not been flagged for human review, the
