@@ -1287,35 +1287,36 @@ devs observe failures and add rules to address them. Three types of new rules: a
 (but does this actually happen?), address rules that could match if we had full AC 
 matching, add rules that are based on axioms that cannot be derived from the existing 
 ruleset at all.}
+\rb{This para would help me understand the role of synthesis but I am not sure we if still plan to structure the paper along the lines of why we are adding rules. }
 
 The Halide term rewriting system is not complete: there
 exist expressions checked by the compiler running on real-world pipelines that
 the TRS cannot resolve, but which are known to be true. 
-In this section, we describe a workflow for automatically augmenting the Halide
-TRS using program synthesis.
-A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
+\rb{The previous sentence is proof-centric, while we now want more of a simplification-centric description, right?  To this end, could we say that the TRS gets stuck on expressions that are known to be further simlifiable?}
+In this section, we describe a workflow for automatically augmenting the Halide TRS using program synthesis. 
+\rb{I don't know if I would agree that the AC rules are created with synthesis; they seem to be created with AC matching. }
+
+\rb{Let's first state what we want to compute. I added here a possible description.}. Given an expression that the TRS failed to simplify, our goal is to find a rule that rewrites such a \emph{target expression}.  Among all such rules, we prefer the more general ones. As a heuristic of generality we use the size of the rule's LHS, since larger LHS patterns are more specific. \rb{Now we can say how it's done.} A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
 %and Algorithm~\ref{alg:synthesis-algorithm} shows the corresponding pseudocode.
-We begin by synthesizing candidate rules that contain concrete constants,
-then generalize those rules by replacing them with wildcards that
-match any compile-time constants, along with predicates checkable at compile-time
-that encode constraints on those constants.
+We begin by synthesizing candidate rules that contain concrete constants from the target expression.  \rb{If we call these rules "candidate" rules, we may want to add how we select a new rule from among the candidate rules. Otherwise, we can drop the adjective "candidate". }  Next we generalize those rules by replacing constants with wildcards and synthesizing compile-time predicates 
+that check the validity of the rule on the constants matched by the wildcards. 
 
 %\subsection{Synthesizing Candidate Rules With Constants}
 %\label{sec:synthesizing-candidate-rules}
 
-The aim of the synthesis pipeline is to learn new rules useful for
-reasoning about a corpus of input expressions. Depending on the task,
-these expressions might be gathered from a bug report, or gathered
-from compiler logs. With logging enabled, the compiler records two
+% The aim of the synthesis pipeline is to learn new rules useful for
+% reasoning about a corpus of input expressions. 
+\rb{This paragraph could become its own subsection, focused on how target expressions are collected and filtered.}
+The set of target expressions may come from a bug report, or may be gathered from compiler logs. With logging enabled, the compiler records two
 kinds of problematic expression for which new TRS rules may be helpful:
 \modified{non-monotonic expressions, which can result in over-conservative
 bounds for loops and memory allocations; and proof failures,
 which may prevent Halide from performing certain optimizations
 (see Section~\ref{sec:uses-of-trs}). Of course, some proof failures may genuinely have
 no solution. To filter the list of failed proofs,
-the logging machinery attempts to substitute random values for any remaining
-wildcards to check for counterexamples. If no counterexamples are found after 100
-attempts, we log the expression as one that could potentially be further rewritten.}
+the logging machinery tests the expression by substituting random values for any remaining wildcards.  
+\rb{This description sounds like only the second kind of expressions (failed proofs) are filtered with random testing.  Are non-monotonic failures to prove also tested and filtered?} 
+If an expression passes 100 random tests, it is logged as a target expression.}
 
 
 %%\paragraph{Non-monotonic expressions}
@@ -1404,30 +1405,40 @@ each individual subterm. This process yields the list of candidate LHS terms on 
 \end{figure*}
 
 \subsection{Generating LHS Patterns}
-\modified{Our goal is to find a set of candidate LHSs which we know would be able to match the target expression.
- For each candidate, if we could find an equivalent RHS and 
-form a valid rule, we would be able to make progress on an expression that the current TRS is stuck on. 
+\modified{
+\rb{What follows is my attempt to simplify the two sentences that were here before.}
+To synthesize a rule that rewrites the target expression, we need to first generate all possible LHSs that match the expression.  
+% Our goal is to find a set of candidate LHSs which we know would be able to match the target expression.
+% For each candidate, if we could find an equivalent RHS and 
+%form a valid rule, we would be able to make progress on an expression that the current TRS is stuck on. 
+\rb{Can we clarify why the next sentence makes the point that no generated LHS can make progress in the current TRS? I don't know why we are saying it. Is it to emphasize that by trying all LHSs, we are not doing any useless work? Or that we are guaranteed to synthesize a new useful rule? }
 (Note that the candidate LHSs are also expressions that the Halide TRS cannot rewrite; 
 if it could, it would have been able to rewrite the original expression.)}
 
-\modified{First, we need to find a candidate LHS term that will match the target expression, 
-or some portion of it. We do this through a kind of inverse matching. When we want 
+\modified{
+% First, we need to find a candidate LHS term that will match the target expression, or some portion of it. 
+First, we enumerate LHS terms that match any portion of the target expression.  Figure~\ref{fig:lhspatterns} shows a worked example. 
+We perform the enumeration through a kind of inverse matching. When we want 
 to attempt to rewrite an expression $e$ with a rule $l \rewrites r$, the first step is to 
 match $e$ to $l$ by finding a substitution $\sigma$ that unifies the two expressions 
-such that $\sigma(l) = e$. To find a candidate LHS, we pick an inverse substitution $\sigma^{-1}$
-that maps subterms of $e$ to fresh variables, then substitute to construct the LHS term $l$
-such that $\sigma^{-1}(e) = l$. We repeat to find all possible LHSs that could match the
-target expression, then perform the procedure again to find all LHSs that could match 
-any subterm of the expression as well. Once this is done, we have a set of all possible
-LHSs that could be matched with any part of our input expression. See figure~\ref{fig:lhspatterns} 
-for a worked example.}
+such that $\sigma(l) = e$. 
+\rb{In the previousl sentence, should "such that" be replaced with "i.e.,".  In other words, $\sigma(l) = e$ is another way of saying that $e$ and $l$ have been unified, right?  As is, the sentence says that we want unification AND also $\sigma(l) = e$. I also changed the "such that" that was used below. }
+To find a candidate LHS, we pick an inverse substitution $\sigma^{-1}$
+that maps some subterms of $e$ to fresh variables, then inverse-substitute to construct the LHS term $l$, i.e., $\sigma^{-1}(e) = l$. 
+\rb{Do identical subterms of $e$ receiv e the same fresh variable or distinct fresh variables? }
+\rb{Is the inverse substituttion a standard thing? If yes, we should cite a textbook.  If not, we should think about whether this inverse substitution is well defined, in particular for overlapping subterms. It may be safer not to use the inverse formally; ie, we may want to stay away from using $\sigma^{-1}(e)$ since we didn't define $\sigma^{-1}$ formally. }
+We repeat to find all possible LHSs that could match the
+target expression, then repeat the procedure on all \emph{subterms} of the target expression.  The result is the set of all 
+LHSs that match any part of the target expression. }
 
-\modified{This process is exponential in the size of $e$, so we use a few heuristics to narrow 
-our search. We bound the size of candidate LHSs; longer terms most likely will not
-result in rules general enough to justify inclusion. We process target expressions in batches so we can remove 
-duplicates, as well as LHS that are identical except for the values of their constants. 
-We also found it helpful to keep a blacklist of LHSs we could not find rules for in 
-previous runs (for example, $v_1 + v_3$ is not likely to form a useful rule).}
+\modified{This number of LHSs is exponential in the size of $e$, so we use a few heuristics to narrow 
+our search. We bound the size of candidate LHSs since longer terms are less likely to 
+result in rules general enough to justify inclusion in the ruleset. 
+\rb{Can we mention the value of the bound?}
+Additionally, since we process target expressions in batches, we remove 
+LHSs that differ only in the values of their constants. 
+Finally, we have found it helpful to keep a blacklist of LHSs for which we failed synthesize rules; for example, $v_1 + v_3$ is unlikely to form a useful rule.}
+\rb{"unlikely to form": can we replace it with "does not form a rule"?   }
 
 \subsection{Synthesizing Right-Hand Sides} Given a candidate left-hand side, we 
 synthesize a right-hand side that is semantically equivalent and
