@@ -1723,21 +1723,34 @@ we do it eagerly inside the predicate-synthesis loop described above.
 
 \subsection{Adding Rule Variants}
 \label{sec:rulevariants}
-Now that we have a list of rules with predicates, we augment the list
-by enumerating all variants of the left-hand side with commutative
-operations reordered. For each variant we search over all commutations
-and reassociations of the right-hand side, and select the one most
-similar to the left-hand side. We measure similarity by serializing
-the expression and computing the Levenshtein distance on the resulting
-strings considering only the parentheses and the leaves. This is done
-to avoid pointlessly shuffling subexpressions. Variables in each rule
-are then renamed to appear in a consistent order.
+Once we have a generalized rule with a valid predicate, we compensate for the lack
+of AC matching in the Halide TRS by adding AC variants of the rule as well. We find 
+all commuted variants of the rule's LHS (this is exponential in the size of the number 
+of commutative operators, which is tractable given our bounds on LHS term size). 
+Then, we find all reassociations of the rule's right-hand side. For each variant LHS, 
+we choose a RHS variant by casting both expressions to strings and finding the RHS 
+that has the shortest edit distance. 
 
-For example, from a synthesized rule $y - \hmax(x, y - z) \rewrites \hmin(y - x, z)$ we would generate the following two
-output rules by commuting the max operation:
-\[
-x - \hmax(y, x - z) \rewrites \hmin(z, x - y) \qquad x - \hmax(x - y, z) \rewrites \hmin(y, x - z)
-\]
+For example, the LHS of the first rule below has four additions and can be commuted 
+to 16 variants. The RHS of the rule can be reassociated in two different ways. For the 
+commuted variant of the LHS on the second line, we choose the other means of reassociating
+the RHS as it has a smaller edit distance.
+
+\begin{equation*}
+\begin{split}
+(x + (y - ((z + (w + x)) + u))) & \rewrites y - (z + (w + u))) \\
+(y - (((w + x) + z) + u)) + x & \rewrites y - ((z + w) + u)
+\end{split}
+\end{equation*}
+
+The intuition is that there is no a priori reason 
+to prefer one reassociated variant to another; they are almost certainly equal in 
+terms of our reduction order. Thus, we choose the RHS that perturbs the structure of the 
+LHS as little as possible, in order to avoid rewriting common subexpressions in the hopes
+of canceling them out later.
+
+\jln{should we mention the local commutative normalization Halide uses? }
+
 
 \subsection{Final Simplification \& Filtering}
 \label{sec:filtering}
