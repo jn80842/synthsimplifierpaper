@@ -1144,18 +1144,18 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
 
   \tikzstyle{stage}=[fill=blue!10, draw=none, minimum height=3em, minimum width=11em]
   \tikzstyle{example}=[fill=orange!10, draw=none, minimum height=3em, minimum width=23em]
-\tikzstyle{label}=[fill=blue!10, draw=none, minimum height=3em, minimum width=1em]    
+  \tikzstyle{label}=[fill=blue!10, draw=none, minimum height=3em, minimum width=1em]
   \begin{tikzpicture}[node distance=1.5cm,auto,>=latex']
-    \node (s1) [stage] {Input Expression};
-    \node (s2) [stage] [below of=s1] {\shortstack{Generated LHS \\ Patterns (Fig.~\ref{fig:lhspatterns})}};
-    \node (s3) [stage] [below of=s2] {AC Matching (Sec.~\ref{sec:rhsacmatching})};
-    \node (s4) [stage] [below of=s3] {\shortstack{Superoptimized with \\ CEGIS (Sec.~\ref{sec:rhssynthesis})}};
-    \node (s5) [stage] [below of=s4] {\shortstack{With Symbolic \\ Constants (Sec.~\ref{sec:generalizing-constants})}};
-    \node (s6) [stage] [below of=s5] {\shortstack{Clauses from \\ Basis Vectors}};
+    \node (s1) [stage] {\shortstack{Input expression}};
+    \node (s2) [stage] [below of=s1] {\shortstack{Generated LHS\\patterns (Fig.~\ref{fig:lhspatterns})}};
+    \node (s3) [stage] [below of=s2] {\shortstack{AC matching\\(Sec.~\ref{sec:rhsacmatching})}};
+    \node (s4) [stage] [below of=s3] {\shortstack{Superoptimized with\\CEGIS (Sec.~\ref{sec:rhssynthesis})}};
+    \node (s5) [stage] [below of=s4] {\shortstack{With symbolic\\constants (Sec.~\ref{sec:generalizing-constants})}};
+    \node (s6) [stage] [below of=s5] {\shortstack{Substitute concrete\\values of $x_i$}};
     \node (s7) [stage] [below of=s6] {Candidate predicate};
-    \node (s8) [stage] [below of=s7] {\shortstack{Extend with\\Counterexamples}};
-    \node (s9) [stage] [below of=s8] {Rule with Predicate};
-    \node (s10) [stage] [below of=s9] {Add Variants (Sec.~\ref{sec:filtering})};
+    \node (s8) [stage] [below of=s7] {\shortstack{Verify or find new\\counterexample}};
+    \node (s9) [stage] [below of=s8] {Rule with predicate};
+    \node (s10) [stage] [below of=s9] {Add variants (Sec.~\ref{sec:filtering})};
     \node (l1) [label] [left of=s1,node distance=6em] {(a)};
     \node (l2) [label] [left of=s2,node distance=6em] {(b)};
     \node (l3) [label] [left of=s3,node distance=6em] {(c)};
@@ -1167,17 +1167,19 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
     \node (l9) [label] [left of=s9,node distance=6em] {(i)};
     \node (l10) [label] [left of=s10,node distance=6em] {(j)};    
 
+    \draw [line join=miter] (l8.west) -- ([xshift=-1em] l8.west) -- ([xshift=-1em] l6.west) -- ([xshift=-0.9em] l6.west) node {};
+    \path[->] ([xshift=-1em] l6.west) edge node {} (l6.west);
+        
     \path[->] (s1) edge node {} (s2);
     \path[->] (s2) edge node {} (s3);
     \path[->] (s3) edge node {} (s4);
     \path[->] (s4) edge node {} (s5);
     \path[->] (s5) edge node {} (s6);
     \path[->] (s6) edge node {} (s7);
-    \path[->] ([xshift=1em] s8.north) edge node {} ([xshift=1em] s7.south);
-    \path[->] ([xshift=-1em] s7.south) edge node {} ([xshift=-1em] s8.north);
+    \path[->] (s7) edge node {} (s8);
     \path[->] (s8) edge node {} (s9);
     \path[->] (s9) edge node {} (s10);                
-    
+
     \node (e1) [example] [right of=s1,node distance=19em]
           {$(y + 2) < select(u < z, -3, 4) + (y + 2)$};
     \node (e2) [example] [right of=s2,node distance=19em]
@@ -1194,7 +1196,7 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
     \node (e3) [example] [right of=s3,node distance=19em]
           {\shortstack{No reassociated/commuted variants \\ match an existing rule.}};
     \node (e4) [example] [right of=s4,node distance=19em]
-          {$x_1 < select(x_2, -3, 4) + x_1 \rightarrow \neg x_2$};
+          {$x_1 < select(x_2, -3, 4) + x_1 \rightarrow \boxed{\neg x_2}$};
     \node (e5) [example] [right of=s5,node distance=19em]
           {$x_1 < select(x_2, c_0, c_1) + x_1 \rewrites \neg x_2$};
     \node (e6) [example] [right of=s6,node distance=19em]
@@ -1207,8 +1209,8 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
         {$0 < c_1 \wedge c_0 \le 0 $};
     \node (e8) [example] [right of=s8,node distance=19em]
         {\shortstack{
-            $\exists~ \hat{x}, \hat{c} ~s.t.~ (0 < \hat{c}_1 \wedge \hat{c}_0 \le 0) ~\wedge$ \\
-            $(\hat{x}_1 < select(\hat{x}_2, \hat{c}_0, \hat{c}_1) + \hat{x}_1 \neq \neg \hat{x}_2)$ ? \\
+            $\exists~ x, c ~s.t.~ (0 < c_1 \wedge c_0 \le 0) ~\wedge$ \\
+            $(x_1 < select(x_2, c_0, c_1) + x_1 \neq \neg x_2)$ ? \\
             No solutions. Predicate is sufficient.
         }};
     \node (e9) [example] [right of=s9,node distance=19em]
@@ -1232,7 +1234,7 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
     \path[->] (e9) edge node {} (e10);
 
   \end{tikzpicture}
-  \caption{Overall flow of the synthesis pipeline (in blue) with worked example (in orange). (a) We harvest expressions from real compilations on which the TRS could make no further progress. (b) We enumerate all sub-trees of these to generate left-hand sides that would match each expression. Our example will focus on one such pattern. (c) We superoptimize each pattern to obtain a right-hand side by first checking if any reassociated or commuted variants of it match an existing TRS rule. (d) If not, we apply CEGIS. (e) This rule is specific to the particular values of any constants that appear. We then replace any constants with new variables $c_0, c_1, etc.$ to obtain a more general version of the rule. We must now synthesize a sufficient condition on these new variables under which the rule still holds. (f) To do this, we treat the rewrite as an equality and take the conjunction over a set $S$ of different values for the non-constant variables $x_0, x_1, etc.$. (g) Simplifying the result gives a candidate predicate. This is a \emph{necessary} condition. (h) We then check if it is also \emph{sufficient} condition using Z3. (i) If a counterexample is found, we add these new values of $\hat{x}$ to $S$ to obtain a new candidate predicate and repeat until we have a sufficient condition to serve as our predicate. (j) Finally, we construct variants of the rule in which the LHS has been reassociated and commuted.}
+  \caption{Overall flow of the synthesis pipeline (in blue) with worked example (in orange). (a) We harvest expressions from real compilations on which the TRS could make no further progress. (b) We enumerate all sub-trees of these to generate left-hand sides that would match each expression. Our example will focus on one such pattern. (c) We obtain a right-hand side by first checking if any reassociated or commuted variants of it match an existing TRS rule. (d) If not, we superoptimize the pattern using CEGIS. (e) This rule is specific to the particular values of any constants that appear. We then replace any constants with new variables $c_0, c_1, etc.$ to obtain a more general version of the rule. We must now synthesize a sufficient condition on these new variables under which the rule still holds. (f) To do this, we treat the rewrite as an equality and take the conjunction over a set $S$ of different values for the non-constant variables $x_0, x_1, etc.$. (g) Simplifying the result gives a candidate predicate. This is a \emph{necessary} condition. (h) We then check if it is also \emph{sufficient} condition using Z3. (i) If a counterexample is found, we add these new values of $x$ to $S$ to obtain a new candidate predicate and repeat until we have a sufficient condition to serve as our predicate. (j) Finally, we construct variants of the rule in which the LHS has been reassociated and commuted.}
 \label{fig:synthesis-flow}
 \end{figure*}
 
@@ -1388,7 +1390,7 @@ to true, so we log it as a target expression.}
 
 
 \begin{pgfonlayer}{background}
-\fill[red,opacity=0.3] \convexpath{x, min, z1}{10pt};
+\fill[red,opacity=0.3] \convexpath{x, min, z1, y}{10pt};
 \fill[blue,opacity=0.3] \convexpath{y, -, z1}{10pt};
 \fill[green,opacity=0.3] \convexpath{z, +2, 2}{10pt};
 \end{pgfonlayer}
