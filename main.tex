@@ -831,7 +831,10 @@ depth-first, bottom-up traversal of the expression DAG. At each node, it looks
 up the list of rewrite rules that correspond to the node's function symbol, then
 attempts to match the subtree expression with the rule LHSs in order. Matching
 is performed purely syntactically, using C++ templates, without any AC-matching
-or more sophisticated data structures. When a match is found, it rewrites the
+or more sophisticated data structures. \modified{Halide rewrite rules contain special metavariables,
+called symbolic constants, that can match only to concrete constants; all other
+variables can match any subterm as normal.}
+When a match is found, it rewrites the
 subtree expression using the RHS of that rule, and then attempts to simplify the
 subtree expression again. If no rule matches the subtree, the traversal
 continues; when the entire expression cannot be simplified further, the
@@ -1136,6 +1139,8 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \label{sec:completeness}
+\jln{Possible TODO: I refer to expressions from the corpus we learn from as input expressions throughout. If anyone has a 
+better suggestion please let me know.}
 \begin{figure*}
 %\includegraphics[width=1.\columnwidth,natwidth=610,natheight=642]{figures/synthesis-flow.pdf}
 %\includegraphics[width=1.\columnwidth]{figures/synthesis-flow.pdf}
@@ -1238,78 +1243,23 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
 \label{fig:synthesis-flow}
 \end{figure*}
 
-% \begin{algorithm}[htbp]
-%   \SetAlgoLined
-%   \KwIn{$e$, an expression}
-%   \KwOut{$r=\{r_0,..\}$, a set of rewrite rules}
-%   \BlankLine\BlankLine
-%   \tcp{Generate candidate rules (\S\ref{sec:synthesizing-candidate-rules})}
-%   Generate $P=\{p_0,..,p_n\}$ patterns that match subexpressions of $e$\;
-%   Remove $p_i \in P$ if $p_i$ does not include a repeated wildcard\;
-%   $r_{cand} = \{\}$\;
-%   \ForEach{$p_i \in P$}{
-%     \tcp{First try reassociation \& applying existing rules}
-%     \ForEach{$p_{reassoc}$}{
-%       \If{\texttt{rewrite($p_{reassoc}$) $\neq$ $p_{reassoc}$}}{
-%           \tcp{Found a candidate rewrite}
-%           Append $p_i$ $\rewrites$ \texttt{rewrite($p_{reassoc}$)} to $r_{cand}$\;
-%           break\;
-%       }
-%     }
-%     \tcp{If no candidate found yet, use CEGIS}
-%     \If{\texttt{superoptimize($p_i$) $\neq$ $p_i$}}{
-%       Append $p_i$ $\rewrites$ \texttt{superoptimize($p_i$)}\ to $r_{cand}$\;
-%       break\;
-%     }
-%    }
-%   \tcp{Generalize constants (\S\ref{sec:generalizing-constants})}
-%   \ForEach{$r_i \in r_{cand}$}{
-%     Replace concrete constants in $r_i$ with symbolic constants $c_i$\;
-%     $n =$ number of non-constant wildcards in $r_i$\;
-%     $S$ = standard basis vectors for $Z^n \cup \vec{0}$\;
-%     \Repeat{$iter > 4$, $P_{cand}(\vec{c})$ is sufficient, or Z3 times out}{
-%       $P_{cand}(\vec{c}) = \bigwedge\limits_{\vec{x} \in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )$\;
-%       Find $\hat{x}, \hat{c}$ s.t. $P_{cand}(\hat{c}) \wedge LHS(\hat{x}, \hat{c}) \neq RHS(\hat{x}, \hat{c})$\;
-%       \uIf{No such $\hat{x}, \hat{c}$ exists}{$P_{cand}(\vec{c})$ is sufficient}
-%       \Else{$S \leftarrow S \cup \{\hat{x}\}$}
-%     }
-%     \If{still not sufficient}{break $P_{cand}(\vec{c})$ into disjunctive normal form and check if any clause is sufficient\;}
-%     \uIf{sufficient}{Perform final filtering and add to $r$\;}
-%     \Else{Reject candidate\;}
-%   }
-%   \caption{\label{alg:synthesis-algorithm} Pseudocode of the synthesis algorithm.}
-% \end{algorithm}
-
-% \jln{add para here about the TRS philosopher toward increasing robustness. Adding new rules 
-% is cheap, but the space of possible rules is too large. Instead, TRS is grown lazily,
-% in a data driven way: 
-% devs observe failures and add rules to address them. Three types of new rules: add confluence 
-% (but does this actually happen?), address rules that could match if we had full AC 
-% matching, add rules that are based on axioms that cannot be derived from the existing 
-% ruleset at all.}
-% \rb{This para would help me understand the role of synthesis but I am not sure we if still plan to structure the paper along the lines of why we are adding rules. }
 
 \modified{Although the Halide term rewriting system is necessarily incomplete, we can strengthen 
 it by finding expressions on which the TRS can no longer make progress and creating 
 rules that will further simplify them.
 In this section, we describe a workflow for automatically augmenting the Halide TRS with new rules.}
 
-\modified{Given an expression that the TRS failed to simplify, our goal is to find a rule that rewrites such a \emph{target expression}.  Among all such rules, we prefer the more general ones. As a heuristic of generality we use the size of the rule's LHS, since larger LHS patterns are more specific. A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
+\modified{Given an expression that the TRS failed to simplify, our goal is to find a rule that rewrites such an \emph{input expression}.  Among all such rules, we prefer the more general ones. As a heuristic of generality we use the size of the rule's LHS, since larger LHS patterns are more specific. A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
 %and Algorithm~\ref{alg:synthesis-algorithm} shows the corresponding pseudocode.
 We begin with an expression we will attempt to further simplify; 
-first, we synthesize rules that contain concrete constants from the target expression. 
+first, we synthesize rules that contain concrete constants from the input expression. 
 Next we generalize those rules by replacing constants with wildcards and synthesizing compile-time predicates 
 that check the validity of the rule on the constants matched by the wildcards. If we can 
-find such a rule, we know that adding it to the TRS will enable it to simplify the target
+find such a rule, we know that adding it to the TRS will enable it to simplify the input
 expression as well as any similar expressions it may encounter.}
 
-%\subsection{Synthesizing Candidate Rules With Constants}
-%\label{sec:synthesizing-candidate-rules}
-
-% The aim of the synthesis pipeline is to learn new rules useful for
-% reasoning about a corpus of input expressions. 
-\paragraph{Gathering target expressions}
-The set of target expressions may come from a bug report, or may be gathered from compiler logs. With logging enabled, the compiler records two
+\paragraph{Gathering input expressions}
+The set of input expressions may come from a bug report, or may be gathered from compiler logs. With logging enabled, the compiler records two
 kinds of problematic expression for which new TRS rules may be helpful:
 \modified{non-monotonic expressions, which can result in over-conservative
 bounds for loops and memory allocations; and proof failures,
@@ -1317,57 +1267,12 @@ which may prevent Halide from performing certain optimizations
 (see Section~\ref{sec:uses-of-trs}). 
 Of course, absent an oracle, it is difficult to know if the TRS has fully simplified 
 some expression or if it lacks the solving power to continue simplification. 
-When the TRS is used as a proof engine, it attempts to reduce an expression to true.
+When the TRS is used as a proof engine, its goal is to reduce an expression to true.
 In this case, we can fuzz-test failed proofs by assigning all variables in an expression
 random values and evaluating. If after 100 random assignments we have not found one
 that evaluates to false, it may be the case that the expression should be reducible 
-to true, so we log it as a target expression.}
+to true, so we log it as an input expression.}
 
-
-%%\paragraph{Non-monotonic expressions}
-%% First, Halide relies on symbolic interval arithmetic for determining
-%% how much memory to allocate and how many values to compute. Symbolic
-%% interval arithmetic is exact in cases where an expression
-%% monotonically increases or decreases over a loop. For example, if $x
-%% \in [0, 100]$, then symbolic interval arithmetic states that $\hmax(x,
-%% x/2 + 20) \in [20, 100]$, which is the tightest correct
-%% bound; this bound is obtained by substituting in the lower and upper bounds of $x$
-%% into the expression. However, in the presence of anti-correlated subexpressions
-%% interval arithmetic becomes inexact, and is prone to overestimating
-%% bounds. The expression $\hmin(x, 100 - x)$ when $x \in [0, 100]$ is bounded above by 50, but
-%% symbolic interval arithmetic makes the weaker claim that it is bounded
-%% above by 100, by setting the first instance of $x$ to 100 and the
-%% second instance of $x$ to zero. The compiler therefore logs all
-%% instances of expressions which are non-monotonic in some containing
-%% loop, to make it easier to find inefficiencies caused by this
-%% overestimation. Any new TRS rule which reduces a non-monotonic
-%% expression to a monotonic one helps the compiler avoid these
-%% inefficiencies.
-
-%% \paragraph{Failed proofs}
-%% Second, Halide uses the TRS as a prover, to check the legality of
-%% certain transformations. For example, if a user asks to parallelize a
-%% loop that scatters values to memory, the compiler constructs a
-%% boolean-typed expression that encodes the claim that there is no race
-%% condition and passes this expression to the TRS. If it reduces to the
-%% constant ``true'', the loop can be parallelized. Otherwise the code is
-%% rejected. When logging is enabled, in cases where the expression is
-%% not reduced to a constant the compiler substitutes random values for
-%% any remaining wildcards to check for counterexamples. If none are
-%% found after 100 attempts, the expression is logged as something which
-%% might be reducible to true with more rewrite rules.
-
-%We obtain scripts from the authors of \citeauthor{Adams2019}~\cite{Adams2019} that compile
-% random but realistic Halide pipelines with random schedules for
-%training the Halide autoscheduler, and instrument the compiler to gather our dataset.
-%Since the rewriter works as both a prover and a simplifier, we need a dataset that reflects both usages.
-%For the prover usecase,  the compiler was instrumented to print
-%expressions that the TRS was unable to prove true, but that fuzz
-%testing was not able to find to be false, a good indicator of a weak spot in the
-%rewriter's reasoning power. For the simplifier usecase, we capture all
-%integer expressions present in the final Halide IR, at the point just before 
-%lowering to LLVM IR. These expressions have been reduced as far as the current rewriter can, so we attempt
-%to learn rules that could reduce them even further. 
 
 \begin{figure*}
 \begin{tabular}{lll}
@@ -1412,30 +1317,29 @@ each individual subterm. This process yields the list of candidate LHS terms on 
 \subsection{Generating LHS Patterns}
 
 \modified{
-\aba{These first few sentences are highly redundant.}
-  Our first step is to find LHS terms that could match the target expression, or any portion of it. 
+  Our first step is to find LHS terms that could match the input expression, or any portion of it. 
 We can enumerate all such terms through a kind of inverse matching.
-First, we enumerate LHS terms that match any portion of the target expression. 
-We perform the enumeration through a kind of inverse matching. When we rewrite an expression with a rule, 
+When we rewrite an expression with a rule, 
 we match the expression to the rule's LHS by finding a substitution for all variables in
-the LHS that will unify it with the target expression. Here, we start with a target expression,
+the LHS that will unify it with the input expression. Here, we start with an input expression,
 then fix a substitution by mapping some of its subterms to fresh variables. If we 
 replace those subterms with the new variables, we have constructed a term that can 
-be matched with the target term.
+be matched with the input term.
 If we perform this inverse matching for all sets of subterms, we find all possible LHSs that could match the
-target expression. 
-If a subterm occurs more than once in the target expression, we construct both LHSs that 
+input expression. 
+If a subterm occurs more than once in the input expression, we construct both LHSs that 
 use the same variable to replace it in multiple places and LHSs that replace its
 occurrences with different variables.
-We then repeat the procedure on all \emph{subterms} of the target expression.  The result is the set of all 
-LHSs that match any part of the target expression. See figure~\ref{fig:lhspatterns} for a worked example. }
+We then repeat the procedure on all \emph{subterms} of the input expression.  The result is the set of all 
+LHSs that match any part of the input expression. See figure~\ref{fig:lhspatterns} for a worked example. }
 
-\modified{This number of LHSs is exponential in the size of the target expression, so we use a few heuristics to narrow 
+\modified{This number of LHSs is exponential in the size of the input expression, so we use a few heuristics to narrow 
 our search. We bound the size of candidate LHSs to have seven or fewer leaves, since longer terms are less likely to 
 result in rules general enough to justify inclusion in the ruleset. 
-Additionally, since we process target expressions in batches, we remove 
+Additionally, since we process input expressions in batches, we remove 
 duplicate LHSs as well as LHSs that differ only in the values of their constants. 
-Finally, we have found it helpful to keep a blacklist of LHSs for which we failed synthesize rules; for example, $v_1 + v_3$ 
+Finally, we have found it helpful to keep a blacklist of LHSs for which we previously
+failed synthesize rules; for example, $v_1 + v_3$ 
 cannot form a rule, so we filter it out as a candidate.}
 
 \subsection{Synthesizing Right-Hand Sides} 
@@ -1472,50 +1376,45 @@ $((u + 2) + v) - u$ & $\rewrites$ & $v + 2$ & new rule
 
 \modified{We can consider this procedure a kind of lazy, offline AC matching because if the Halide TRS 
 performed full AC matching while rewriting expressions, it would be able to apply the rule $(x + y) - x \rewrites  y$ to the candidate expression $((u + 2) + v) - u$ after reassociating it to $(u + (v + 2)) - u$, obtaining the result $v + 2$.  Delaying AC matching to synthesis has the effect of restricting the system to a single, offline round of AC and memoizing the result in the form of a new TRS rule if we are successful. 
-%
-% Theoretically we could add a rule for every reassociated/commuted 
-% version of this term on the left-hand side and $v + 2$ on the right-hand side, but 
-% the number of rules would be exponential in the size of the original term. Instead 
-% we rely on our assumption that the form of this expression as it occurred in our logged 
-% compiler output is far more likely to occur than the others. -- note this is probably not true!
 Note that the synthesis procedure in Section~\ref{sec:rhssynthesis} could have found this rule, but checking for AC
 variants of existing rules is far cheaper. About three quarters of our synthesized rules are generated by this method.}
 
 \subsubsection{Finding Right-Hand Sides through Synthesis}
 \label{sec:rhssynthesis}
-If the first method fails, we apply CEGIS to superoptimize the left-hand side pattern.
-We build a CEGIS loop on top of Z3~\cite{de2008z3}, encoding the LHS as a set of op-codes
-and searching for a semantically equivalent but shorter sequence of operations, similar
-to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016superoptimization}.
-We first search for a single-op sequence,
-then iteratively increase the number of operations, in order to find shorter sequences
+\modified{If the first method fails, we apply CEGIS to superoptimize the left-hand side pattern.
+In superoptimization~\cite{massalin1987superoptimizer}, we take a program and search 
+for an equivalent program within some grammar that is preferable according 
+to some cost function. Here our grammar is that of the Halide expression language, 
+the method for testing program equivalence is the Z3 solver, and we use the node
+count of the programs as a proxy for our full reduction order.}
+
+\modified{Similar to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016superoptimization},
+we search the expression space for a RHS using a CEGIS loop. This loop alternately calls Z3 as a
+verifier, which checks if a candidate RHS is equivalent to the LHS on all inputs, 
+and a synthesizer, which finds a candidate RHS that is equivalent to the LHS on
+a limited set of inputs.
+We begin by choosing a single-op
+RHS and ask the verifier if it is equivalent to the LHS. If it is not, we get back 
+a counterexample of assignments to the variables for which the right- and left-hand side are 
+not equivalent, which we keep as a set of test inputs. 
+We then ask the synthesizer for a new RHS that is equivalent to the LHS 
+only on the counterexample assignments we found in the last step. 
+If we cannot find an equivalent single-op sequence,
+we iteratively increase the number of operations, ensuring we find shorter sequences
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
-operations, it becomes the candidate RHS. Rather than try to encode the complex reduction order into the synthesis query itself, we use the leaf node count of the synthesized expression as an approximation for the order, and then filter out any rules that do not respect the full order as a post-process. 
+operations, we use it together with our LHS to form a candidate rule.}
 
 While Z3 is a powerful tool for synthesis, there are certain types of expressions 
 containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
 Z3 is better able to reason about expressions containing concrete constants, rather than
 universally quantified variables, so we synthesize rules using candidate LHSs with 
-concrete constants from the target expression and generalize them later.
+concrete constants from the input expression and generalize them later.
 We limit the use of division and modulo in our op-codes to be division
 or modulo by 2 only, and rely on the generalization step described next to
 widen the set of denominators for which a rule applies.  Because of this
 restriction, our synthesized rules cannot contain non-constants in denominators
 or the right-hand side of a modulo.  As a result, our synthesis system cannot
 construct all rules a human can.
-
-% \section{Lazy AC Matching}
-% \label{sec:acmatching}
-
-% As mentioned in Section [desing rationale], our TRS performs no AC matching during rewriting.  AC matching is performed entirely by the offline simplifier and memoized with a rewrite rule inserted into the TRS ruleset.  This section details the offline simplifier and the memoization. 
-
-% The offline simplifier is invoked on an expression $e$ that failed to be simplifed further by the TRS. [Let's find a term that concisely names such "terminal" expressions.]  In the baseline algorithm, the offline simplifier reassociates $e$ into all possible equivalent expressions $\{ e_i \}$ and attempts to simplify each of them with the (online) TRS.  If an $e_i$ can be simplified into $e_i'$, the rule $e\rightarrow e_i'$ is inserted into the ruleset $R$. 
-
-% The actual algorithm is more efficient.  First, the rule inserted into $R$ is more general: it matches not only $e$ but also other expressions of the same syntactic shape. Second, the LHS of the mew rule is the smallest LHS that matches $e$. 
-
-% This algorithm has the property that it achieves full AC matching on all expressions that have been encountered previously, as well as their up-to-renaming variants. [Is this a correct claim? And how do we make up-to-renaming more precise?]. This is possible thanks to the laziness: we insert "AC rules" only for actually encountered expressions; achieving AC matching by encoding all possible reasociations in the rule LHSs would create an unbounded number of rules because the TRS can encounter expressions of unbounded size. 
-
-
 
 \begin{table*}
 \caption{Sample rules synthesized by our process. }
@@ -1532,20 +1431,16 @@ $\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0
 \label{tab:samplerules}
 \end{table*}
 
-\subsection{Generalizing Constants and Finding Predicates}
+\subsection{Generalizing Constants and Finding Predicate Guards}
 \label{sec:generalizing-constants}
 
-\rb{The structure of subsections suggests that Generalizing Constants happens also for rules created in Section 5.2.1 (AC matching).  Is this the case? } \aba{Yes. We could skip it by tracking and composing the necessary predicates, but that would be hard.}
-\modified{At this point, the synthesis pipeline has constructed a candidate 
+\modified{If either AC-matching search or CEGIS-based synthesis was successful, 
+we will now have a candidate rewrite
 rule that contains concrete values originating from the input expression.
 To generalize the rule, we replace such constants with fresh \emph{symbolic constants} 
 and synthesize a guard that is true when the rule is valid. 
 Recall that in the Halide TRS, a variable in the LHS matches any subterm, while a 
-symbolic constant matches only a constant value\rb{refer to a previous section.}; the guards, which are predicates over symbolic constants, can thus be evaluated at compile time. }
-
-% Rule predicates can contain symbolic constants, since their
-% values will be known at compile time, but not variables, which will not. This allows 
-% the TRS to evaluate predicates at the time of rule application. }
+symbolic constant matches only a constant value (see section~\ref{sec:customalgo}); the guards, which are predicates over symbolic constants, can thus be evaluated at compile time. }
 
 \modified{Ideally, we synthesize a guard that is the weakest precondition for the legality of the rule, so that the rule is invoked whenever it is applicable. 
 Formally, for a vector of variables $\vec{x}$ and a vector of symbolic 
@@ -1555,10 +1450,6 @@ for the boolean guard. We want to find a guard $\phi$ such that}
 %
 \[ \forall_{\vec{c}} . \forall_{\vec{x}} . \;\; \phi(\vec{c}) \iff LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})
 \]
-
-% \modified{We abuse notation slightly to write $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$ even 
-%when the LHS and RHS terms are of boolean type. When used by boolean operators, we coerce the integer-typed variables 
-% and symbolic constants in $\vec{x}, \vec{c}$ to false when they are 0 and true otherwise.}
 
 \modified{First, we query the solver whether $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$ holds
 for all values of $\vec{x}, \vec{c}$.  If so, the rule does not require a guard. }
@@ -1620,11 +1511,7 @@ over the subset $S$, we know that it is necessary for the equivalence for any va
 \modified{If the candidate predicate is unsound or not the weakest, the solver will return a counterexample $\vec{x_c}$ which we add to $S$ and repeat the process. 
 In our experiments, we do this for four iterations. If we still have not found a 
 valid predicate, we take our current candidate $\phi_S$, convert it to disjunctive normal
-form%
-%\footnote{While $P_S$ is initially a conjunction of equalities,
-%  disjunctions appear after simplification due to rewrites such as
-%  $c_1 \times c_2 = 0 \rewrites c_1 = 0 \vee c_2 = 0$}
-, and test
+form, and test
 each clause in turn to see if it is a sufficient condition.
 If we find one, we return this single clause; if none are valid, 
 we discard the rule.
@@ -1632,91 +1519,6 @@ If the loop terminates with Z3 timing out or returning ``unknown'', we return
 the current $P_S$, but flag it for human attention as requiring a manual proof. 
 We exclude all such cases from our experiments.}
 \rb{Above, "valid" means sound and weakest? What is $P_S$?  The guard or a rule? }
-% At this point in the synthesis pipeline, we have constructed a candidate rewrite
-% rule that contains concrete constants.  To make the rule as general as possible,
-% we replace each constant with a fresh \emph{symbolic constant}. A symbolic constant, unlike a variable,
-%  matches only terms with constant values known at compile time. We first query Z3
-% again to see if the equivalence still holds; if it does, the rule is valid. If
-% it is not, we will need to find a predicate (a precondition) to guard
-% applications of the rule in the term rewriting system. We attempt to synthesize a predicate
-% such that $pred \rightarrow LHS = RHS$ and all variables appearing in the
-% predicate are symbolic constants.
-
-% The ideal predicate would be one which is true for all cases in which
-% the $LHS = RHS$ and false for all cases where $LHS \neq RHS$. More
-% precisely, for a vector of variables $\vec{x} \in Z^n$ and a vector of
-% symbolic constants $\vec{c} \in Z^m$, let $LHS(\vec{x}, \vec{c})$ be the left-hand side
-% of the rewrite rule, and $RHS(\vec{x}, \vec{c})$ be our synthesized
-% right-hand side. The ideal predicate is then exactly:
-
-% \[
-% P_{ideal}(\vec{c}) = \bigwedge\limits_{\vec{x} \in Z^n} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )
-% \]
-
-% This is of course not a predicate we can use in practice, because it
-% involves an infinite conjunction over $Z^n$. We can however, unroll
-% the conjunction over any finite subset $S \subset Z^n$ and use that as
-% our predicate:
-
-% \[
-% P_S(\vec{c}) = \bigwedge\limits_{\vec{x} \in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}) )
-% \]
-
-% This predicate can be evaluated at compile time (with one caveat
-% below). If we set $S$ to the zero vector plus the standard basis for
-% $Z^n$ then many of the terms in the conjunction are either trivially
-% true or equivalent, and the unrolled conjunction often simplifies
-% (using the TRS itself) to a single equality.
-
-% For example, consider the candidate rewrite rule
-% $x_1 < select(x_2, c_0, c_1) + x_1 \rewrites !x_2$.  In this case,
-% we set $S = \{\{0, 0\}, \{1, 0\}, \{0, 1\}\}$.  If we substitute the zero
-% vector into $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$, we get
-% $0 < select(0, c_0, c_1) + 0 = 1$, which simplifies to $c_1 > 0$.  Thus, for $S$,
-% we obtain:
-% $$P_S(\vec{c}) = c_1 > 0 \wedge c_1 > 0 \wedge c_0 \le 0$$
-% which the Halide TRS will further simplify to remove the redundant term.
-
-% Because we dropped terms from the infinite conjunction, $P_S$
-% is now necessary but may not be sufficient. While it does recognize all the
-% cases in which the rule applies, it may also capture cases in which it
-% should not. However, for any given choice of $S$ we can improve it by
-% finding one of these incorrect cases using Z3, adding the
-% counterexample $\vec{x}$ to $S$, and iterating this until convergence in a
-% CEGIS-like loop.  For our example, Z3 returns that the candidate
-% predicate is indeed sufficient, so we do not need to enter this loop.
-
-
-% If the loop terminates with Z3 definitively stating that there are
-% no counterexamples, then $P_S$ is necessary \emph{and} sufficient, so
-% we have found our ideal predicate. If the loop does not terminate
-% after a small number of iterations (we use four) then we simplify our
-% $P_s$ expression using the TRS, convert it to disjunctive normal
-% form \footnote{While $P_S$ is initially a conjunction of equalities,
-%   disjunctions appear after simplification due to rewrites such as
-%   $c_1 \times c_2 = 0 \rewrites c_1 = 0 \vee c_2 = 0$}, and test
-% each clause in turn to see if it is a sufficient condition, if not a
-% necessary one. If we find one, we return this single clause. If the
-% loop terminates with Z3 timing out or returning ``unknown'', we return
-% the current $P_S$, but flag it for human attention as something that
-% needs a manual proof. We exclude all such cases from our experiments
-% below.
-
-% Our resulting $P_S(\vec{c})$ may still not be possible to evaluate at
-% compile-time in the case where some of the symbolic constants that
-% make up $c$ appear only on the right-hand side. For example, in $(x_1
-% + c_1) + c_2 \rewrites x_1 + c_3$ we have no value for $c_3$ to use
-% in testing a predicate or constructing the right-hand side
-% expression. Fortunately, using the algorithm above, the only term in
-% this predicate is $c_1 + c_2 = c_3$, so we can simply substitute out
-% $c_3$ using the constant-folded left-hand side of this equality,
-% giving the unpredicated rule $(x_1 + c_1) + c_2 \rewrites x_1 +
-% fold(c_1 + c_2)$. In general we eliminate each symbolic constant that
-% only appears on the right-hand side of a rewrite rule by iterating
-% over the clauses in the predicate, attempting to solve each for the
-% symbolic constant, and substituting it for its constant-folded value
-% if successful. This variable elimination simplifies the predicate, so
-% we do it eagerly inside the predicate-synthesis loop described above.
 
 \subsection{Adding Rule Variants}
 \label{sec:rulevariants}
@@ -1752,9 +1554,7 @@ of canceling them out later.}
 \subsection{Filtering Rule Output}
 \label{sec:filtering}
 \modified{As a final step, we check each output rule for redundancy with the rule batch found
-by the synthesis pipeline. Because the Halide TRS matches expressions against rules in
-a fixed priority \aba{This is not the reason - no matter the rule application order we shouldn't include a specific rule when a more general rule is just as good, even if the specific rule were to come first}, if a rule can match only expressions that would be matched by an earlier rule,
-it is essentially dead code and should be filtered out. For each new rule, we check
+by the synthesis pipeline. For each new rule, we check
 that no earlier rule has precisely the same LHS and predicate; if so, it can be discarded.
 Then, we check that no earlier rule is more general than the current rule: a rule is more 
 general than another if they have similar LHSs, but a variable appears in the first rule 
