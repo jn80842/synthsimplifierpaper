@@ -69,8 +69,8 @@
 \newcommand{\aba}[1]{\textcolor{darkgreen}{\textit{[{#1} --AA]}}}
 \newcommand{\rb}[1]{\textcolor{blue}{\textit{[{#1} --RB]}}}
 
-\newcommand{\modified}[1]{\textcolor{black}{{#1}}}
-\newcommand{\modifiedagain}[1]{\textcolor{black}{{#1}}}
+\newcommand{\modified}[1]{\textcolor{red}{{#1}}}
+\newcommand{\modifiedagain}[1]{\textcolor{blue}{{#1}}}
 
 \newcommand{\hmax}[0]{\texttt{max}}
 \newcommand{\hmin}[0]{\texttt{min}}
@@ -190,7 +190,7 @@
   \institution{Adobe Research}
   \country{USA}
 }
-\email{anadams@adobe.com}
+\email{andrew.b.adams@gmail.com}
 
 \author{Steven Johnson}
 \affiliation{
@@ -325,7 +325,7 @@
 \jln{TODO: check all the numbers for various evaluations and make sure they agree}
 \section{Introduction}
 \label{sec:introduction}
-\modifiedagain{To compile an image processing pipeline written in the
+\modified{To compile an image processing pipeline written in the
   Halide language, the compiler must perform a variety of analyses of
   the pipeline's properties. For example, if the user marks a
   loop to be fully unrolled, the compiler must infer a constant upper
@@ -364,18 +364,18 @@ the compiler can generate higher-performing code as the simplifier becomes more 
 times over the course of a single compilation, and so requires high performance and low memory usage. }
   \item \modified{\textbf{Determinism:} The compiler must always return the same 
 result for the same program, regardless of what platform runs the compiler, 
-so the simplifier must be deterministic.}
+so the simplifier must be deterministic. This is a hard requirement.}
 \end{itemize}
 
-\modified{Determinism is a hard requirement for the design of the
-  simplifier, which rules out techniques with unbounded runtimes that
-  rely on timeouts.  Given that constraint, the Halide simplifier must
-  address as many of the compiler's queries as possible while
-  maintaining high performance.}
+%\modified{Determinism is a hard requirement for the design of the
+%  simplifier, which rules out techniques with unbounded runtimes that
+%  rely on timeouts.  Given that constraint, the Halide simplifier must
+%  address as many of the compiler's queries as possible while
+%  maintaining high performance.}
 
 \modified{Halide addresses this problem with a \emph{term rewriting system}. Using a custom algorithm 
 that greedily applies rules in a fixed order and keeps only the expression being currently 
-rewritten as state, the term rewriting system (TRS) gives the performance and determinism 
+rewritten as state, the term rewriting system (TRS) provides the performance and determinism 
 that the compiler requires. This algorithm scales well in terms of the number of rules
 in the TRS, so Halide developers have continued to improve and increase its
 power by refining the ruleset and adding new rules by hand.}
@@ -390,14 +390,14 @@ undesired behavior. The TRS is not complete enough to address all compiler queri
 Finally, although the overarching goal of the TRS is to simplify 
 expressions, ``simplify'' is an imprecise notion. If developers are not familiar with 
 the entire ruleset, or the full variety of applications of the simplifier, they may inadvertently 
-add a rule that makes the abilities of the simplifier worse in some instances. }
+add a rule that makes the simplifier worse for some of its use-cases. }
 
-\modified{ In this work, we show how techniques based on formal methods can aid developers in
- maintaining a complex term rewriting system, first by providing formal guarantees 
+\modified{ In this work, we show how techniques based on formal methods can help developers
+ maintain a complex term rewriting system, first by providing formal guarantees 
  of soundness and termination, then by growing the ruleset to increase the simplifier's 
- power while ensuring the performance and determinism required by a compiler in heavy
+ power while ensuring the performance and determinism required by a compiler in 
  industrial use.  We further demonstrate a strategy for growing a simplifier's power
- when completeness is impossible, by attempting to craft new rules that operate in
+ when completeness is impossible, by synthesizing new rules that operate in
  the subset of the theory encountered during real-world compilation.}
 
 \modified{First, we formally verify the existing 
@@ -672,7 +672,7 @@ of our work.}
   arithmetic can result in vast overestimates of required regions.  These kinds of simplifications are essential
   for the compiler to work, and are usually not as simple as this example.}
 
-\modifiedagain{The rules for simplifying to perform cancellations and
+\modified{The rules for simplifying to perform cancellations and
   ensure monotonicity are incredibly important for compiler
   performance. When we disabled all but the constant-folding rules to
   measure the importance of the simplifier, it was the absence of
