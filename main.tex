@@ -69,8 +69,8 @@
 \newcommand{\aba}[1]{\textcolor{darkgreen}{\textit{[{#1} --AA]}}}
 \newcommand{\rb}[1]{\textcolor{blue}{\textit{[{#1} --RB]}}}
 
-\newcommand{\modified}[1]{\textcolor{red}{{#1}}}
-\newcommand{\modifiedagain}[1]{\textcolor{blue}{{#1}}}
+\newcommand{\modified}[1]{\textcolor{black}{{#1}}}
+\newcommand{\modifiedagain}[1]{\textcolor{black}{{#1}}}
 
 \newcommand{\hmax}[0]{\texttt{max}}
 \newcommand{\hmin}[0]{\texttt{min}}
@@ -328,7 +328,7 @@
   Halide language, the compiler must perform a variety of analyses of
   the pipeline's properties. For example, if the user has marked a
   loop to be fully unrolled, the compiler must infer a constant upper
-  bound for the extent of the loop. Similarly, if the user has marked
+  bound for the extent of the loop. If the user has marked
   a loop as parallel, the compiler must prove the absence of data
   races. These analyses also affect performance more than in most
   compilers. In Halide, loop bounds and allocation sizes are inferred
@@ -439,7 +439,7 @@ of this bias by gathering expressions from realistic compilations on which the c
 TRS is ``stuck'' and can make no further progress. We choose candidate left-hand sides 
 for rules from this corpus and synthesize equivalent right-hand terms that obey the 
 termination order. \modifiedagain{These expressions frequently contain constants; we generalize the rules by replacing these constants  
-with fresh variables and synthesizing predicate guards on these variables that indicate when it is safe to apply 
+with fresh variables and synthesizing predicate guards that indicate when it is safe to apply 
 the rule.} Our synthesis procedure is able to find large numbers of useful rules without
 human oversight; although the existing compiler is very mature 
 and well-tuned for our suite of benchmarks, we are able to show some performance 
@@ -486,26 +486,6 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 (y_1 \diamondsuit y_1) \diamondsuit (y_2 \clubsuit y_3)
 \]
 
-\subsubsection{Properties of Term Rewriting Systems}
-\jln{These are probably all concepts the reader should have in mind. I will rewrite this and possibly move parts of it to more relevant sections.}
-
-\paragraph{Term Rewriting Algorithms}
-A term rewriting system is a set of undirected identities. As described above, when we use one rule to rewrite an expression, we first find a substitution that unifies the expression with the rule's left-hand side, then apply that same substitution to the RHS to get the rewritten expression. We must define an algorithm that selects which rule to apply when using a full ruleset. The algorithm Halide uses is detailed in section~\ref{sec:customalgo}.
-
-\paragraph{Termination}
-Term rewriting systems are not guaranteed to be terminating. Any ruleset could be made terminating through its algorithm: for example, imagine an algorithm that halts once it has successfully applied one rule. However, we will refer to a TRS as terminating when it contains no cycles; in other words, it is not possible to construct an infinite chain of rewrites even if we allow any rewrite to be applied at any time.
-
-\paragraph{Confluence}
-Two terms $x$ and $y$ are said to be \emph{joinable} in some TRS if that TRS can rewrite them both to some term $z$. A TRS is \emph{confluent} if, for any term $x$ that can be rewritten to either $y_1$ or $y_2$, $y_1$ and $y_2$ must be joinable. This essentially means a confluent TRS cannot make bad decisions and get stuck in a local minimum; if it has a choice of different possible rewrites, all choices can lead to the same destination. (Of course, this is only true for a rewrite algorithm that runs to convergence; a more restrictive algorithm might still allow bad choices.)
-
-\paragraph{Normalization}
-Any terminating TRS will put expressions in a normal form. In cases such as proving equalities or canceling like terms, the Halide TRS attempts something stronger: if two terms are semantically equivalent, they should be in the same normal form. This is impossible in the general case, as such a TRS would constitute a decision procedure for the undecidable theory of integers. However, as we attempt to make the Halide TRS more robust, this is something to strive for.
-
-\paragraph{Syntactic rewrites in a semantic theory}
-A term rewriting system on its own is purely syntactic; it manipulates the symbols in expressions with no knowledge of their meaning. However, the Halide TRS must be sound with regard to the Halide expression semantics; all rewrites must be semantics-preserving. 
-
-\paragraph{AC matching}
-Associativity and commutativity laws are particularly troublesome for term rewriting systems. For one expression $e$, the number of semantically equivalent expressions grows exponentially in terms of the number of AC operations $e$ contains. Some term rewriting systems perform a full \emph{AC matching} step during rewriting. Halide does not, but: performs a limited, local canonicalization for commutative expressions; adds variant rules for common AC permutations. 
 \begin{figure*}
 \begin{tabular}{cccc}
 
@@ -623,6 +603,9 @@ Associativity and commutativity laws are particularly troublesome for term rewri
 
 \subsection{Program Synthesis}
 \label{sec:program-synthesis}
+\jln{QUESTION: I added some more description of CEGIS to the rule synthesis section. 
+Not sure if this is now redundant: should we move some of this to the rule synthesis
+section, or delete it altogether?}
 Our pipeline for automatically generating new rules relies on program synthesis.
 Syntax-guided synthesis (SyGuS)~\cite{sygus} searches a space of possible programs in order to find one that meets
 a semantic specification.  One of the most popular techniques is counterexample-guided
@@ -660,7 +643,7 @@ of our work.}
 \subsection{\modified{Uses of the TRS in Halide}}
 \label{sec:uses-of-trs}
 \modified{While the Halide compiler makes use of the TRS in numerous ways, the most important
-  applications of the TRS are its use as a fast simplifier and as a proof engine.  
+  applications of the TRS are its uses as a fast simplifier and as a proof engine.  
   In many parts of the compiler, the TRS is used to rewrite expressions into simpler forms,
   which are easier for the compiler to reason about, and result in less code being generated for
   LLVM to consume at the backend.  Most importantly, the compiler uses the TRS to simplify expressions
@@ -741,115 +724,61 @@ of our work.}
 Thus, correctness and generality of the TRS are essential to make the compiler
 robust and able to generate fast code.
 
-
-%%%%%% OLD
-%% The Halide compiler contains a term rewriting system, currently composed of
-%% over a thousand rules, that operates over the space of Halide
-%% expressions\footnote{See Supplemental Material for the full Halide
-%%   expression grammar}, a relatively small language of integer, boolean, and vector functions. While the term rewriting system is used for multiple
-%% purposes within the compiler, the two most important
-%% uses are as a proof engine and as an expression simplifier to aid in bounds inference. For example, in the first case, in order to parallelize a
-%% reduction variable, the compiler must prove that there are no hazards, which is
-%% done by asking the TRS to determine if some equalities or inequalities hold.  As an example of the second, Halide uses
-%% the TRS to decide how much memory to allocate for intermediates; tighter, more
-%% simplified bounds result in more efficient execution since they eliminate over-allocation.
-%% More generally, proof engine failures can lead to:
-%% \begin{itemize}
-%% \item Insufficiently tight bounds on loops and allocations, which may result in
-%%   runtime failures (e.g. due to memory overallocation) or performance issues;
-
-%% \item Failure of the compiler to apply optimizations, also resulting in slow performance;
-
-%% \item Dynamic checks in the generated code for properties that could have been proven
-%%   at compile time, leading to slower code;
-
-%% \item Compilation failures, when the compiler is unable to correctly produce code
-%%   even though the properties required hold, or when the proof engine itself crashes
-%%   or loops infinitely.
-%% \end{itemize}
-%% Thus, correctness and generality are essential to make the compiler robust and
-%% able to generate fast code.
-
-%% The design of the term rewriting algorithm has two additional important
-%% requirements. The first is performance: although the TRS is called at
-%% compile time, it may be invoked over a hundred thousand times in compiling a single pipeline. 
-%% The Halide TRS
-%% never backtracks and maintains only the expression currently being rewritten as state. The second requirement is determinism: the compiler must
-%% always return the same schedule every time it encounters a particular pipeline.
-%% This precludes any non-deterministic search strategy for the best sequence of
-%% rules to apply, or directly invoking a solver such as Z3, since even with a
-%% fixed random seed, machines with different computational power may return
-%% different results within a given timeout.
-
-%% The Halide term rewriting algorithm simplifies an input expression in a
-%% depth-first, bottom-up traversal of the expression DAG. At each node, it looks
-%% up the list of rewrite rules that correspond to the node's function symbol, then
-%% attempts to match the subtree expression with the rule LHSs in order. Matching is performed purely syntactically, using C++ templates, without any AC-matching or more sophisticated data structures. When a
-%% match is found, it rewrites the subtree expression using the RHS of that rule,
-%% and then attempts to simplify the subtree expression again. If no rule matches
-%% the subtree, the traversal continues; when the entire expression cannot be
-%% simplified further, the rewritten expression is returned. See Figure~\ref{fig:algoexample} for a worked example. 
-
-%% Halide rewrite rules optionally contain a compile-time predicate that must hold for a rule to
-%% be applied. Halide expressions may contain constants whose values are known at
-%% compile time. Predicate expressions contain only such constants\footnote{Existing rules sometimes have predicates that check if non-constant variables can be shown to have certain properties at compile time, but these are expensive and used sparingly.}; when the
-%% LHS of a rule matches an expression, its predicate is evaluated and only if it
-%% is true will the rewrite be applied.
-
-%% We limit ourselves to expressions over the set of infinite precision integers in
-%% this work. Although Halide expressions can contain floats and fixed-width
-%% integers, the uses of the TRS we consider in this work all operate
-%% on infinite integers.
-%%%%%%  END OLD
-
 \subsection{Why a Custom Algorithm?}
+\label{sec:whycustom}
 
-%\subsubsection{\modified{Halide TRS Requirements}}
-\modified{The Halide compiler's use of the TRS as a proof engine and as a fast simplifier
-leads to two important requirements.}  
-The first is performance: although the TRS is called at
-compile time, it may be invoked over a hundred thousand times in compiling a single pipeline. 
-Furthermore, because Just-In-Time compilation is supported in Halide,
-minimizing compilation time is essential for performance in this mode.
-The second requirement is determinism: the compiler must
-always return the same schedule every time it encounters a particular pipeline.
-This precludes any non-deterministic search strategy for the best sequence of
-rules to apply, or directly invoking a solver such as Z3, since even with a
-fixed random seed, machines with different computational power may return
-different results within a given timeout.  \modified{Along with these two requirements,
-the TRS must be able to reason about as much of the Halide expression language
-as possible; since the language is undecidable, the TRS cannot be truly complete.}
-
-\modified{For these reasons, the Halide TRS does not use a traditional term rewriting
-algorithm and instead never backtracks, maintaining minimal state-- only the
-current expression being rewritten.}
+\modified{In a term rewriting system, a single rule may be able to match an input expression in 
+multiple ways, and there may be multiple rules in the ruleset which could be used 
+to rewrite the expression. A term rewriting algorithm might choose one of many alternatives 
+and later backtrack if it turns out not to be fruitful; it might make use of 
+heuristics to choose a next step; it might exercise all the alternatives and keep 
+the results in equivalence classes, as in an egraph. The Halide term rewriting algorithm
+keeps only one expression in state and applies rules greedily, in a fixed priority.
+This is very fast and requires very little memory; the tradeoff is that the algorithm 
+may pick the ``wrong'' rule and have no way of undoing that decision. 
+Since the rewriter is invoked many thousands of times with each call of the compiler, 
+it chooses to sacrifice some solving power in exchange for performance.}
 
 \subsubsection{\modified{Halide's Custom TRS Algorithm}}
 \label{sec:customalgo}
 The Halide term rewriting algorithm simplifies an input expression in a
 depth-first, bottom-up traversal of the expression DAG. At each node, it looks
 up the list of rewrite rules that correspond to the node's function symbol, then
-attempts to match the subtree expression with the rule LHSs in order. Matching
-is performed purely syntactically, using C++ templates, without any AC-matching
-or more sophisticated data structures. \modified{Halide rewrite rules contain special metavariables,
-called symbolic constants, that can match only to concrete constants; all other
-variables can match any subterm as normal.}
-When a match is found, it rewrites the
+attempts to match the subtree expression with the rule LHSs in a fixed priority. Matching
+is performed purely syntactically, using C++ templates.
+ \modified{Halide rewrite rules contain special metavariables,
+called \emph{symbolic constants}, that can match only with constant values; all other
+variables can match any subterm as usual.}
+When a match is found, the algorithm rewrites the
 subtree expression using the RHS of that rule, and then attempts to simplify the
 subtree expression again. If no rule matches the subtree, the traversal
 continues; when the entire expression cannot be simplified further, the
 rewritten expression is returned. See Figure~\ref{fig:algoexample} for a worked
 example.
 
-Halide rewrite rules optionally contain a compile-time predicate that must hold for a rule to
-be applied. Halide expressions may contain constants whose values are known at
-compile time. Predicate expressions contain only such
-constants\footnote{Existing rules sometimes have predicates that check if
+Halide rewrite rules optionally contain a compile-time predicate guard 
+that must hold for a rule to
+be applied. Predicate guards contain only symbolic constants\footnote{Existing 
+rules sometimes have predicates that check if
   non-constant variables can be shown to have certain properties at compile
   time, but these are expensive and used sparingly.}; when the LHS of a rule
-matches an expression, its predicate is evaluated and only if it
+matches an expression, its guard is evaluated and only if it
 is true will the rewrite be applied.
-\jln{Should we talk about rule priority order here?}
+
+\modified{Halide rewrite rules are applied in a fixed priority, organized so that the TRS 
+first attempts very basic rules such as constant folding, then tries more specific 
+rules before more general ones. (We do not evaluate the current rule priority in this work.)}
+
+\modified{Associativity and commutativity laws are particularly troublesome for term rewriting systems. 
+For one expression $e$, the number of semantically equivalent expressions grows 
+exponentially in terms of the number of AC operations $e$ contains. Some term rewriting 
+systems perform a full \emph{AC matching} step during rewriting. Halide's TRS does not,
+finding it cheaper to include multiple AC variations of rules instead.
+However, a small number of Halide's rewrite rules have the effect of canonicalizing some commutative
+expressions. (For example, if a commutative expression has a multiplication as its 
+first operand and a subtraction as its second operand, a rule will switch their positions.)
+These rules are all early in the application priority, so later rules can rely on
+expressions having a quasi-canonical form.}
 
 \subsubsection{Why Not Z3?}
 
@@ -857,9 +786,9 @@ Given that we make use of the Z3 solver as an oracle for both verification and s
 
 As discussed above, Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may complete on a more powerful server while timing out on a different machine.
 
-During rewriting, a single rule may be able to match an input expression in multiple ways, and there may be multiple rules in the ruleset which could be used to rewrite the expression. A term rewriting algorithm might choose one of many alternatives and later backtrack if it turns out not to be fruitful; it might make use of heuristics to choose a next step; it might exercise all the alternatives and keep the results in equivalence classes, as in an egraph. The Halide TRS algorithm proceeds in a defined order, rewriting expressions from the bottom up, and attempting to match rules one after another in a fixed priority, applying the first rule that matches. This is very fast and requires very little memory; the tradeoff is that the algorithm may pick the ``wrong'' rule and have no way of undoing that decision. Since the rewriter is invoked many thousands of times with each call of the compiler, it chooses to sacrifice some solving power in exchange for performance.
-
-This choice gives the Halide algorithm a very smooth performance curve, whether it succeeds or fails in simplifying an input expression, while a solver like Z3 tends to give very good performance in the majority of cases but gets bogged down in difficult cases, requiring the use of timeouts. The Halide algorithm ``fails fast'': on an input expression which cannot be matched by any rule in the ruleset; the Halide algorithm will complete in time linear to the size of the expression, taking on the order of one CPU cycle per term in the expression per rule in the TRS. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including both expressions that are provably true and expressions that are not provably true, and checked them with Z3 (using a 60 second timeout) and the Halide TRS. Z3 could prove more expressions true, but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over seven minutes to check the set of expressions while the Halide TRS took just two seconds. The set of expressions is much smaller than the number of calls the compiler would make to the rewriter in the compilation of a single pipeline.
+\modified{While the Halide algorithm is less powerful than Z3, its deterministic, greedy rule application strategy
+gives it a very smooth performance curve, whether it succeeds or fails in simplifying an input expression. }
+A solver like Z3 tends to give very good performance most of the time but gets bogged down in difficult cases, requiring the use of timeouts. The Halide algorithm ``fails fast'': on an input expression which cannot be matched by any rule in the ruleset; the Halide algorithm will complete in time linear to the size of the expression, taking on the order of one CPU cycle per term in the expression per rule in the TRS. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including both expressions that are provably true and expressions that are not provably true, and checked them with Z3 (using a 60 second timeout) and the Halide TRS. Z3 could prove more expressions true, but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over seven minutes to check the set of expressions while the Halide TRS took just two seconds. The set of expressions is much smaller than the number of calls the compiler would make to the rewriter in the compilation of a single pipeline.
 
 \begin{table}
 \caption{We compare the performance of Z3 and the Halide TRS in proving a set of 4304 expressions gathered from realistic compiler output.}
@@ -875,21 +804,6 @@ Halide TRS & 2s & 885 & 3419
 Because the Halide algorithm at every step chooses one rule to apply to the single expression it is working on, it scales well in terms of the number of rules in the TRS. See Section~\ref{ssec:compilationspeed} for an evaluation of the effects of adding newly synthesized rules on the performance of the compiler. 
 
 Finally, although Z3 can be used to simplify expressions, simply reducing the size of an expression is not necessarily the goal for the compiler. For example, gathering like terms in some cases can actually prevent Halide or LLVM optimizations from applying. The Halide rewriter uses a domain-specific strategy to guide expressions into more optimizable forms and can be changed or tuned as needed if further optimizations are discovered. 
-
-%Z3 is general-purpose, but we need not be. The handwritten simplifier ruleset was written to address expressions that are generated by the Halide compiler. Since we are driven by a subset of all Halide expressions and not arbitrary expressions in the Halide expression language, we can specialize and in some cases solve expressions that Z3 cannot. 
-
-
-%Egraphs grow their equivalence classes with each invocation of their rulesets until they converge or until their graph grows so large that progress is no longer possible. Since we can't guarantee that our rules converge, the problem is reaching the goal state before the growth of the graph reaches that infeasible inflection point.
-
-%Egraph handling of predicates is also more computationally expensive than the Halide TRS; Halide evaluates constants at compile time to see if a predicate obtains on a particular expression. Since egraphs have no knowledge of semantics, the machinary for handling predicates is much more involved.
-
-%If bounded, egraphs are also deterministic, so that's not a problem.
-
-%I know that dumping the Halide ruleset into an egraph is completely unworkable, since I tried it -- not a fair comparsion since you would tune an egraph's ruleset differently.
-
-%The Halide TRS gives a nice starting point for synthesis because a failed call to the simplifier yields an expression the simplifier can make no progress on. A failed egraph call gives an equivalence class that should include the goal state but doesn't, so it's not as clear how to debug that.
-
-\jln{(clarify completion wrt the AC stuff in the synthesis algo)}
 
 \subsection{\modified{Completeness of the Halide TRS}}
 \label{sec:completion}
@@ -922,9 +836,9 @@ completion procedure.}
 
 \modified{One approach might be to transform the existing Halide TRS into a set of undirected
 identities $E_R$ and use it together with a reduction order as inputs to a completion procedure. 
-If successful, this would yield a convergent TRS, for which any order of rewrites to 
+If successful, this would yield a confluent TRS, for which any sequence of rewrites to 
 an expression would ultimately yield the same result. (It is not immediately clear how 
-to handle rule predicates in this case however.) While this is certainly desirable, 
+to handle rule predicates in this case, however.) While this is certainly desirable, 
 our experience is that many proof failures in the current Halide TRS is not due to a 
 lack of confluence, but because of knowledge of the Halide expression langauge semantics 
 not encompassed by the identities in $E_R$.}
@@ -945,9 +859,7 @@ that is, they are not sampled randomly from the entire expression space. In a pr
 experiment, we tried generating LHSs at random within a certain expression size and 
 synthesizing RHSs to serve as new rules. We were able to find an extremely large number of 
 ``missing'' rules that were not represented in the current TRS, but the new ruleset had 
-no measurable performance impact on benchmarks. Even using commutativity and associativity 
-laws to produce all permutations of existing rule LHSs caused the number of rules to 
-explode with no clear benefit. Thus, we only synthesize rules if their LHS could be 
+no measurable performance impact on benchmarks. Thus, we only synthesize rules if their LHS could be 
 applied to at least one expression observed by the compiler under realistic usecases. Even 
 without a formal definition of the bias on encountered expressions, we are able to 
 target synthesis to produce new rules that have some impact on compiler output.}
@@ -1005,7 +917,7 @@ whose initial entry has the value $x$ and all subsequent entries increase with
 stride $s$. In SMT2, we represent this term as the symbolic expression $x + l *
 s$, where $l$ must be zero or positive.
 
-Given this modeling, for each rule, we assert any predicates are true, then
+Given this modeling, for each rule, we assert any predicate guards are true, then
 ask Z3 to search for a variable assignment such that the LHS and RHS are not
 equivalent.  If Z3 indicates no such assignment exists, the LHS must be equivalent to
 the RHS and the rule must be correct. We implemented an SMT2 printer for 
@@ -1017,21 +929,11 @@ However, for 123
 rules, Z3 either timed out or returned unknown. Nearly all of these rules used
 either division or modulo. We used the proof assistant Coq to manually prove the
 correctness of these remaining rules. In the course of these proofs, we
-discovered we were also able to relax the predicates of \NumPredicatesRelaxed
+discovered we were also able to relax the predicate guards of \NumPredicatesRelaxed
 rules; for example, in some cases a rule
-with a predicate requiring some constant to be positive would be equally valid
+with a guard requiring some constant to be positive would be equally valid
 if the constant was non-zero.
 
-%
-%We further want to guarantee that, given an input expression with well-defined
-%behavior, the term rewriting system will never rewrite it into an expression that has
-%undefined behavior. Thus, if an input expression never divides by zero, then the
-%TRS output must also never divide by zero. We check this by
-%verifying that all terms used as divisors or moduluses in the RHS of a
-%rewrite rule also appear as a divisor in the rule's LHS. Note that all divisor
-%terms on the LHS side are not required to appear in the RHS; if a divisor is
-%factored out, then it is possible that the input expression would have caused a
-%divide-by-zero fault but the simplified expression will not.
 
 \subsubsection{Evolving semantics}
 \label{sub:evolvingsemantics}
@@ -1047,8 +949,8 @@ again. At the time we ran our second verification, there were
 were proven true in Z3. We proved \NumZdivCoqProvedRules rules to be
 true manually in Coq; since in the previous round all Coq proofs
 included the assumption that all divisors were non-zero, in most cases
-we had only to add a case to show that the rule was true both when the
-divisor was zero and when it was non-zero. In the course of reviewing
+we had only to add a case to show that the rule was true when the
+divisor was zero as well. In the course of reviewing
 these proofs, we identified \NumZdivRelaxedPredicates rules whose
 predicates included the condition that a divisor be non-zero and where
 that condition could safely be lifted. We found that the remaining
@@ -1060,12 +962,17 @@ Overall results of verifying rule correctness are described in Section~\ref{sec:
 \subsection{Termination}
 \label{sec:termination}
 
-\jln{First motivate the reduction order as a formalization of the strategy behind the Halide TRS. the TRS has an underlying 
-philosophy/strategy of cancelling correlated subexprs, reducing size of exprs, canonicalization, 
-factoring out vector ops, trying to make exprs monotonic. Some of these strategies can 
-fight with each other. Canonicalization has caused non-termination bugs in the past. }
+\modified{Under the umbrella goal of simplifying expressions, the Halide TRS has employed
+many strategies: it may attempt to make expressions as short as possible; it may factor out
+vector operations or more expensive operations such as division; it may attempt to
+canonicalize subexpressions so they can cancel or be shown to be equivalent. These
+strategies are not necessarily aligned and may even undo each other. Crafting new rules 
+can thus require a detailed understanding of the ruleset and its various applications. 
+In this section we formalize the Halide expression simplification strategy that was
+previously only encoded in the ruleset itself. In so doing we also prove that since 
+each rule strictly makes progress in accordance to this strategy, the Halide TRS must terminate.}
 
-Term rewriting systems are not guaranteed to terminate. Consider a term
+Consider a term
 rewriting system containing only one rule: $x + y \rewrites y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
 be matched to the rule and rewritten to $3 + 5$, and so on. The Halide TRS has been observed to fail to terminate in the past\footnote{See for example https://github.com/halide/Halide/pull/1525}, causing unbounded recursion and eventually a stack overflow in the compiler. This issue is tricky to debug, and may not always be reported by users, since the error is fairly opaque. To show that this type of error has been eliminated, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some sequence of rules that form a cycle.
@@ -1085,7 +992,8 @@ s_1 > s_2 \implies f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n) > f(t_1,...t_{i-1},s_2,
 for all $i, 1 \leq i \leq n$ and all expressions $t_1,...t_{i-1},t_{i+1},...,t_n$. This property means that if a rewrite rule is used to transform a subtree in some expression $e$, the $>$ relation is preserved between the original expression $e$ and the rewritten expression $e'$. Finally, a reduction order is \emph{closed under substitution}: for all expressions $s_1, s_2$ and all substitutions $\sigma \in \mathcal{S}ub(T(\Sigma,V))$, 
 $s_1 > s_2 \implies \sigma(s_1) > \sigma(s_2)$. When we match some left-hand side term $l$ to some expression $e$, we are defining a substitution for each of the variables in $l$ with some subtree in $e$; we then use that substitution to rewrite $e$ to $e'$. If our order is closed under substitutions, we know that for any expression we match to $l$, the resulting rewritten expression will obey the ordering.
 
-Choosing a single monotonic direction in which to rewrite expressions would be overly restrictive, since there are many reasons why a given rule may be useful. The Halide TRS is used both to prove expressions true and to simplify them; when using it as a prover, we want to put both sides of an equality into some normal form, but it doesn't particularly matter what that form is. When using the TRS to simplify expressions, on the other hand, reducing the size of an expression can have performance benefits. Since we choose to devise an ordering that covers the existing ruleset, we make use of the following theorem:
+Choosing a single monotonic direction in which to rewrite expressions would be overly restrictive. 
+The Halide TRS is used both to prove expressions true and to simplify them; when using it as a prover, we want to put both sides of an equality into some normal form, but it doesn't particularly matter what that form is. When using the TRS to simplify expressions, on the other hand, reducing the size of an expression has important performance benefits. Since we need an ordering that covers the full Halide simplification strategy, we make use of the following theorem:
 
 \begin{theorem}
 The lexicographic product of two terminating relations is again terminating.
@@ -1239,7 +1147,7 @@ better suggestion please let me know.}
     \path[->] (e9) edge node {} (e10);
 
   \end{tikzpicture}
-  \caption{Overall flow of the synthesis pipeline (in blue) with worked example (in orange). (a) We harvest expressions from real compilations on which the TRS could make no further progress. (b) We enumerate all sub-trees of these to generate left-hand sides that would match each expression. Our example will focus on one such pattern. (c) We obtain a right-hand side by first checking if any reassociated or commuted variants of it match an existing TRS rule. (d) If not, we superoptimize the pattern using CEGIS. (e) This rule is specific to the particular values of any constants that appear. We then replace any constants with new variables $c_0, c_1, etc.$ to obtain a more general version of the rule. We must now synthesize a sufficient condition on these new variables under which the rule still holds. (f) To do this, we treat the rewrite as an equality and take the conjunction over a set $S$ of different values for the non-constant variables $x_0, x_1, etc.$. (g) Simplifying the result gives a candidate predicate. This is a \emph{necessary} condition. (h) We then check if it is also \emph{sufficient} condition using Z3. (i) If a counterexample is found, we add these new values of $x$ to $S$ to obtain a new candidate predicate and repeat until we have a sufficient condition to serve as our predicate. (j) Finally, we construct variants of the rule in which the LHS has been reassociated and commuted.}
+  \caption{Overall flow of the synthesis pipeline (in blue) with worked example (in orange). (a) We harvest expressions from real compilations on which the TRS could make no further progress. (b) We enumerate all sub-trees of these to generate left-hand sides that would match each expression. Our example will focus on one such pattern. (c) We obtain a right-hand side by first checking if any reassociated or commuted variants of it match an existing TRS rule. (d) If not, we superoptimize the pattern using CEGIS. (e) This rule is specific to the particular values of any constants that appear. We then replace any constants with new variables $c_0, c_1, etc.$ to obtain a more general version of the rule. We must now synthesize a sufficient condition on these new variables under which the rule still holds. (f) To do this, we treat the rewrite as an equality and take the conjunction over a set $S$ of different values for the non-constant variables $x_0, x_1, etc.$. (g) Simplifying the result gives a candidate predicate. This is a \emph{necessary} condition. (h) We then check if it is also \emph{sufficient} condition using Z3. (i) If a counterexample is found, we add these new values of $x$ to $S$ to obtain a new candidate predicate and repeat until we have a sufficient condition to serve as our predicate. (j) Finally, we construct variants of the rule in which the LHS has been commuted.}
 \label{fig:synthesis-flow}
 \end{figure*}
 
@@ -1249,12 +1157,14 @@ it by finding expressions on which the TRS can no longer make progress and creat
 rules that will further simplify them.
 In this section, we describe a workflow for automatically augmenting the Halide TRS with new rules.}
 
-\modified{Given an expression that the TRS failed to simplify, our goal is to find a rule that rewrites such an \emph{input expression}.  Among all such rules, we prefer the more general ones. As a heuristic of generality we use the size of the rule's LHS, since larger LHS patterns are more specific. A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
+\modified{Given an \emph{input expression} that the TRS failed to simplify, our goal is to find a rule that
+can rewrite it. A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
 %and Algorithm~\ref{alg:synthesis-algorithm} shows the corresponding pseudocode.
 We begin with an expression we will attempt to further simplify; 
 first, we synthesize rules that contain concrete constants from the input expression. 
-Next we generalize those rules by replacing constants with wildcards and synthesizing compile-time predicates 
-that check the validity of the rule on the constants matched by the wildcards. If we can 
+Next we generalize those rules by replacing constant values with symbolic constants and synthesizing compile-time 
+predicate guards 
+that check the validity of the rule on the values matched by the symbolic constants. If we can 
 find such a rule, we know that adding it to the TRS will enable it to simplify the input
 expression as well as any similar expressions it may encounter.}
 
@@ -1269,9 +1179,8 @@ Of course, absent an oracle, it is difficult to know if the TRS has fully simpli
 some expression or if it lacks the solving power to continue simplification. 
 When the TRS is used as a proof engine, its goal is to reduce an expression to true.
 In this case, we can fuzz-test failed proofs by assigning all variables in an expression
-random values and evaluating. If after 100 random assignments we have not found one
-that evaluates to false, it may be the case that the expression should be reducible 
-to true, so we log it as an input expression.}
+random values and evaluating; if we cannot find an assignment that evaluates to false,
+the expression may indeed be reducible to true, so we log it as an input expression.}
 
 
 \begin{figure*}
@@ -1349,12 +1258,13 @@ Given a candidate left-hand side, we attempt to
 synthesize a right-hand side that is semantically equivalent and
 respects the reduction order, namely $\mathit{LHS} > \mathit{RHS}$.
 We employ two strategies for synthesizing right-hand sides:
-delayed AC matching, and counter-example guided inductive synthesis (CEGIS) of the RHS followed by synthesis of the rule validity predicate.} 
+delayed AC matching, and counter-example guided inductive synthesis (CEGIS) of 
+the RHS followed by synthesis of the rule predicate guard.} 
 
 \subsubsection{Finding Right-Hand Sides through AC matching}
 \label{sec:rhsacmatching}
-\modified{The first strategy reflects the design decision not to perform any AC matching in the TRS, for efficiency reasons. 
-AC matching is effectively performed during rule synthesis, by checking whether the LHS could be 
+\modified{The first strategy reflects the Halide design decision not to perform any AC matching in the TRS, for efficiency reasons. 
+Instead, AC matching is effectively performed during rule synthesis, by checking whether the LHS could be 
 rewritten by the existing TRS after a suitable application of associativity and commutativity laws to the LHS. 
 To this end, we generate all possible reassociations and commutations of the candidate LHS term and pass them to the existing TRS. 
 If any of them can be simplified, we create a new rule that rewrites 
@@ -1362,7 +1272,7 @@ the original, untransformed LHS term to the result of the simplification.  Note 
 
 \modified{For example, assume our TRS includes the rule $(x + y) - x \rewrites y$, 
 and let $((u + 2) + v) - u$ be a candidate LHS term. The rule does not match the candidate but it matches its variant $(u + (v + 2)) - u$, rewriting it to the result $v + 2$. The candidate and the result give us the rule $((u + 2) + v) - u \rewrites v + 2$. }
-
+\jln{QUESTION: Any suggestions to clarify this figure?}
 \begin{center}
 \begin{tabular}{cccl}
 $(x + y) - x$ & $\rewrites$ & $y$ & an existing rule \\
@@ -1376,7 +1286,7 @@ $((u + 2) + v) - u$ & $\rewrites$ & $v + 2$ & new rule
 
 \modified{We can consider this procedure a kind of lazy, offline AC matching because if the Halide TRS 
 performed full AC matching while rewriting expressions, it would be able to apply the rule $(x + y) - x \rewrites  y$ to the candidate expression $((u + 2) + v) - u$ after reassociating it to $(u + (v + 2)) - u$, obtaining the result $v + 2$.  Delaying AC matching to synthesis has the effect of restricting the system to a single, offline round of AC and memoizing the result in the form of a new TRS rule if we are successful. 
-Note that the synthesis procedure in Section~\ref{sec:rhssynthesis} could have found this rule, but checking for AC
+Note that the synthesis procedure below could have found this rule, but checking for AC
 variants of existing rules is far cheaper. About three quarters of our synthesized rules are generated by this method.}
 
 \subsubsection{Finding Right-Hand Sides through Synthesis}
@@ -1433,6 +1343,7 @@ $\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0
 
 \subsection{Generalizing Constants and Finding Predicate Guards}
 \label{sec:generalizing-constants}
+\jln{Rewrite of this section pending question for Andrew}
 
 \modified{If either AC-matching search or CEGIS-based synthesis was successful, 
 we will now have a candidate rewrite
@@ -1522,13 +1433,15 @@ We exclude all such cases from our experiments.}
 
 \subsection{Adding Rule Variants}
 \label{sec:rulevariants}
-\modified{Once we have a generalized rule with a valid predicate, we compensate for the lack
+\modified{Once we have a generalized rule with a valid predicate, we eagerly compensate for the lack
 of AC matching in the Halide TRS by adding AC variants of the rule as well. We find 
-all commuted variants of the rule's LHS (this is exponential in the size of the number 
+all commuted variants of the rule's LHS,
+with respect to the partial commutative canonicalization as described in section~\ref{sec:customalgo}.
+ (This is exponential in the size of the number 
 of commutative operators, which is tractable given our bounds on LHS term size). 
 Then, we find all reassociations of the rule's right-hand side. For each variant LHS, 
 we choose a RHS variant by serializing expressions to strings and finding the RHS 
-that has the shortest edit distance. }
+that has the shortest edit distance from that LHS. }
 
 \modified{For example, the LHS of the first rule below has four additions and can be commuted 
 to 16 variants. The RHS of the rule can be reassociated in two different ways. For the 
@@ -1547,8 +1460,6 @@ to prefer one reassociated variant to another; they are almost certainly equal i
 terms of our reduction order. Thus, we choose the RHS that perturbs the structure of the 
 LHS as little as possible, in order to avoid rewriting common subexpressions in the hopes
 of canceling them out later.}
-
-\jln{should we mention the local commutative normalization Halide uses? }
 
 
 \subsection{Filtering Rule Output}
