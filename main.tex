@@ -762,9 +762,8 @@ continues; when the entire expression cannot be simplified further, the
 rewritten expression is returned. See Figure~\ref{fig:algoexample} for a worked
 example.
 
-Halide rewrite rules optionally contain a compile-time predicate guard 
-that must hold for a rule to
-be applied. Predicate guards contain only symbolic constants\footnote{Existing 
+The rewrite rules optionally contain a compile-time predicate guard. 
+These guards contain only symbolic constants\footnote{Existing 
 rules sometimes have predicates that check if
   non-constant variables can be shown to have certain properties at compile
   time, but these are expensive and used sparingly.}; when the LHS of a rule
