@@ -1359,6 +1359,42 @@ $\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0
 \label{sec:generalizing-constants}
 \jln{Rewrite of this section pending question for Andrew}
 
+\subsubsection{Proof outline (?)}
+After finding an equivalent LHS and RHS on concrete constants, then generalizing to symbolic 
+constants, we know that
+
+\[ \exists c \forall x LHS(x,c) = RHS(x,c)
+\]
+
+Our goal is to find a predicate $\phi$ such that
+
+\[ \forall c \forall x \phi(c) \iff LHS(x,c) = RHS(x,c)
+\]
+
+As an intermediate step, we find a predicate $\phi_S$ such that
+
+\[ \forall c \exists x \phi_S(c) \iff LHS(x,c) = RHS(x,c)
+\]
+
+We pick some values for x (basis vectors) and simplify $LHS(x,c) = RHS(x,c)$ for those
+assignments. This gives us a precise expression for $\phi_S$.
+
+\jln{This is the step I'm trying to convince myself of}
+
+We claim that
+
+\[ \forall c \forall x LHS(x,c) = RHS(x,c) \implies \phi_S(c)
+\]
+
+so we have one direction of the if and only if. We query Z3 to see if it is also
+true that
+
+\[ \forall c \forall x  \phi_S(c) \implies LHS(x,c) = RHS(x,c)
+\]
+
+If the above is true, $\phi_S$ is the predicate we want. If not, we take the counterexample
+values for $x$ and reevaluate to find a refined $\phi_S$ and continue.
+
 \modified{If either AC-matching search or CEGIS-based synthesis was successful, 
 we will now have a candidate rewrite
 rule that contains concrete values originating from the input expression.
