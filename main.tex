@@ -1536,81 +1536,78 @@ $\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0
 \label{sec:generalizing-constants}
 
 \rb{The structure of subsections suggests that Generalizing Constants happens also for rules created in Section 5.2.1 (AC matching).  Is this the case? } \aba{Yes. We could skip it by tracking and composing the necessary predicates, but that would be hard.}
-\modified{At this point in the synthesis pipeline, we have constructed a candidate rewrite
-rule that contains concrete constants. To make the rule as general as possible, 
-we replace each constant with a fresh \emph{symbolic constant}. In the Halide TRS 
-algorithm, a symbolic constant can only match a constant value, while a variable 
-can match any subterm. Rule predicates can contain symbolic constants, since their
-values will be known at compile time, but not variables, which will not. This allows 
-the TRS to evaluate predicates at the time of rule application. }
+\modified{At this point, the synthesis pipeline has constructed a candidate 
+rule that contains concrete values originating from the input expression.
+To generalize the rule, we replace such constants with fresh \emph{symbolic constants} 
+and synthesize a guard that is true when the rule is valid. 
+Recall that in the Halide TRS, a variable in the LHS matches any subterm, while a 
+symbolic constant matches only a constant value\rb{refer to a previous section.}; the guards, which are predicates over symbolic constants, can thus be evaluated at compile time. }
 
-\modified{Our goal now is to synthesize a predicate such that when the predicate is true, 
-the rule LHS is equivalent to the RHS no matter what values the variables or symbolic
-constants take. Ideally, we would like a stronger property: the predicate should be 
-true whenever the LHS is equivalent to the RHS and false whenever it is not. In other 
-words, if our predicate is both necessary and sufficient for the LHS and RHS equivalency, 
-we will be able to invoke the rule only when it is sound as well as every time it is sound.}
+% Rule predicates can contain symbolic constants, since their
+% values will be known at compile time, but not variables, which will not. This allows 
+% the TRS to evaluate predicates at the time of rule application. }
 
-\modified{For a vector of variables of length $n$, $\vec{x} \in Z^n$, and a vector of symbolic 
-constants of length $m$, $\vec{c} \in Z^m$, we write $LHS(\vec{x}, \vec{c})$ for the left-hand
+\modified{Ideally, we synthesize a guard that is the weakest precondition for the legality of the rule, so that the rule is invoked whenever it is applicable. 
+Formally, for a vector of variables $\vec{x}$ and a vector of symbolic 
+constants $\vec{c}$, we write $LHS(\vec{x}, \vec{c})$ for the expression that is the left-hand
 side of the proposed rule, $RHS(\vec{x},\vec{c})$ for the right-hand side, and $\phi(\vec{c})$ 
-for the boolean predicate. Thus we need to find some $\phi$ such that}
-
-\[ \forall_{\vec{c} \in Z^m} . \forall_{\vec{x} \in Z^n} . \phi(\vec{c}) \iff LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})
+for the boolean guard. We want to find a guard $\phi$ such that}
+%
+\[ \forall_{\vec{c}} . \forall_{\vec{x}} . \;\; \phi(\vec{c}) \iff LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})
 \]
 
-\modified{We abuse notation slightly to write $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$ even 
-when the LHS and RHS terms are of boolean type. When used by boolean operators, we coerce the integer-typed variables 
-and symbolic constants in $\vec{x}, \vec{c}$ to false when they are 0 and true otherwise.}
+% \modified{We abuse notation slightly to write $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$ even 
+%when the LHS and RHS terms are of boolean type. When used by boolean operators, we coerce the integer-typed variables 
+% and symbolic constants in $\vec{x}, \vec{c}$ to false when they are 0 and true otherwise.}
 
-\modified{First, we query our solver to see if $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$ holds
-for all values of $\vec{x}, \vec{c}$ (in other words, the necessary and sufficient 
-condition for the equivalence is $true$). If this holds, we can add the rule without 
-a predicate guard. If not, we will need to synthesize a predicate. }
+\modified{First, we query the solver whether $LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})$ holds
+for all values of $\vec{x}, \vec{c}$.  If so, the rule does not require a guard. }
 
-\modified{We can quickly find a candidate predicate by dividing up the space of all variable values. 
-If we consider $\vec{x} \in Z^n$ as an infinite set of integer vectors, we can restate 
-the equation above as:}
-
-\[ \forall_{\vec{c} \in Z^m} . \bigwedge\limits_{\vec{x} \in Z^n} . \phi(\vec{c}) \iff LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})
+\modified{Otherwise, we synthesize the guard with a counterexample-guided algorithm. The examples form a set $S$ of concrete values that sample the $\vec{x}$ space.  Given $S$, we obtain a guard $\phi_S$ that is sufficient to check the validity of the rule on all $\vec{x}\in S$, and then we verify whether $\phi_S$ is also sufficient for all $\vec{x}$. If it is not, we add to $S$ the counterexample $vec{x_c}$ provided by the verifier and repeat the process, obtaining a stricter guard. In more detail, we want a guard $\phi_S$ that is the weakest guard on $\vec{x} \in S$:}
+%
+%\[ \forall_{\vec{c} \in Z^m} . \bigwedge\limits_{\vec{x} \in Z^n} . \phi(\vec{c}) \iff LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})
+%\]
+%
+%\modified{To make this tractable, we choose a subset $S \subseteq Z^n$, initialized as the zero
+%vector plus the standard basis vectors.}
+%
+\[ \forall_{\vec{c}} . \forall_{\vec{x}\in S} . \;\; \phi(\vec{c}) \iff LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c})
+\]
+Because $\phi(\vec{c})$ does not depend on $\vec{x}$, we can rewrite the equivalence to 
+\[ \forall_{\vec{c}} . \;\; \phi_S(\vec{c}) \iff \forall_{\vec{x}\in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}))
+\]
+We can now construct $\phi_S$ by unrolling $\forall \vec{x}\in S$ into a conjunction of equalities among LHS and RHS terms, and simplifying $\phi_S$:
+\[ \forall_{\vec{c}} . \;\; \phi_S(\vec{c}) \iff \bigwedge\limits_{\vec{x} \in S} ( LHS(\vec{x}, \vec{c}) = RHS(\vec{x}, \vec{c}))
 \]
 
-\modified{To make this tractable, we choose a subset $S \subseteq Z^n$, initialized as the zero
-vector plus the standard basis vectors.}
-
-\[ \forall_{\vec{c} \in Z^m} . \bigwedge\limits_{\vec{x} \in S} . \phi_S(\vec{c}) \iff LHS(\vec{x_s}, \vec{c}) = RHS(\vec{x_s}, \vec{c})
-\]
-
-\modified{Since all the members of $S$ are finite and known, we can perform partial evaluation to
+% \modified{Since all the members of $S$ are finite and known, we can perform partial evaluation to
 find an instantiation of $\phi_S$ over $\vec{c}$ that is equivalent to $LHS(\vec{x_s}, \vec{c}) = RHS(\vec{x_s}, \vec{c})$.
-For example, consider the candidate rule:}
-
+\modified{For example, consider the candidate rule:}
+%
 \[ x_0 < select(x_1, c_0, c_1) + x_0 \rewrites \neg x_1
 \]
-
-\modified{We initialize $S$ as $\{(0,0), (0,1), (1,0)\}$. Now, we solve for $\phi_S$:}
-
+\modified{We initialize $S$ with three basis vectors $\{(0,\mathit{false}), (0,\mathit{true}), (1,\mathit{false})\}$ and construct $\phi_S$:}
+%
 \begin{equation*}
 \begin{split}
- \forall_{\vec{c} \in Z^m} . \phi_S(\vec{c}) \iff &  0 < select(0, c_0, c_1) + 0 = \neg(0) \wedge \\
-                                                   & 0 < select(1, c_0, c_1) + 0 = \neg(1) \wedge \\
-                                                   & 1 < select(0, c_0, c_1) + 1 = \neg(0)
+ \forall_{\vec{c} \in Z^m} . \phi_S(\vec{c}) \iff &  0 < select(\mathit{false}, c_0, c_1) + 0 = \neg\mathit{false} \; \wedge \\
+                                                   & 0 < select(\mathit{true}, c_0, c_1) + 0 = \neg \mathit{true}  \; \wedge \\
+                                                   & 1 < select(\mathit{false}, c_0, c_1) + 1 = \neg\mathit{false}
 \end{split}
 \end{equation*}
 
-\modified{We can evaluate the conjunction on the right by simply passing it to the existing Halide TRS. 
-Here, we get back:}
-
+\modified{We simplify the RHS with the TRS, obtaining }
+%
 \[  \forall_{\vec{c} \in Z^m} . \phi_S(\vec{c}) \iff 0 < c_1 \wedge c_0 \le 0
 \]
-
+\rb{The following should check soundness of the guard on all $vec{x}$, right?  Instead, it seems to be checking whether the guard is the weakest. }
 \modified{Since $0 < c_1 \wedge c_0 \le 0$ is necessary and sufficient for the LHS-RHS equivalence 
 over the subset $S$, we know that it is necessary for the equivalence for any values of $\vec{x}$.}
 
 \[ \forall_{\vec{c} \in Z^m} . \bigwedge\limits_{\vec{x} \in Z^n} . LHS(\vec{x},\vec{c}) = RHS(\vec{x}, \vec{c}) \implies \phi_S(\vec{c})
 \]
 
-\modified{We query the solver to see if our candidate predicate is sufficient as well as necessary. }
+\modified{Next, we query the solver whether the guard is as weak as possible: }
 
 \[ \forall{c_0, c_1} . \forall{x_0, x_1} . 0 < c_1 \wedge c_0 \le 0 \iff (x_0 < select(x_1, c_0, c_1) + x_0) = \neg x_1
 \]
@@ -1620,20 +1617,21 @@ over the subset $S$, we know that it is necessary for the equivalence for any va
 \[ x_0 < select(x_1, c_0, c_1) + x_0) \rewrites \neg x_1 \pred 0 < c_1 \wedge c_0 \le 0
 \]
 
-\modified{If the candidate predicate is not sufficient, the solver will return a counterexample.
-We take the values it returns for $\vec{x}$, add them to $S$, and repeat the process. 
-In our experiments below we do this for four iterations. If we still have not found a 
-valid predicate, we take our current candidate $\phi_S$,} convert it to disjunctive normal
-form\footnote{While $P_S$ is initially a conjunction of equalities,
-  disjunctions appear after simplification due to rewrites such as
-  $c_1 \times c_2 = 0 \rewrites c_1 = 0 \vee c_2 = 0$}, and test
-each clause in turn to see if it is a sufficient condition, if not a
-necessary one. If we find one, we return this single clause; if none are valid, 
+\modified{If the candidate predicate is unsound or not the weakest, the solver will return a counterexample $\vec{x_c}$ which we add to $S$ and repeat the process. 
+In our experiments, we do this for four iterations. If we still have not found a 
+valid predicate, we take our current candidate $\phi_S$, convert it to disjunctive normal
+form%
+%\footnote{While $P_S$ is initially a conjunction of equalities,
+%  disjunctions appear after simplification due to rewrites such as
+%  $c_1 \times c_2 = 0 \rewrites c_1 = 0 \vee c_2 = 0$}
+, and test
+each clause in turn to see if it is a sufficient condition.
+If we find one, we return this single clause; if none are valid, 
 we discard the rule.
 If the loop terminates with Z3 timing out or returning ``unknown'', we return
-the current $P_S$, but flag it for human attention as something that
-needs a manual proof. We exclude all such cases from our experiments
-below.
+the current $P_S$, but flag it for human attention as requiring a manual proof. 
+We exclude all such cases from our experiments.}
+\rb{Above, "valid" means sound and weakest? What is $P_S$?  The guard or a rule? }
 % At this point in the synthesis pipeline, we have constructed a candidate rewrite
 % rule that contains concrete constants.  To make the rule as general as possible,
 % we replace each constant with a fresh \emph{symbolic constant}. A symbolic constant, unlike a variable,
@@ -1704,21 +1702,21 @@ below.
 % needs a manual proof. We exclude all such cases from our experiments
 % below.
 
-Our resulting $P_S(\vec{c})$ may still not be possible to evaluate at
-compile-time in the case where some of the symbolic constants that
-make up $c$ appear only on the right-hand side. For example, in $(x_1
-+ c_1) + c_2 \rewrites x_1 + c_3$ we have no value for $c_3$ to use
-in testing a predicate or constructing the right-hand side
-expression. Fortunately, using the algorithm above, the only term in
-this predicate is $c_1 + c_2 = c_3$, so we can simply substitute out
-$c_3$ using the constant-folded left-hand side of this equality,
-giving the unpredicated rule $(x_1 + c_1) + c_2 \rewrites x_1 +
-fold(c_1 + c_2)$. In general we eliminate each symbolic constant that
-only appears on the right-hand side of a rewrite rule by iterating
-over the clauses in the predicate, attempting to solve each for the
-symbolic constant, and substituting it for its constant-folded value
-if successful. This variable elimination simplifies the predicate, so
-we do it eagerly inside the predicate-synthesis loop described above.
+% Our resulting $P_S(\vec{c})$ may still not be possible to evaluate at
+% compile-time in the case where some of the symbolic constants that
+% make up $c$ appear only on the right-hand side. For example, in $(x_1
+% + c_1) + c_2 \rewrites x_1 + c_3$ we have no value for $c_3$ to use
+% in testing a predicate or constructing the right-hand side
+% expression. Fortunately, using the algorithm above, the only term in
+% this predicate is $c_1 + c_2 = c_3$, so we can simply substitute out
+% $c_3$ using the constant-folded left-hand side of this equality,
+% giving the unpredicated rule $(x_1 + c_1) + c_2 \rewrites x_1 +
+% fold(c_1 + c_2)$. In general we eliminate each symbolic constant that
+% only appears on the right-hand side of a rewrite rule by iterating
+% over the clauses in the predicate, attempting to solve each for the
+% symbolic constant, and substituting it for its constant-folded value
+% if successful. This variable elimination simplifies the predicate, so
+% we do it eagerly inside the predicate-synthesis loop described above.
 
 \subsection{Adding Rule Variants}
 \label{sec:rulevariants}
