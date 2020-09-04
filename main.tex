@@ -267,7 +267,8 @@
   prove properties of code required for efficient and correct compilation.  This rewrite
   system is a collection of handwritten transformation rules 
   that incrementally rewrite expressions into simpler forms; the system requires high performance 
-  in both time and memory usage to keep compile times low.
+  in both time and memory usage to keep compile times low,
+  while operating over the undecidable theory of integers.
   In this work, we apply formal techniques to prove the correctness of existing
   rewrite rules and provide a guarantee of termination. Then,
   we build an automatic program synthesis system that operates over the undecidable theory
@@ -326,13 +327,13 @@
 \label{sec:introduction}
 \modifiedagain{To compile an image processing pipeline written in the
   Halide language, the compiler must perform a variety of analyses of
-  the pipeline's properties. For example, if the user has marked a
+  the pipeline's properties. For example, if the user marks a
   loop to be fully unrolled, the compiler must infer a constant upper
-  bound for the extent of the loop. If the user has marked
+  bound for the extent of the loop. If the user marks
   a loop as parallel, the compiler must prove the absence of data
   races. These analyses also affect performance more than in most
-  compilers. In Halide, loop bounds and allocation sizes are inferred
-  by the compiler. If these are overestimated, the generated code may
+  compilers. In Halide, the compiler infers loop bounds and allocation sizes.
+  If these are overestimated, the generated code may
   perform an amount of wasted work sufficient to alter the
   computational complexity of the algorithm. These analyses all depend
   critically on the quality of Halide's expression simplifier. In
@@ -402,7 +403,7 @@ add a rule that makes the abilities of the simplifier worse in some instances. }
 \modified{First, we formally verify the existing 
 ruleset, demonstrating that proofs of soundness are possible despite the lack of a 
 decision procedure for our theory. We model the Halide expression language and verify 
-the ruleset via an SMT solver. The SMT solver can prove about 88\% of the existing ruleset;
+the ruleset via an SMT solver that can prove about 88\% of the existing ruleset;
 we prove the remaining rules by hand via the proof assistant Coq~\cite{Coq19}. We find three unsound rules, 
 as well as several rules which could be made more general by relaxing their predicate guards. 
 The Halide developers changed the language's semantics for division during this work; we reran our verification 
@@ -423,10 +424,10 @@ if every rewrite leaves the rewritten expression strictly less in terms of our o
 then it is impossible for any sequence of rewrites to form cycles, so the rewrite 
 algorithm must terminate. This is not a hypothetical issue; Halide developers have previously
 observed non-termination when adding rules.  We devise an ordering that fits as many of the existing rules as 
-possible; by removing the few rules that do not obey this ordering, we prove 
-that the TRS will always terminate, eliminating a source of errors. Maintaining this order as 
+possible, and then remove the few rules that do not obey this ordering, proving
+that the TRS will now always terminate. Maintaining this order as 
 an invariant over any future rules means any additions to the ruleset will not undo 
-progress made by existing rules; it also means that rules can be freely removed or reordered 
+progress made by existing rules; it also means rules can be freely removed or reordered 
 without affecting termination.}
 
 \modified{Having guaranteed soundness and termination, we increase 
@@ -438,22 +439,24 @@ seen by the compiler on realistic inputs over the full expression space. We take
 of this bias by gathering expressions from realistic compilations on which the current 
 TRS is ``stuck'' and can make no further progress. We choose candidate left-hand sides 
 for rules from this corpus and synthesize equivalent right-hand terms that obey the 
-termination order. \modifiedagain{These expressions frequently contain constants; we generalize the rules by replacing these constants  
+termination order. \modifiedagain{These expressions frequently contain constants, so we
+generalize the rules by replacing these constants
 with fresh variables and synthesizing predicate guards that indicate when it is safe to apply 
-the rule.} Our synthesis procedure is able to find large numbers of useful rules without
-human oversight; although the existing compiler is very mature 
-and well-tuned for our suite of benchmarks, we are able to show some performance 
+the rule.} Our synthesis procedure finds large numbers of useful rules without
+human oversight; although the existing compiler is mature 
+and well-tuned for our suite of benchmarks, we show some performance 
 gains without increases in compilation time when our newly synthesized suite 
 of rules is added to the TRS. }
 
 
 \modified{In the rest of the paper, we first provide some background on term rewriting systems 
-and the Halide rewriting algorithm (section~\ref{sec:background}). We then describe our approach to verifying 
-rule correctness (section~\ref{sec:verification}) and discuss the relation between LHS and RHS terms that guarantees 
-termination (section~\ref{sec:termination}). Once semantics and the termination property have been formalized, 
-we present our synthesis algorithm (section~\ref{sec:completeness}). We demonstrate the effectiveness of our approach 
-through several experiments and case studies (section~\ref{sec:evaluation}), with observations on the ways Halide developers 
-have been able to integrate our techniques into their workflows. Finally, we close in section~\ref{sec:limitations}
+and the Halide rewriting algorithm (Sections~\ref{sec:background}--\ref{sec:term-rewriting-in-halide}).
+We then describe our approach to verifying
+rule correctness (Section~\ref{sec:verification}) and discuss the relation between LHS and RHS terms that guarantees 
+termination (Section~\ref{sec:termination}). Once semantics and the termination property have been formalized, 
+we present our synthesis algorithm (Section~\ref{sec:completeness}). We demonstrate the effectiveness of our approach 
+through several experiments and case studies (Section~\ref{sec:evaluation}), with observations on the ways Halide developers 
+have been able to integrate our techniques into their workflows. Finally, we close in Sections~\ref{sec:limitations}--\ref{sec:conclusion}
  with a discussion of our current limitations and a review of related work.}
 
 
@@ -630,6 +633,7 @@ $$\exists P . \phi(P(i_0)) \wedge \phi(P(i_1))$$
 We continue in this way until either a program is found for which the verification query can find no counterexample, or until the learning query cannot find a program that fulfills the specification when applied to all of the learned counterexample set.
 
 \section{Term Rewriting in Halide}
+\label{sec:term-rewriting-in-halide}
 The Halide compiler contains a term rewriting system composed of over a thousand
 rules, operating over the space of Halide expressions\footnote{See Supplemental Material for
 the full Halide expression grammar}.  \modified{The language of Halide expressions
@@ -1687,7 +1691,9 @@ the full distribution.
 \begin{figure*}
   \includegraphics[width=4in]{figures/memoryhistogram.pdf}
 \caption{Reduction in peak memory usage of 3072 pieces of compiled
-  code when 4127 synthesized rules are added to the TRS. In 197 cases,
+  code when 4127 synthesized rules are added to the TRS. The x-axis
+  shows $\frac{after}{before}$, so below 1.0 means the synthesized rules
+  reduced memory consumption.  In 197 cases,
   peak memory usage drops by more than 10\%.}
 \label{fig:peakmemoryhistogram}
 \end{figure*}
@@ -1812,6 +1818,7 @@ PSyCO~\cite{lopes2014weakest} synthesizes preconditions that guarantee a compile
 SMT solvers seek to achieve practical results in theoretically challenging problems, such as the theory of non-linear integer arithmetic. For example, \citet{jovanovic2017solving} describes a satisfiability procedure for NLIA that is effective in practice and implements it in the Yices2 solver. In this work we leverage Z3's NLIA solving abilities and extend synthesis to include certain types of non-linear expressions by using constants as operands and later generalizing.
 
 \section{Conclusion}
+\label{sec:conclusion}
 In this work, we improved the Halide term rewriting system by applying formal
 techniques to verify rewrite rules and to ensure termination.  In this process,
 we discovered \NumRulesFixed incorrect rules (which is remarkable,
