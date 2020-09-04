@@ -903,8 +903,8 @@ applied to at least one expression observed by the compiler under realistic usec
 We improve the Halide term rewriting system by ensuring its soundness in
 two ways: first, we verify that each individual rule is correct, meaning that the
 rewrite preserves semantics. Then we verify that the term rewriting system is
-guaranteed to terminate on all inputs by ensuring that there is no sequence of
-applications of rules, on any input expression, that can form a cycle.
+guaranteed to terminate on all inputs by ensuring that no sequence of
+rule applications, on any input expression, can form a cycle.
 
 \subsection{Rule Verification}
 \label{sec:verification}
@@ -932,11 +932,11 @@ stride $s$. In SMT2, we represent this term as the symbolic expression $x + l *
 s$, where $l$ must be zero or positive.
 
 Given this modeling, for each rule, we assert any predicate guards are true, then
-ask Z3 to search for a variable assignment such that the LHS and RHS are not
+ask Z3 to search for a variable assignment that makes the LHS and RHS not
 equivalent.  If Z3 indicates no such assignment exists, the LHS must be equivalent to
 the RHS and the rule must be correct. We implemented an SMT2 printer for 
-Halide rewrite rules that constructs a verification problem for each rule
-suitable for passing to Z3 or another SMT solver.  Rule verification using Z3 is fully automated
+Halide rewrite rules that automatically constructs an SMT2 verification problem for each rule.
+Rule verification using Z3 is fully automated
 and can be run for the current set of rewrite rules used in the compiler via a script.
 
 However, for 123
@@ -956,12 +956,12 @@ This mostly-automated approach to verification assists with changing
 the language semantics. Our initial work on verification was not on
 the semantics described above: division or modulo by zero was originally
 considered undefined behavior. Since we had already
-modeled Halide semantics in SMT2, it was a simple matter to alter the
-definitions of division and modulo and run the verification scripts
-again. At the time we ran our second verification, there were
-\NumZdivRules rules in the Halide TRS ruleset, and \NumZdivZThreeProvedRules
-were proven true in Z3. We proved \NumZdivCoqProvedRules rules to be
-true manually in Coq; since in the previous round all Coq proofs
+modeled Halide semantics in SMT2, it was easy to alter the
+definitions of division and modulo and re-run the verification scripts.
+At the time of this second verification, there were
+\NumZdivRules rules in the Halide TRS ruleset, and Z3 proved \NumZdivZThreeProvedRules
+rules. We proved a further \NumZdivCoqProvedRules rules 
+manually in Coq; since in the previous round all Coq proofs
 included the assumption that all divisors were non-zero, in most cases
 we had only to add a case to show that the rule was true when the
 divisor was zero as well. In the course of reviewing
@@ -971,27 +971,27 @@ that condition could safely be lifted. We found that the remaining
 \NumZdivFalseRules rules were not correct under the new semantics and
 submitted a patch to amend them.
 
-Overall results of verifying rule correctness are described in Section~\ref{sec:eval-correctness}.
+Overall results for verifying rule correctness are described in Section~\ref{sec:eval-correctness}.
 
 \subsection{Termination}
 \label{sec:termination}
 
-\modified{Under the umbrella goal of simplifying expressions, the Halide TRS has employed
+\modified{Under the umbrella goal of simplifying expressions, the Halide TRS uses
 many strategies: it may attempt to make expressions as short as possible; it may factor out
 vector operations or more expensive operations such as division; it may attempt to
-canonicalize subexpressions so they can cancel or be shown to be equivalent. These
+canonicalize subexpressions so they can cancel or be shown equivalent. These
 strategies are not necessarily aligned and may even undo each other. Crafting new rules 
 can thus require a detailed understanding of the ruleset and its various applications. 
 In this section we formalize the Halide expression simplification strategy that was
-previously only encoded in the ruleset itself. In so doing we also prove that since 
-each rule strictly makes progress in accordance to this strategy, the Halide TRS must terminate.}
+previously only encoded in the ruleset itself. In doing so, we also prove that since 
+each rule strictly makes progress in accordance to this strategy, the Halide TRS always terminates.}
 
 Consider a term
 rewriting system containing only one rule: $x + y \rewrites y + x$. The term
 $3 + 5$ matches the LHS of the rule and is rewritten to $5 + 3$, which can again
-be matched to the rule and rewritten to $3 + 5$, and so on. The Halide TRS has been observed to fail to terminate in the past\footnote{See for example https://github.com/halide/Halide/pull/1525}, causing unbounded recursion and eventually a stack overflow in the compiler. This issue is tricky to debug, and may not always be reported by users, since the error is fairly opaque. To show that this type of error has been eliminated, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some sequence of rules that form a cycle.
+be matched to the rule and rewritten to $3 + 5$, and so on. Termination failures in the Halide TRS have occurred in the past\footnote{See for example https://github.com/halide/Halide/pull/1525}, causing unbounded recursion and eventually a stack overflow in the compiler. This is tricky to debug, and may not always be reported by users, since the error is fairly opaque. To show that this type of error has been eliminated, we must prove that there is no expression in the Halide expression language that can be infinitely rewritten by some sequence of rules that form a cycle.
 
-Intuitively, we can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rule always rewrites expressions such that they move monotonically in some direction through the expression space, then it will be impossible for any sequence of rules to form a cycle. These directions correspond to our intuition about why certain rules are useful: we may want to write rules that cancel expressions and make them smaller, replace expensive operations with cheaper ones, or canonicalize expressions so we can more easily prove an equivalence. We can consider each of these properties as a dimension in the expression space, in which rewrites should move expressions in the desired direction. If we can formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
+Intuitively, we can think of Halide expressions as existing in some multi-dimensional space; when an expression is rewritten by a rule, it moves from one point in that space to another. If each rule always rewrites expressions such that they move monotonically in some direction through the expression space, then no sequence of rules can form a cycle. These directions correspond to our intuition about why certain rules are useful (like the examples at the beginning of this section). We can consider each of these directions as a dimension in the expression space. If we formalize this desirable ordering and show that all rewrites from one expression to another strictly obey it, then we will have a proof of termination.
 
 We provide this formalism and prove that the Halide term rewriting system must terminate by constructing a \emph{reduction order}, a strict order with properties that ensure that, for an order $>$ and a rule $l \rewrites r$, if $l > r$, then for any expression $e_1$ that matches $l$ and is rewritten by $l \rewrites r$ into $e_2$, it must be true that $e_1 > e_2$. Crucially, this order is evaluated over rule terms, and not over all expressions that those terms may match. We take the definition of a reduction order and the next two theorems from~\citet{baader1999term}.
 
@@ -1003,7 +1003,7 @@ A reduction order is a strict order that must be well-founded, meaning that ever
 \[
 s_1 > s_2 \implies f(t_1,...t_{i-1},s_1,t_{i+1},...,t_n) > f(t_1,...t_{i-1},s_2,t_{i+1},...,t_n)
 \]
-for all $i, 1 \leq i \leq n$ and all expressions $t_1,...t_{i-1},t_{i+1},...,t_n$. This property means that if a rewrite rule is used to transform a subtree in some expression $e$, the $>$ relation is preserved between the original expression $e$ and the rewritten expression $e'$. Finally, a reduction order is \emph{closed under substitution}: for all expressions $s_1, s_2$ and all substitutions $\sigma \in \mathcal{S}ub(T(\Sigma,V))$, 
+for all $i, 1 \leq i \leq n$ and all expressions $t_1,...t_{i-1},t_{i+1},...,t_n$. This property means that if a rewrite rule transforms a subtree in some expression $e$, the $>$ relation is preserved between the original expression $e$ and the rewritten expression $e'$. Finally, a reduction order is \emph{closed under substitution}: for all expressions $s_1, s_2$ and all substitutions $\sigma \in \mathcal{S}ub(T(\Sigma,V))$, 
 $s_1 > s_2 \implies \sigma(s_1) > \sigma(s_2)$. When we match some left-hand side term $l$ to some expression $e$, we are defining a substitution for each of the variables in $l$ with some subtree in $e$; we then use that substitution to rewrite $e$ to $e'$. If our order is closed under substitutions, we know that for any expression we match to $l$, the resulting rewritten expression will obey the ordering.
 
 Choosing a single monotonic direction in which to rewrite expressions would be overly restrictive. 
@@ -1178,7 +1178,7 @@ We begin with an expression we will attempt to further simplify;
 first, we synthesize rules that contain concrete constants from the input expression. 
 Next we generalize those rules by replacing constant values with symbolic constants and synthesizing compile-time 
 predicate guards 
-that check the validity of the rule on the values matched by the symbolic constants. If we can 
+that check the validity of the rule on the values matched by the symbolic constants. If we 
 find such a rule, we know that adding it to the TRS will enable it to simplify the input
 expression as well as any similar expressions it may encounter.}
 
@@ -1245,16 +1245,16 @@ We can enumerate all such terms through a kind of inverse matching.
 When we rewrite an expression with a rule, 
 we match the expression to the rule's LHS by finding a substitution for all variables in
 the LHS that will unify it with the input expression. Here, we start with an input expression,
-then fix a substitution by mapping some of its subterms to fresh variables. If we 
-replace those subterms with the new variables, we have constructed a term that can 
+then fix a substitution by mapping some of its subterms to fresh variables. We 
+replace those subterms with the new variables, constructing a term that can 
 be matched with the input term.
-If we perform this inverse matching for all sets of subterms, we find all possible LHSs that could match the
+If we perform this inverse matching for all sets of subterms, we find \emph{all possible LHSs} that could match the
 input expression. 
-If a subterm occurs more than once in the input expression, we construct both LHSs that 
+When a subterm occurs more than once in the input expression, we construct a LHS that 
 use the same variable to replace it in multiple places and LHSs that replace its
 occurrences with different variables.
-We then repeat the procedure on all \emph{subterms} of the input expression.  The result is the set of all 
-LHSs that match any part of the input expression. See figure~\ref{fig:lhspatterns} for a worked example. }
+We repeat the procedure on all \emph{subterms} of the input expression.  The result is the set of all 
+LHSs that match any part of the input expression. See Figure~\ref{fig:lhspatterns} for a worked example. }
 
 \modified{This number of LHSs is exponential in the size of the input expression, so we use a few heuristics to narrow 
 our search. We bound the size of candidate LHSs to have seven or fewer leaves, since longer terms are less likely to 
