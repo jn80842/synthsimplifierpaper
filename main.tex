@@ -1326,7 +1326,7 @@ $\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0
 \label{sec:generalizing-constants}
 
 \modified{If either AC-matching search (Section~\ref{sec:rhsacmatching}) or CEGIS-based synthesis (Section~\ref{sec:rhssynthesis}) were successful, 
-we will now have a candidate rewrite
+we now have a candidate rewrite
 rule that contains concrete values originating from the input expression.
 To generalize the rule, we replace such constants with fresh \emph{symbolic constants} 
 and synthesize a guard that is true when the rule is valid. 
@@ -1340,11 +1340,11 @@ $\phi$ evaluates to true: }
 \]
 
 \modified{First, we check to see if this condition is satisfied when $\phi$ is 
-always true. If it is, then no predicate guard is needed. If not, we will need 
-to synthesize an expression for $\phi$. We find a candidate for $\phi$ iteratively 
+always true. If it is, then no predicate guard is needed. Otherwise, we need 
+to synthesize an expression for $\phi$. We find candidates for $\phi$ iteratively 
 by first choosing a small set of values $S$ for the variables 
 in $\vec{x}$ and finding the candidate guard $\phi_S$. We check to see if $\phi_S$
-is a sufficient predicate guard for all values of $\vec{x}$; if it is not, we add
+is a sufficient predicate guard for all $\vec{x}$; if it is not, we add
 counterexamples to the set $S$ and repeat.}
 
 \[ \forall \vec{c} \forall \vec{x} \in S \;.\; \phi_S(\vec{c}) \implies LHS(\vec{x},\vec{c}) = RHS(\vec{x},\vec{c})
@@ -1375,7 +1375,7 @@ If so, we add the counterexample $\vec{x}$ to $S$, and construct a new guard $\p
 We repeat this process for several iterations (four, in our experiments) and if 
 we fail to find a sound guard, we switch to an alternative strategy that converts 
 the current (unsound) candidate $\phi_S$ to disjunctive normal form and tests
-each clause in turn whether it is a sufficient guard.
+each clause in turn to check if it is a sufficient guard.
 If it is, that clause becomes the guard.  If no clause is sound, we discard the rule.
 If the loop terminates with Z3 timing out or returning ``unknown'', we return
 the current $\phi_S$, flagging it for human attention as requiring a manual proof. 
@@ -1403,7 +1403,7 @@ We exclude all such cases from our experiments.}
 %
 \[  \phi_S(\vec{c}) \iff 0 < c_1 \wedge c_0 \le 0
 \]
-Next we check whether $\phi_S$ is sound for all $\vec{x}$.  It is, hence we have a completed rule:
+Next we check whether $\phi_S$ is sound for all $\vec{x}$.  It is, so we have a completed rule:
 
 \[ x_0 < select(x_1, c_0, c_1) + x_0) \rewrites \neg x_1 \;\pred \;0 < c_1 \wedge c_0 \le 0
 \]
