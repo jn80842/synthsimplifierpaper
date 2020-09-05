@@ -1358,7 +1358,7 @@ $\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0
 \subsection{Generalizing Constants and Finding Predicate Guards}
 \label{sec:generalizing-constants}
 
-\modified{If either AC-matching search (Section~\ref{TODO}) or CEGIS-based synthesis (Section~\ref{TODO} were successful, 
+\modified{If either AC-matching search (Section~\ref{sec:rhsacmatching}) or CEGIS-based synthesis (Section~\ref{sec:rhssynthesis}) were successful, 
 we will now have a candidate rewrite
 rule that contains concrete values originating from the input expression.
 To generalize the rule, we replace such constants with fresh \emph{symbolic constants} 
@@ -1366,51 +1366,51 @@ and synthesize a guard that is true when the rule is valid.
 Recall that in the Halide TRS, a variable in the LHS matches any subterm, while a 
 symbolic constant matches only a constant value (see Section~\ref{sec:customalgo}); the guards, which are predicates over symbolic constants, can thus be evaluated at compile time. }
 
-IN more detail, after finding LHS and RHS terms that are equivalent on concrete constants $\vec{c_e}$ that originate from the example expression $e$, we know only that the rule is valid on these constants: 
-\[ 
-  \forall \vec{x} \; . \; LHS(\vec{x},\vec{c_e}) = RHS(\vec{x},\vec{c_e})
+\modified{Our goal is to generalize the equality by synthesizing a guard predicate $\phi$ 
+over the symbolic constants in the LHS and RHS terms such that our rule is valid whenever
+$\phi$ evaluates to true: }
+\[ \forall \vec{c} \forall \vec{x} \;.\; \phi(\vec{c}) \implies LHS(\vec{x},\vec{c}) = RHS(\vec{x},\vec{c})
 \]
-Our goal is to generalize the equality by synthesizing a validity guard predicate $\phi(\vec{c})$ such that our rule is valid for all $c \in \phi$: 
-\[ \vec{c} \in \phi \implies  
-    \forall \vec{x} \;.\; LHS(\vec{x},\vec{c}) = RHS(\vec{x},\vec{c})
-\]
-Additionally, we want the guard to permit the constants used in the synthesis of the rule, i.e., we want $\vec{c_e} \in \phi$. \rb{How do we check that $\phi$ includes $c_e$?. }
-Ideally, we also want the \emph{weakest} guard, in that the predicate $\phi(c)$ holds whenever $LHS$ and $RHS$ are equal. Such $\phi$ would be sufficient and necessary for soundness of the rule: 
-\[ \vec{c} \in \phi \iff  
-    \forall \vec{x} \;.\; LHS(\vec{x},\vec{c}) = RHS(\vec{x},\vec{c})
-\]
-Our procedure constructs a guard that is sufficient but not necessary.  That is, we sometimes lose opportunities for applying the rewrite rule. 
 
-We find $\phi$ iteratively.  First, we construct a predicate $\phi_S$ that is sufficient and necessary for a small, bounded set $S$ of example $\vec{x}$ values. Then we check whether $\phi_S$ is sufficient for all $\vec{x}$. We add values to $S$ and repeat the process. 
+\modified{First, we check to see if this condition is satisfied when $\phi$ is 
+always true. If it is, then no predicate guard is needed. If not, we will need 
+to synthesize an expression for $\phi$. We find a candidate for $\phi$ iteratively 
+by first choosing a small set of values $S$ for the variables 
+in $\vec{x}$ and finding the candidate guard $\phi_S$. We check to see if $\phi_S$
+is a sufficient predicate guard for all values of $\vec{x}$; if it is not, we add
+counterexamples to the set $S$ and repeat.}
 
-The guard $\phi_S$ is defined as follows:
-\[ \vec{c} \in \phi_S \iff  
-    \forall \vec{x}\in S \;.\; LHS(\vec{x},\vec{c}) = RHS(\vec{x},\vec{c})
+\[ \forall \vec{c} \forall \vec{x} \in S \;.\; \phi_S(\vec{c}) \implies LHS(\vec{x},\vec{c}) = RHS(\vec{x},\vec{c})
 \]
-We define $S$ to include all basis vectors, which are 
-values $\vec{x} = ( 0, \ldots, 0, 1, 0, \ldots, 0 )$ that include exactly one unit value.  
 
-We construct $\phi_S$ by unwinding the right-hand side of the equivalence above, namely $\forall \vec{x}\in S \;.\; LHS(\vec{x},\vec{c}) = RHS(\vec{x},\vec{c})$, and substituting the concrete values $\vec{x}\in S$ to $LHS(\vec{x},\vec{c}) = RHS(\vec{x},\vec{c})$.
-This gives us the desired guard $\phi_S$.  
-The form of this guard is 
-\[
-LHS(\vec{x_1},\vec{c}) = RHS(\vec{x_1},\vec{c}) \wedge \ldots \wedge
-LHS(\vec{x_k},\vec{c}) = RHS(\vec{x_k},\vec{c}) 
+\modified{We initialize $S$ with all basis vectors, which are 
+values $\vec{x} = ( 0, \ldots, 0, 1, 0, \ldots, 0 )$ that include exactly one unit value,
+plus the zero vector.  
+We then unwind the right-hand side of the implication and substitute in the concrete values 
+from $S$ to get:}
+
+\[ \forall \vec{c} \forall \vec{x} \in S \;.\; \phi_S(\vec{c}) \implies (LHS(\vec{x_1},\vec{c}) = RHS(\vec{x_1},\vec{c}) \wedge \ldots \wedge
+LHS(\vec{x_k},\vec{c}) = RHS(\vec{x_k},\vec{c}))
 \]
-Before proceeding, we simplify this candidate predicate $\phi_S$ using our TRS. 
 
-We test whether $\phi_S$ is sound on all $\vec{x}$. 
-\[ \exists \vec{c} \in \phi_S \; \exists \vec{x} 
+\modified{We use the Halide TRS itself to simplify the conjunction on the right-hand side of the
+implication. Since all occurrences of $\vec{x}$ have been replaced with concrete
+values, we get back an expression that contains only symbolic constants, which we
+use as our candidate guard $\phi_S$. }
+
+\modified{We test whether $\phi_S$ is sound on all $\vec{x}$. }
+\[ \exists \vec{c} \; \exists \vec{x} 
    \;.\; LHS(\vec{x},\vec{c}) \not= RHS(\vec{x},\vec{c})
 \]
-If this query has a solution $\vec{x}$, then the guard is unsound.  If so, we add the counterexample $\vec{x}$ to $S$, and construct a new guard $\phi_S$.  We repeat this process for several iterations (four, in our experiments) and if we fail to find a sound guard, we switch to an alternative strategy. 
 
-\modified{This strategy converts the current (unsound) candidate $\phi_S$ to disjunctive normal form and tests
+\modified{If this query has a solution $\vec{x}$, then the guard is unsound.  
+If so, we add the counterexample $\vec{x}$ to $S$, and construct a new guard $\phi_S$.  
+We repeat this process for several iterations (four, in our experiments) and if 
+we fail to find a sound guard, we switch to an alternative strategy that converts 
+the current (unsound) candidate $\phi_S$ to disjunctive normal form and tests
 each clause in turn whether it is a sufficient guard.
-If it is, that clause becomes the guard.  If no clause is sound, we discard the rule.}
-
-\modified{
-A final note: if the loop terminates with Z3 timing out or returning ``unknown'', we return
+If it is, that clause becomes the guard.  If no clause is sound, we discard the rule.
+If the loop terminates with Z3 timing out or returning ``unknown'', we return
 the current $\phi_S$, flagging it for human attention as requiring a manual proof. 
 We exclude all such cases from our experiments.}
 
