@@ -21,7 +21,7 @@
 \usepackage{makecell}
 \usepackage{algorithm2e}
 \usepackage{hhline}
-\usetikzlibrary{hobby,arrows,backgrounds,calc,trees}
+\usetikzlibrary{hobby,arrows,backgrounds,calc,trees,automata}
 
 \pgfdeclarelayer{background}
 \pgfsetlayers{background,main}
@@ -450,7 +450,7 @@ of rules is added to the TRS. }
 
 
 \modified{In the rest of the paper, we first provide some background on term rewriting systems 
-and the Halide rewriting algorithm (Sections~\ref{sec:background}--\ref{sec:term-rewriting-in-halide}).
+and the Halide rewriting algorithm (Sections~\ref{sec:term-rewriting-in-halide}).
 We then describe our approach to verifying
 rule correctness (Section~\ref{sec:verification}) and discuss the relation between LHS and RHS terms that guarantees 
 termination (Section~\ref{sec:termination}). Once semantics and the termination property have been formalized, 
@@ -458,36 +458,6 @@ we present our synthesis algorithm (Section~\ref{sec:completeness}). We demonstr
 through several experiments and case studies (Section~\ref{sec:evaluation}), with observations on the ways Halide developers 
 have been able to integrate our techniques into their workflows. Finally, we close in Sections~\ref{sec:limitations}--\ref{sec:conclusion}
  with a discussion of our current limitations and a review of related work.}
-
-
-\section{Background}
-\label{sec:background}
-\subsection{Term Rewriting Systems}
-Term rewriting systems~\cite{gorn1967} are sets of \textit{rewrite rules} used to transform expressions into a new form.  Such systems are widely
-used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{cousot1977abstract, cousot1979systematic}.
-
-Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. (Constants are considered zero-arity functions.) We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
-
-A \emph{rewrite rule} is a directed binary relation $l \rewrites r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
-
-Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\clubsuit, \diamondsuit\}$ and $V$ is an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
-
-\[ R = \{ x_1 \clubsuit x_2 \rewrites x_1 \diamondsuit x_2 \} \]
-We use $R$ to rewrite the term
-
-\[ 
-(y_1 \diamondsuit y_1) \clubsuit (y_2 \clubsuit y_3)
-\]
-The first step is matching; we find a substitution that will unify the left-hand side (LHS) of the rule with the term we are rewriting. Here, one possible substitution is:
-
-\[
-\{ x_1 \mapsto (y_1 \diamondsuit y_1), x_2 \mapsto (y_2 \clubsuit y_3) \}
-\]
-We then apply this substitution to the right-hand side (RHS) of the rule to obtain the rewritten version of the original term:
-
-\[ 
-(y_1 \diamondsuit y_1) \diamondsuit (y_2 \clubsuit y_3)
-\]
 
 \begin{figure*}
 \begin{tabular}{cccc}
@@ -604,47 +574,46 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 \label{fig:algoexample}
 \end{figure*}
 
-\subsection{Program Synthesis}
-\label{sec:program-synthesis}
-\jln{QUESTION: I added some more description of CEGIS to the rule synthesis section. 
-Not sure if this is now redundant: should we move some of this to the rule synthesis
-section, or delete it altogether?}
-\sak{My view: remove this section and add any details necessary to the rule synthesis section.
-  Then, move 2.1 into the current Sec 3 as a ``Background'' subsection that comes first.}
-Our pipeline for automatically generating new rules relies on program synthesis.
-Syntax-guided synthesis (SyGuS)~\cite{sygus} searches a space of possible programs in order to find one that meets
-a semantic specification.  One of the most popular techniques is counterexample-guided
-inductive synthesis (CEGIS), which leverages the power of satisfiability modulo theories
-(SMT) and SAT solvers to make search over a large space of programs more intelligent.
-The task is to find some program in the search space such that for all possible
-inputs, the found program fulfills some semantic criteria, usually equivalence with
-a specification.
-
-The CEGIS loop alternates between a learning query, which finds a new candidate program over a small set of inputs, and a verification query which checks to see if the program satisfies the specification for all inputs. We begin with a specification $\phi$, choose an initial input $i_0$, and issue a learning query to find a candidate program:
-
-$$\exists P . \phi(P(i_0))$$
-
-When some program $P_1$ is found, we ask a verification query to see if there is some input on which $P_1$ does not fulfill the specification:
-
-$$\exists i . \neg \phi(P_1(i))$$
-
-If no such input can be found, the program satisfies the specification on all inputs and we are done. If not, the query returns some $i_1$ as a counterexample. We then return to our learning query, enhanced with the newly found counterexample:
-
-$$\exists P . \phi(P(i_0)) \wedge \phi(P(i_1))$$
-
-We continue in this way until either a program is found for which the verification query can find no counterexample, or until the learning query cannot find a program that fulfills the specification when applied to all of the learned counterexample set.
-
 \section{Term Rewriting in Halide}
 \label{sec:term-rewriting-in-halide}
+
 The Halide compiler contains a term rewriting system composed of over a thousand
 rules, operating over the space of Halide expressions\footnote{See Supplemental Material for
 the full Halide expression grammar}.  \modified{The language of Halide expressions
 operates over vectors and scalars of integers, booleans, and real values.  However, in
 this work we concentrate on the TRS as it applies to integer and boolean values, for
 both vectors and scalars, because the most important uses of the TRS within the compiler
-apply to these types.  In this section, we describe how the Halide compiler uses the TRS
+apply to these types.  In this section, we give some background on term rewriting systems,
+describe how the Halide compiler uses the TRS
 and the design decisions that motivate the custom rewriting engine, as well as the scope
 of our work.}
+
+\subsection{Term Rewriting Systems}
+Term rewriting systems~\cite{gorn1967} are sets of \textit{rewrite rules} used to transform expressions into a new form.  Such systems are widely
+used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{cousot1977abstract, cousot1979systematic}.
+
+Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. (Constants are considered zero-arity functions.) We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
+
+A \emph{rewrite rule} is a directed binary relation $l \rewrites r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
+
+Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\clubsuit, \diamondsuit\}$ and $V$ is an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
+
+\[ R = \{ x_1 \clubsuit x_2 \rewrites x_1 \diamondsuit x_2 \} \]
+We use $R$ to rewrite the term
+
+\[ 
+(y_1 \diamondsuit y_1) \clubsuit (y_2 \clubsuit y_3)
+\]
+The first step is matching; we find a substitution that will unify the left-hand side (LHS) of the rule with the term we are rewriting. Here, one possible substitution is:
+
+\[
+\{ x_1 \mapsto (y_1 \diamondsuit y_1), x_2 \mapsto (y_2 \clubsuit y_3) \}
+\]
+We then apply this substitution to the right-hand side (RHS) of the rule to obtain the rewritten version of the original term:
+
+\[ 
+(y_1 \diamondsuit y_1) \diamondsuit (y_2 \clubsuit y_3)
+\]
 
 \subsection{\modified{Uses of the TRS in Halide}}
 \label{sec:uses-of-trs}
@@ -860,10 +829,8 @@ treat an SMT solver as an oracle for whether a suggested identity
 holds in our theory. If the identity holds and can be oriented using our reduction order, 
 it is added as a rule. It is possible that the newly-synthesized rule may be a consequence 
 of the existing ruleset and thus could have been found by running completion on $E_R$, 
-but we believe the case in which synthesized rules contain information that is previously 
-unknown to the TRS is more common.}
-\sak{Is the previous sentence actually true?  We have no way of measuring.  I would prefer to
-say that we know that some newly-synthesized rules are not derivable.}
+but we know that many synthesized rules contain information that is previously 
+unknown to the TRS.}
 
 \modified{If we consider our solver as standing in for an infinite set of identities that make up
 our theory, we clearly could synthesize an infinite number of rules. Here we make use
@@ -895,7 +862,7 @@ applied to at least one expression observed by the compiler under realistic usec
   these rewrites operated in an undecidable theory, making automated verification
   difficult.  Finally, because of this undecidability, we cannot necessarily
   rely on traditional automated techniques to discover new rules.}
-\sak{Should we say something about how this applies to things other than Halide?}
+%\sak{Should we say something about how this applies to things other than Halide?}
 
 \section{Soundness}
 \label{sec:soundness}
@@ -1061,8 +1028,8 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \label{sec:completeness}
-\jln{Possible TODO: I refer to expressions from the corpus we learn from as input expressions throughout. If anyone has a 
-better suggestion please let me know.}
+%\jln{Possible TODO: I refer to expressions from the corpus we learn from as input expressions throughout. If anyone has a 
+%better suggestion please let me know.}
 \begin{figure*}
 %\includegraphics[width=1.\columnwidth,natwidth=610,natheight=642]{figures/synthesis-flow.pdf}
 %\includegraphics[width=1.\columnwidth]{figures/synthesis-flow.pdf}
@@ -1315,13 +1282,13 @@ count of the programs as a proxy for our full reduction order.}
 \modified{Similar to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016superoptimization},
 we search the expression space for a RHS using a CEGIS loop. This loop alternately calls Z3 as a
 verifier, which checks if a candidate RHS is equivalent to the LHS on all inputs, 
-and a synthesizer, which finds a candidate RHS that is equivalent to the LHS on
+and a learner, which finds a candidate RHS that is equivalent to the LHS on
 a limited set of inputs.
 We begin by choosing a single-op
 RHS and ask the verifier if it is equivalent to the LHS. If it is not, we get back 
 a counterexample of assignments to the variables for which the right- and left-hand side are 
 not equivalent, which we keep as a set of test inputs. 
-We then ask the synthesizer for a new RHS that is equivalent to the LHS 
+We then ask the learner for a new RHS that is equivalent to the LHS 
 only on the counterexample assignments we found in the last step. 
 If we cannot find an equivalent single-op sequence,
 we iteratively increase the number of operations, ensuring we find shorter sequences
