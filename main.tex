@@ -178,7 +178,7 @@
 %% appropriate command.
 %% Many elements are not rendered, but should be provided for metadata
 %% extraction tools.
-\author{Julie Newcomb}
+\author{Julie L. Newcomb}
 \affiliation{
   \institution{University of Washington}
   \country{USA}
@@ -720,7 +720,7 @@ The Halide term rewriting algorithm simplifies an input expression in a
 depth-first, bottom-up traversal of the expression DAG. At each node, it 
 uses the root node to pick a list of rules, then
 attempts to match the subtree expression with the rule LHSs in a fixed priority. Matching
-is performed purely syntactically, using C++ templates.
+is performed purely syntactically, using C++ template metaprogramming.
  \modified{Halide rewrite rules contain special metavariables,
 called \emph{symbolic constants}, that can match only with constant values; all other
 variables can match any subterm as usual.}
@@ -774,7 +774,7 @@ As discussed above, Halide compiler must return the same schedule every time the
 
 \modified{While the Halide algorithm is less powerful than Z3, its deterministic, greedy rule application strategy
 gives it a smooth performance curve, whether it succeeds or fails in simplifying an input expression. }
-A solver like Z3 tends to give very good performance most of the time but gets bogged down in difficult cases, requiring the use of timeouts. The Halide algorithm ``fails fast'': on an input expression which does not match by any rule,  the Halide algorithm will complete in time linear to the size of the expression, taking on the order of one CPU cycle per term in the expression per rule in the TRS. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including provably true expressions and expressions not provably true. Z3 could prove more expressions true (within a 60 second timeout), but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over 7 minutes to check the set of expressions while the Halide TRS took just 2 seconds. The set of expressions is much smaller than the number of calls the compiler makes to the rewriter in the compiling a single pipeline.
+A solver like Z3 tends to give very good performance most of the time but gets bogged down in difficult cases, requiring the use of timeouts. The Halide algorithm ``fails fast'': on an input expression which does not match by any rule,  the Halide algorithm will complete in time linear to the size of the expression, taking on the order of one CPU cycle per term in the expression per rule in the TRS. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including provably true expressions and expressions not provably true. Z3 could prove more expressions true (within a 60 second timeout), but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over 7 minutes to check the set of expressions while the Halide TRS took just 2 seconds. The set of expressions is much smaller than the number of calls the compiler makes to the rewriter in compiling a single pipeline.
 
 Because the Halide algorithm at every step chooses one rule to apply to the single expression it is working on, it scales well in terms of the number of rules in the TRS. See Section~\ref{ssec:compilationspeed} for an evaluation of the effects of adding newly synthesized rules on the performance of the compiler. 
 
@@ -1254,18 +1254,19 @@ the original, untransformed LHS term to the result of the simplification.  Note 
 \modified{For example, assume our TRS includes the rule $(x + y) - x \rewrites y$, 
 and let $((u + 2) + v) - u$ be a candidate LHS term. The rule does not match the candidate but it matches its variant $(u + (v + 2)) - u$, rewriting it to the result $v + 2$. The candidate and the result give us the rule $((u + 2) + v) - u \rewrites v + 2$. }
 \jln{QUESTION: Any suggestions to clarify this figure?}
+
 \begin{center}
-\begin{tabular}{cccl}
-$(x + y) - x$ & $\rewrites$ & $y$ & an existing rule \\
-\hline
-$\textcolor{blue}{((u + 2) + v) - u}$ & $\rewrites$ & & no match \\
-$(u + (v + 2)) - u$ & $\rewrites$ & $\textcolor{blue}{v + 2}$ & AC variant of LHS matches \\
-\hline
-$((u + 2) + v) - u$ & $\rewrites$ & $v + 2$ & new rule
+\begin{tabular}{ccccccccccccccc}
+$($ & $x$       & $+$ & $y)$ & $-$ &  $x$ &                                     & $(x$      & $+$ & $y$       & $)$ & $-$ &  $x$ &             & \\
+$($ & $(u + z)$ & $+$ & $v)$ & $-$ &  $u$ & $\xrightarrow[\text{AC}]{\text{}}$  & $(u$      & $+$ & $(z + v)$ & $)$ & $-$ &  $u$ & $\rewrites$ & $z + v$ 
 \end{tabular}
 \end{center}
 
-\modified{We can consider this procedure a kind of lazy, offline AC matching because if the Halide TRS 
+
+
+
+
+\modified{We can consider this procedure a kind of lazy, offline AC matching, because if the Halide TRS 
 performed full AC matching while rewriting expressions, it would be able to apply the rule $(x + y) - x \rewrites  y$ to the candidate expression $((u + 2) + v) - u$ after reassociating it to $(u + (v + 2)) - u$, obtaining the result $v + 2$.  Delaying AC matching to synthesis has the effect of restricting the system to a single, offline round of AC and memoizing the result in the form of a new TRS rule if we are successful. 
 Note that the synthesis procedure below could have found this rule, but checking for AC
 variants of existing rules is far cheaper. About three quarters of our synthesized rules are generated by this method.}
@@ -1673,7 +1674,7 @@ is prone to overestimating bounds when
 expressions do not either monotonically increase or decrease with
 respect to some containing loop. By extending the TRS, we
 automatically fix 197 cases where this kind of error increases the
-peak memory usage of an application by more than 10\%, including one
+peak memory usage of an application at runtime by more than 10\%, including one
 case where the increase was more than a gigabyte. This represents
 nearly 6\% of all compilations tested. We believe this captures a
 widespread problem, as instances of overallocation are a common source
@@ -1682,7 +1683,7 @@ the full distribution.
 
 \begin{figure*}
   \includegraphics[width=4in]{figures/memoryhistogram.pdf}
-\caption{Reduction in peak memory usage of 3072 pieces of compiled
+\caption{Reduction in runtime peak memory usage of 3072 pieces of compiled
   code when 4127 synthesized rules are added to the TRS. The x-axis
   shows $\frac{after}{before}$, so below 1.0 means the synthesized rules
   reduced memory consumption.  In 197 cases,
