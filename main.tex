@@ -1296,15 +1296,20 @@ we iteratively increase the number of operations, ensuring we find shorter seque
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
 operations, we use it together with our LHS to form a candidate rule.}
 
-\modified{ Candidate RHS expressions are parameterized by a bytecode
-  sequence of fixed size that is fed to an interpreter. This bytecode
+\modified{ The learner portion of the CEGIS loop creates a candidate RHS
+expression from a parameterized bytecode
+  sequence of fixed size that is fed to an interpreter. Each bytecode
+  instruction takes parameters that select between the possible operators and
+  operands available to it. Thus,
+  this bytecode
   sequence serves as an SSA representation of an expression tree. The
-  interpreter is evaluated abstractly on symbolic inputs to produce an
-  uber-expression, capable of acting as any Halide expression in our
+  interpreter is evaluated abstractly on symbolic inputs to produce a
+  sketch~\cite{DBLP:conf/aplas/Solar-Lezama09, torlak2014lightweight}, 
+  capable of acting as any Halide expression in our
   search space depending on the bytecode values. The learner uses Z3
-  to solve for the bytecode values that make the uber-expression
+  to solve for the bytecode values that make the sketch semantically
   equivalent to the LHS over the test inputs. If a solution is found,
-  substituting the produced bytecode values into the uber-expression
+  substituting the produced bytecode values into the sketch
   and applying the TRS reduces it to a concrete candidate RHS. One
   complication arising from this approach is that a bytecode sequence
   of a fixed number of ops may produce expression trees of a larger
@@ -1830,6 +1835,11 @@ Superoptimization, a process of finding a shorter or more desirable program that
 PSyCO~\cite{lopes2014weakest} synthesizes preconditions that guarantee a compiler optimization is semantics-preserving, using a counterexample-driven algorithm similar to our rule CEGIS loop (although not like our predicate synthesis algorithm). PSyCO finds the weakest precondition from a finite language of constraints, while the space of our predicate search is theoretically inifinite but in practice bounded by our iteration limit. PSyCO must reason about side effects by tracking read and write behavior in optimization templates, while our expression language is side effect-free. More recently, Proviso~\cite{astorga2019learning} finds preconditions for C\# programs using an active learning framework composed of a machine learning algorithm for decision trees as a black-box learner and a test generator that acts as a teacher providing counterexamples. Like this work, the logic of preconditions they synthesize is in an undecidable domain.
 
 SMT solvers seek to achieve practical results in theoretically challenging problems, such as the theory of non-linear integer arithmetic. For example, \citet{jovanovic2017solving} describes a satisfiability procedure for NLIA that is effective in practice and implements it in the Yices2 solver. In this work we leverage Z3's NLIA solving abilities and extend synthesis to include certain types of non-linear expressions by using constants as operands and later generalizing.
+
+\modified{A different use of term rewriting systems in pipeline scheduling language
+compilers is demonstrated in \cite{hagedorn2020achieving}, in which an algorithm
+and a schedule are rewritten using a TRS to low-level code, which can be then compiled
+for high performance.}
 
 \section{Conclusion}
 \label{sec:conclusion}
