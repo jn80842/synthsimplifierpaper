@@ -1296,6 +1296,27 @@ we iteratively increase the number of operations, ensuring we find shorter seque
 first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
 operations, we use it together with our LHS to form a candidate rule.}
 
+\modified{ Candidate RHS expressions are parameterized by a bytecode
+  sequence of fixed size that is fed to an interpreter. This bytecode
+  sequence serves as an SSA representation of an expression tree. The
+  interpreter is evaluated abstractly on symbolic inputs to produce an
+  uber-expression, capable of acting as any Halide expression in our
+  search space depending on the bytecode values. The learner uses Z3
+  to solve for the bytecode values that make the uber-expression
+  equivalent to the LHS over the test inputs. If a solution is found,
+  substituting the produced bytecode values into the uber-expression
+  and applying the TRS reduces it to a concrete candidate RHS. One
+  complication arising from this approach is that a bytecode sequence
+  of a fixed number of ops may produce expression trees of a larger
+  size if intermediate values are reused. We reject any such solutions
+  in a post-pass by checking each synthesized RHS against the LHS
+  using the full reduction order. An alternative solution would be
+  introducing let bindings into our search space so that the size of
+  the expression tree could be bounded by the number of ops in its SSA
+  form. However, we could not identify any significant rewrite rules
+  lost to this filtering, so we deemed this an unnecessary
+  complication. }
+
 While Z3 is a powerful tool for synthesis, there are certain types of expressions 
 containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
 Z3 is better able to reason about expressions containing concrete constants, rather than
