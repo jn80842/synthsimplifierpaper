@@ -1293,21 +1293,26 @@ We then ask the learner for a new RHS that is equivalent to the LHS
 only on the counterexample assignments we found in the last step. 
 If we cannot find an equivalent single-op sequence,
 we iteratively increase the number of operations, ensuring we find shorter sequences
-first.  If CEGIS returns a sequence that is semantically equivalent to the LHS pattern but uses fewer
+first.  If CEGIS returns a sequence semantically equivalent to the LHS pattern with fewer
 operations, we use it together with our LHS to form a candidate rule.}
 
 \modified{ The learner portion of the CEGIS loop creates a candidate RHS
-expression from a parameterized bytecode
-  sequence of fixed size that is fed to an interpreter. Each bytecode
-  instruction takes parameters that select between the possible operators and
-  operands available to it. Thus,
-  this bytecode
-  sequence serves as an SSA representation of an expression tree. The
-  interpreter is evaluated abstractly on symbolic inputs to produce a
-  sketch~\cite{DBLP:conf/aplas/Solar-Lezama09, torlak2014lightweight}, 
-  capable of acting as any Halide expression in our
-  search space depending on the bytecode values. The learner uses Z3
-  to solve for the bytecode values that make the sketch semantically
+  %expression from a parameterized bytecode
+  %sequence of fixed size that is fed to an interpreter. Each bytecode
+  %instruction takes parameters that select between the possible operators and
+  %operands available to it. Thus,
+  %this bytecode
+  %sequence serves as an SSA representation of an expression tree. The
+  %interpreter is evaluated abstractly on symbolic inputs to produce a
+  %sketch~\cite{DBLP:conf/aplas/Solar-Lezama09, torlak2014lightweight}, 
+  %capable of acting as any Halide expression in our
+  %search space depending on the bytecode values. The learner uses Z3
+  by creating a sketch~\cite{DBLP:conf/aplas/Solar-Lezama09, torlak2014lightweight}
+  that consists of a small bytecode interpreter that encodes the possible
+  operations and operands the RHS can use, along with a bound on the number of instructions.
+  The learner uses Z3 to query for a sequence of bytecodes within the bound, that, when
+  run through the interpreter, is semantically
+  %solve for the bytecode values that makes the sketch semantically
   equivalent to the LHS over the test inputs. If a solution is found,
   substituting the produced bytecode values into the sketch
   and applying the TRS reduces it to a concrete candidate RHS. One
