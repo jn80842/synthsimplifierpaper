@@ -472,16 +472,16 @@ have been able to integrate our techniques into their workflows. Finally, we clo
 %\Tree [.+ [.- [.min a b ] c ] [.max c c ]]
 \node (+) {+}
   child { node (-) {-}
-    child { node (min) {min}
+    child { node (min) {\hmin}
       child {node (a) {a}}
       child {node (b) {b}}
     }
-    child { node (max2) {max}
+    child { node (max2) {\hmax}
       child {node (c4) {c}}
       child {node (c5) {c}}
     }
   }
-  child { [sibling distance=5mm] node (max) {max}
+  child { [sibling distance=5mm] node (max) {\hmax}
     child { node (c2) {c}}
     child { node (c3) {c}}
   };
@@ -498,13 +498,13 @@ have been able to integrate our techniques into their workflows. Finally, we clo
 %\Tree [.+ [.- [.min a b ] c ] [.max c c ]]
 \node (+) {+}
   child {  node (-) {-}
-    child { node (min) {min}
+    child { node (min) {\hmin}
       child {node (a) {a}}
       child {node (b) {b}}
     }
     child { node (c) {c}}
   }
-  child { node (max) {max}
+  child { node (max) {\hmax}
     child { node (c2) {c}}
     child { node (c3) {c}}
   };
@@ -524,7 +524,7 @@ have been able to integrate our techniques into their workflows. Finally, we clo
 %\Tree [.+ [.- [.min a b ] c ] c ]
 \node (+) {+}
   child { node (-) {-}
-    child { node (min) {min}
+    child { node (min) {\hmin}
       child {node (a) {a}}
       child {node (b) {b}}
     }
@@ -545,7 +545,7 @@ have been able to integrate our techniques into their workflows. Finally, we clo
 \tikzstyle{level 1}=[sibling distance=15mm]
 \tikzstyle{level 2}=[sibling distance=10mm]
 \tikzstyle{level 3}=[level distance=10mm,sibling distance=5mm]
-\node (min) {min}
+\node (min) {\hmin}
   child { node (a) {a}
      % [red,opacity=0.0]
     child {     [red,opacity=0.0] node (fake1) {f}
@@ -675,7 +675,7 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
   slower than native division.  When the compiler can statically prove the signs of the numerator
   and denominator, in some cases the code can be replaced by native division or even a different
   instruction altogether.  For example, for an expression \texttt{x / max(y, 1)} the compiler
-  will try to prove $0 < max(y, 1)$.  The TRS first invokes a rule to transform this to
+  will try to prove $0 < \hmax(y, 1)$.  The TRS first invokes a rule to transform this to
   $0 < y || 0 < 1$, which then is transformed to true (since the second clause is always true).
   Thus, the compiler replaces the Euclidean division with machine division.}
 
@@ -878,8 +878,8 @@ rule applications, on any input expression, can form a cycle.
 We verify each individual rule is correct by modeling Halide
 expressions in SMT2 and using the SMT solver Z3~\cite{de2008z3} to
 prove that the rule's left- and right-hand sides are equivalent. Most Halide expression
-semantics map cleanly to SMT2 formulas. The functions \texttt{max} and
-\texttt{min} are defined in the usual way, and \texttt{select} in
+semantics map cleanly to SMT2 formulas. The functions \hmax and
+\hmin are defined in the usual way, and \hsel in
 Halide is equivalent to the SMT2 operator \texttt{ite}. Division and
 modulo are given the Euclidean definitions in both Halide and
 SMT2~\cite{boute1992euclidean}, though division and modulo by zero is handled
@@ -1075,44 +1075,44 @@ In constructing the reduction order, we found 8 rules that contradicted a desira
     \path[->] (s9) edge node {} (s10);                
 
     \node (e1) [example] [right of=s1,node distance=19em]
-          {$(y + 2) < select(u < z, -3, 4) + (y + 2)$};
+          {$(y + 2) < \hsel(u < z, -3, 4) + (y + 2)$};
     \node (e2) [example] [right of=s2,node distance=19em]
           {\shortstack{
               \color{darkgray}
               \tiny{$\ldots$} \\
               \color{darkgray}
               \tiny{$(x_1 + 2) < x_2 + (x_1 + 2)$} \\
-              $x_1 < select(x_2, -3, 4) + x_1$ \\
+              $x_1 < \hsel(x_2, -3, 4) + x_1$ \\
               \color{darkgray}
-              \tiny{$select(x_1 < x_2, -3, 4)$} \\
+              \tiny{$\hsel(x_1 < x_2, -3, 4)$} \\
               \color{darkgray}
               \tiny{$\ldots$}}};
     \node (e3) [example] [right of=s3,node distance=19em]
           {\shortstack{No reassociated/commuted variants \\ match an existing rule.}};
     \node (e4) [example] [right of=s4,node distance=19em]
-          {$x_1 < select(x_2, -3, 4) + x_1 \rightarrow \boxed{\neg x_2}$};
+          {$x_1 < \hsel(x_2, -3, 4) + x_1 \rightarrow \boxed{\neg x_2}$};
     \node (e5) [example] [right of=s5,node distance=19em]
-          {$x_1 < select(x_2, c_0, c_1) + x_1 \rewrites \neg x_2$};
+          {$x_1 < \hsel(x_2, c_0, c_1) + x_1 \rewrites \neg x_2$};
     \node (e6) [example] [right of=s6,node distance=19em]
           {\shortstack{
-              $0 < select(false, c_0, c_1) + 0 = \neg false ~ \wedge$ \\
-              $1 < select(false, c_0, c_1) + 1 = \neg false ~ \wedge$ \\
-              $0 < select(true, c_0, c_1) + 0 = \neg true$ 
+              $0 < \hsel(false, c_0, c_1) + 0 = \neg false ~ \wedge$ \\
+              $1 < \hsel(false, c_0, c_1) + 1 = \neg false ~ \wedge$ \\
+              $0 < \hsel(true, c_0, c_1) + 0 = \neg true$ 
           }};
     \node (e7) [example] [right of=s7,node distance=19em]
         {$0 < c_1 \wedge c_0 \le 0 $};
     \node (e8) [example] [right of=s8,node distance=19em]
         {\shortstack{
             $\exists~ x, c ~s.t.~ (0 < c_1 \wedge c_0 \le 0) ~\wedge$ \\
-            $(x_1 < select(x_2, c_0, c_1) + x_1 \neq \neg x_2)$ ? \\
+            $(x_1 < \hsel(x_2, c_0, c_1) + x_1 \neq \neg x_2)$ ? \\
             No solutions. Predicate is sufficient.
         }};
     \node (e9) [example] [right of=s9,node distance=19em]
-          {$x_1 < select(x_2, c_0, c_1) + x_1 \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $};
+          {$x_1 < \hsel(x_2, c_0, c_1) + x_1 \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $};
     \node (e10) [example] [right of=s10,node distance=19em]
           {\shortstack{
-              $x_1 < select(x_2, c_0, c_1) + x_1 \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $ \\
-              $x_1 < x_1 + select(x_2, c_0, c_1) \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $
+              $x_1 < \hsel(x_2, c_0, c_1) + x_1 \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $ \\
+              $x_1 < x_1 + \hsel(x_2, c_0, c_1) \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $
           }};
 
 
@@ -1176,7 +1176,7 @@ the expression may indeed be reducible to true, so we log it as an input express
   child { node (+2) {+}
     child { node (z) {z}  } % edge from parent node[left,draw=none] {$v_1$}
     child { node (2) {2} }}
-  child { node (min) {min}
+  child { node (min) {\hmin}
     child { node (x) {x}}
     child { node (-) {-} %edge from parent node[right,draw=none] {$v_2$}
       child {node (y) {y}}
@@ -1191,14 +1191,14 @@ the expression may indeed be reducible to true, so we log it as an input express
 \end{pgfonlayer}
 \end{tikzpicture} &
 \begin{tabular}{llll}
-$(z + 2) + \textrm{min}(x, y - z)$ & $\textrm{min}(x, y - z)$ & $z + 2$ & $y - z$ \\
-$v_1 + \textrm{min}(x, y - z)$ & $\textrm{min}(x, v_2)$ & & \\
-$v_1 + \textrm{min}(x, v_3)$ & & & \\
-$(z + 2) + \textrm{min}(x, v_3)$ & & & \\
+$(z + 2) + \hmin(x, y - z)$ & $\hmin(x, y - z)$ & $z + 2$ & $y - z$ \\
+$v_1 + \hmin(x, y - z)$ & $\hmin(x, v_2)$ & & \\
+$v_1 + \hmin(x, v_3)$ & & & \\
+$(z + 2) + \hmin(x, v_3)$ & & & \\
 $v_1 + v_2$ & & &
 \end{tabular}
 \end{tabular}
-\caption{Given the input expression $e = (z + 2) + \textrm{min}(x, y - z)$, we find all possible 
+\caption{Given the input expression $e = (z + 2) + \hmin(x, y - z)$, we find all possible 
 LHS patterns by substituting fresh variables for subterms, for all valid combinations. Then, we repeat the process for 
 each individual subterm. This process yields the list of candidate LHS terms on the right.}
 \label{fig:lhspatterns}
@@ -1348,7 +1348,7 @@ LHS & RHS & Predicate \\
 $(x*y) - (z + (w*x))$ & $(x*(y - w)) - z $ & \\
 $x < (y + x) + z$ &  $0 < (y + z)$ & \\
 $\hmax(x*x, y) + \hmax(z, w*w) < c_0$ & false & $c_0 <= 0$ \\
-$select(x, c_0, y) < \hmin(select(x, c_1, y), c_2)$ & false & $\hmin(c_1, c_2) <= c_0$ \\
+$\hsel(x, c_0, y) < \hmin(\hsel(x, c_1, y), c_2)$ & false & $\hmin(c_1, c_2) <= c_0$ \\
 $\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0)*c_0 + c_1$ \\
 \end{tabular}
 \label{tab:samplerules}
@@ -1416,7 +1416,7 @@ We exclude all such cases from our experiments.}
 
 \modified{As an example, consider the candidate rule:}
 %
-\[ x_0 < select(x_1, c_0, c_1) + x_0 \rewrites \neg x_1
+\[ x_0 < \hsel(x_1, c_0, c_1) + x_0 \rewrites \neg x_1
 \]
 \modified{We initialize $S$ with three basis vectors $\{(0,\mathit{false}), (0,\mathit{true}), (1,\mathit{false})\}$ and construct $\phi_S$:}
 %
@@ -1425,9 +1425,9 @@ We exclude all such cases from our experiments.}
  \phi_S(\vec{c}) \iff 
  &  \forall_{\vec{x} \in S} \;.\; LHS(\vec{x},\vec{c}) = RHS(\vec{x},\vec{c}) \\
  \iff & 
- 0 < select(\mathit{false}, c_0, c_1) + 0 = \neg\mathit{false} \; \wedge \\
-                                                   & 0 < select(\mathit{true}, c_0, c_1) + 0 = \neg \mathit{true}  \; \wedge \\
-                                                   & 1 < select(\mathit{false}, c_0, c_1) + 1 = \neg\mathit{false}
+ 0 < \hsel(\mathit{false}, c_0, c_1) + 0 = \neg\mathit{false} \; \wedge \\
+                                                   & 0 < \hsel(\mathit{true}, c_0, c_1) + 0 = \neg \mathit{true}  \; \wedge \\
+                                                   & 1 < \hsel(\mathit{false}, c_0, c_1) + 1 = \neg\mathit{false}
 \end{split}
 \end{equation*}
 
@@ -1437,7 +1437,7 @@ We exclude all such cases from our experiments.}
 \]
 Next we check whether $\phi_S$ is sound for all $\vec{x}$.  It is, so we have a completed rule:
 
-\[ x_0 < select(x_1, c_0, c_1) + x_0) \rewrites \neg x_1 \;\pred \;0 < c_1 \wedge c_0 \le 0
+\[ x_0 < \hsel(x_1, c_0, c_1) + x_0) \rewrites \neg x_1 \;\pred \;0 < c_1 \wedge c_0 \le 0
 \]
 
 
@@ -1623,7 +1623,7 @@ is a change to the semantics of Halide that may not have even been attempted wit
 
 \begin{align*}
 (x/y)*y + x\%y \rewrites & x \\
-  -1 / x \rewrites & select(x < 0, 1, -1) \\
+  -1 / x \rewrites & \hsel(x < 0, 1, -1) \\
 (x + y)/x \rewrites & y/x + 1
 \end{align*}
 
@@ -1882,14 +1882,7 @@ verified term rewriting systems as well.
   %% \grantnum[<url>]{<sponsorID>}{<number>} should be used to
   %% acknowledge financial support and will be used by metadata
   %% extraction tools.
-  This material is based upon work supported by the
-  \grantsponsor{GS100000001}{National Science
-    Foundation}{http://dx.doi.org/10.13039/100000001} under Grant
-  No.~\grantnum{GS100000001}{nnnnnnn} and Grant
-  No.~\grantnum{GS100000001}{mmmmmmm}.  Any opinions, findings, and
-  conclusions or recommendations expressed in this material are those
-  of the author and do not necessarily reflect the views of the
-  National Science Foundation.
+This work was supported in part by the CONIX Research Center, one of six centers in JUMP, a Semiconductor Research Corporation (SRC) program sponsored by DARPA.
 \end{acks}
 
 
