@@ -70,7 +70,7 @@
 \newcommand{\rb}[1]{\textcolor{blue}{\textit{[{#1} --RB]}}}
 
 \newcommand{\modified}[1]{\textcolor{red}{{#1}}}
-\newcommand{\modifiedagain}[1]{\textcolor{blue}{{#1}}}
+\newcommand{\modifiedagain}[1]{\textcolor{red}{{#1}}}
 
 \newcommand{\hmax}[0]{\texttt{max}}
 \newcommand{\hmin}[0]{\texttt{min}}
@@ -100,16 +100,14 @@
 \newcommand{\NumRulesFixed}{{\color{black} 4}\xspace}
 \newcommand{\NumPredicatesRelaxed}{{\color{black} 17}\xspace}
 \newcommand{\NumOrderingProblems}{{\color{black} 8}\xspace}
-\newcommand{\NumRulesSynthesized}{{\color{black} 2632}\xspace}
+\newcommand{\NumRulesSynthesized}{{\color{black} 4127}\xspace}
 \newcommand{\NumOpSequences}{{\color{black} 6246}\xspace}
 \newcommand{\NumFailureExamples}{{\color{black} 61000}\xspace}
 \newcommand{\NumSimplifiedExpressions}{{\color{black} 195371}\xspace} 
 \newcommand{\NumBugsAutomated}{{\color{black} 5}\xspace}
 \newcommand{\NumOriginalRules}{{\color{black} 999}\xspace}
-\newcommand{\NumZdivRules}{{\color{black} 1139}\xspace}
-\newcommand{\NumZdivZThreeProvedRules}{{\color{black} 988}\xspace}
 \newcommand{\NumZdivCoqProvedRules}{{\color{black} 141}\xspace}
-\newcommand{\NumZdivFalseRules}{{\color{black} 10}\xspace}
+\newcommand{\NumZdivFalseRules}{{\color{black} 44}\xspace}
 \newcommand{\NumZdivRelaxedPredicates}{{\color{black} 37}\xspace}
 
 
@@ -322,7 +320,6 @@
 \maketitle
 
 
-\jln{TODO: check all the numbers for various evaluations and make sure they agree}
 \section{Introduction}
 \label{sec:introduction}
 \modified{To compile an image processing pipeline written in the
@@ -925,10 +922,8 @@ the semantics described above: division or modulo by zero was originally
 considered undefined behavior. Since we had already
 modeled Halide semantics in SMT2, it was easy to alter the
 definitions of division and modulo and re-run the verification scripts.
-At the time of this second verification, there were
-\NumZdivRules rules in the Halide TRS ruleset, and Z3 proved \NumZdivZThreeProvedRules
-rules. We proved a further \NumZdivCoqProvedRules rules 
-manually in Coq; since in the previous round all Coq proofs
+We proved \NumZdivCoqProvedRules rules manually in Coq after Z3 failed to verify them; 
+since in the previous round all Coq proofs
 included the assumption that all divisors were non-zero, in most cases
 we had only to add a case to show that the rule was true when the
 divisor was zero as well. In the course of reviewing
@@ -1005,7 +1000,7 @@ s_1 >_* s_2 \textrm{ iff } |s_1|_* > |s_2|_* \wedge \forall x \in \mathcal{V}ar(
 
 Most of the component orders in the full reduction order take the form above. These orders guarantee termination no matter what sequence rewrite rules are applied to an expression. However, for part of the existing ruleset, we were obliged to take into account the order in which rules are applied in the Halide TRS algorithm.
 
-For example, one existing rule is the canonicalization $(c_0 - x) + y \rewrites (y - x) + c_0$ where $c_0$ is a constant. If $y$ is also a constant, this rule forms a cycle with itself, and could not possibly obey any reduction order. Fortunately, the rule immediately before it in the TRS handles that specific case ($((c_0 - x) + c_1 \rewrites fold(c_0 + c_1) - x)$), so by this sort of non-local reasoning we know that $y$ is not a constant, and therefore the rule strictly decreases a measure which counts the number of constants on the right-hand side of an addition.
+For example, one existing rule is the canonicalization $(c_0 - x) + y \rewrites (y - x) + c_0$ where $c_0$ is a constant. If $y$ is also a constant, this rule forms a cycle with itself, and could not possibly obey any reduction order. Fortunately, the rule immediately before it in the TRS handles that specific case ($((c_0 - x) + c_1 \rewrites \texttt{fold}(c_0 + c_1) - x)$), so by this sort of non-local reasoning we know that $y$ is not a constant, and therefore the rule strictly decreases a measure which counts the number of constants on the right-hand side of an addition.
 
 %The handwritten ruleset had many rules that eliminated the occurrence of a variable, such as $x + x \rewrites x * 2$. It seems natural to define an order based on the measure function $|s_1|_x$, but for a substitution $\sigma = \{x \mapsto 3\}$, $|3 + 3|_x \not > |3 * 2|_x$. However, the simplifier algorithm always attempts constant folding before any other rule, so we know that the rule $x + x \rewrites x * 2$ can only be invoked if $x$ is not a ground term.
 
@@ -1021,7 +1016,7 @@ Relying on non-local reasoning makes our order more brittle; if the simplifier a
 
 Besides giving a termination guarantee, the reduction order is necessary if we want to synthesize new rewrite rules. If we do not constrain newly-synthesized rules to obey a consistent reduction order with the existing human-written ones, they form cycles with the existing rules and cause infinite recursion in the TRS. Additionally, the reduction order is the formal encoding of the types of transformations we find desirable, so the reduction order limits synthesis to rules that rewrite expressions in a useful direction.
 
-In constructing the reduction order, we found 8 rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. To ensure this guarantee is preserved, we build a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order. A full description of the reduction order is given in the supplemental material.
+In constructing the reduction order, we found \NumOrderingProblems rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. To ensure this guarantee is preserved, we build a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order. A full description of the reduction order is given in the supplemental material.
 
 
 
@@ -1198,7 +1193,7 @@ $(z + 2) + \hmin(x, v_3)$ & & & \\
 $v_1 + v_2$ & & &
 \end{tabular}
 \end{tabular}
-\caption{Given the input expression $e = (z + 2) + \hmin(x, y - z)$, we find all possible 
+\caption{Given the input expression $(z + 2) + \hmin(x, y - z)$, we find all possible 
 LHS patterns by substituting fresh variables for subterms, for all valid combinations. Then, we repeat the process for 
 each individual subterm. This process yields the list of candidate LHS terms on the right.}
 \label{fig:lhspatterns}
@@ -1253,18 +1248,6 @@ the original, untransformed LHS term to the result of the simplification.  Note 
 
 \modified{For example, assume our TRS includes the rule $(x + y) - x \rewrites y$, 
 and let $((u + 2) + v) - u$ be a candidate LHS term. The rule does not match the candidate but it matches its variant $(u + (v + 2)) - u$, rewriting it to the result $v + 2$. The candidate and the result give us the rule $((u + 2) + v) - u \rewrites v + 2$. }
-\jln{QUESTION: Any suggestions to clarify this figure?}
-
-\begin{center}
-\begin{tabular}{ccccccccccccccc}
-$($ & $x$       & $+$ & $y)$ & $-$ &  $x$ &                                     & $(x$      & $+$ & $y$       & $)$ & $-$ &  $x$ &             & \\
-$($ & $(u + z)$ & $+$ & $v)$ & $-$ &  $u$ & $\xrightarrow[\text{AC}]{\text{}}$  & $(u$      & $+$ & $(z + v)$ & $)$ & $-$ &  $u$ & $\rewrites$ & $z + v$ 
-\end{tabular}
-\end{center}
-
-
-
-
 
 \modified{We can consider this procedure a kind of lazy, offline AC matching, because if the Halide TRS 
 performed full AC matching while rewriting expressions, it would be able to apply the rule $(x + y) - x \rewrites  y$ to the candidate expression $((u + 2) + v) - u$ after reassociating it to $(u + (v + 2)) - u$, obtaining the result $v + 2$.  Delaying AC matching to synthesis has the effect of restricting the system to a single, offline round of AC and memoizing the result in the form of a new TRS rule if we are successful. 
@@ -1501,9 +1484,9 @@ In evaluating the benefits of the verifier and synthesizer, we answer the follow
 
 \begin{itemize}
   \item \textbf{Does the synthesizer produce better rules than a human expert?} The TRS has been manually extended five times in response to bug reports pointing out limitations of the compiler. We synthesized these five rulesets automatically and found that the human-authored rules were less general and in one case were incorrect. (Section~\ref{sub:bugfixes})
-  \item \textbf{Can verification contribute to the Halide TRS, or is testing alone sufficient?} Although handwritten rules have been extensively fuzz-tested and new rules are peer-reviewed before inclusion, we were still able to discover 5 unsound rules through verification. In addition, verification was able to identify 44 rules that needed to be changed after a significant semantics redefinition, which would have been challenging to discover through testing. (Section~\ref{sec:eval-correctness})
+  \item \textbf{Can verification contribute to the Halide TRS, or is testing alone sufficient?} Although handwritten rules have been extensively fuzz-tested and new rules are peer-reviewed before inclusion, we were still able to discover \NumRulesFixed unsound rules through verification. In addition, verification was able to identify 47 rules that needed to be changed after a significant semantics redefinition, which would have been challenging to discover through testing. (Section~\ref{sec:eval-correctness})
   \item \textbf{What is the best way to use synthesis and verification in development?} We survey several cases from recent Halide development where human experts used the synthesis machinery as an assistant, finding that this hybrid model is more powerful than either the human developer or the synthesizer alone. (Section~\ref{sub:synthassistant})
-  \item \textbf{Can synthesis be used for large-scale improvements of the TRS?} We gather a corpus of over 100,000 expressions on which the TRS can make no progress and iteratively synthesize rules using the corpus as input. We synthesize 4127 rules and add them to the TRS ruleset without a human audit. We find that the enhanced ruleset reduces peak memory usage in compiled code, sometimes dramatically, in 197 of our benchmarks. We also find no significant compile-time slowdown even with this 4.5-fold increase in ruleset size. (Section~\ref{sub:endtoendexperiment})
+  \item \textbf{Can synthesis be used for large-scale improvements of the TRS?} We gather a corpus of over 100,000 expressions on which the TRS can make no progress and iteratively synthesize rules using the corpus as input. We synthesize \NumRulesSynthesized  rules and add them to the TRS ruleset without a human audit. We find that the enhanced ruleset reduces peak memory usage in compiled code, sometimes dramatically, in 197 of our benchmarks. We also find no significant compile-time slowdown even with this 4.5-fold increase in ruleset size. (Section~\ref{sub:endtoendexperiment})
   \item \textbf{Could the entire TRS have been synthesized?} Encouraged by the large-scale experiment, we ask how far we are from being able to bootstrap the entire TRS automatically---something that we considered too ambitious originally. First, we find that \PercentPossibleToSynth~of the existing ruleset are accessible to our current synthesizer in principle; the remaining rules contain operators not yet supported by the tool. % or cannot be reasoned about automatically by our solver. 
   We test the synthesizer's power by removing \NumRulesInCorrectnessExperiment{} accessible rules from the original ruleset one by one and attempting to synthesize a replacement, successfully finding a replacement rule \PercentRulesResynthesized{} of the time.  We find this encouraging for future applications of the synthesizer. (Section~\ref{sub:replacementexperiment})
 \end{itemize}
@@ -1543,8 +1526,8 @@ $\mathbb{B}$: \url{https://github.com/halide/Halide/pull/3761}
 $\mathbb{C}$: \url{https://github.com/halide/Halide/pull/3765}
 $\mathbb{D}$: \url{https://github.com/halide/Halide/pull/3770}
 $\mathbb{E}$: \url{https://github.com/halide/Halide/pull/3780}
-}}
-. Creating these rewrite rules as a human is an amount of work disproportionate to the size of the change. The author of the rules must prove them correct on paper, and a second reviewer must check their work. As we will see, bugs can slip through despite this review. 
+}.}
+Creating these rewrite rules as a human is an amount of work disproportionate to the size of the change. The author of the rules must prove them correct on paper, and a second reviewer must check their work. As we will see, bugs can slip through despite this review. 
 
 In each case we take the test expressions committed as part of the change and feed them to our synthesizer to see if it would have produced the same rewrite rules as the humans did. In cases where humans did not check in tests for their new rules, we wrote our own. In total, across these five cases humans added 24 new rules. The synthesizer generated 42, covering all but one of the human rules, while correcting and generalizing others. In cases $\mathbb{A}$, $\mathbb{C}$, and $\mathbb{E}$, the rules generated by the synthesizer are an exact match to the human-generated rules. In case $\mathbb{B}$ the synthesizer matched the human but also crafted 8 commuted variants of the human rules, making them more widely applicable. As an example, for the human-written rule:
 
@@ -1606,20 +1589,20 @@ We tested the synthesizer's ability to recreate the original ruleset in the foll
 \subsubsection{Can verification contribute to the Halide TRS, or is testing alone sufficient?}
 \label{sec:eval-correctness}
 
-The Halide TRS has a stringent development process: new rules are peer reviewed after they are proven on paper, and fuzzing has been discovering bugs for months. It is thus reasonable to ask whether mechanized verification can add any value. Our verification discovered five new soundness bugs and 17 instances of rules whose predicates were overly restrictive. The former bugs eluded the fuzzer; the latter are deemed too hard so the fuzzer does not look for them. Furthermore, because the verification infrastructure was in place, it was possible to verify a change of semantics without much additional effort, identifying 44 rules that were incorrect under the new semantics.
+The Halide TRS has a stringent development process: new rules are peer reviewed after they are proven on paper, and fuzzing has been discovering bugs for months. It is thus reasonable to ask whether mechanized verification can add any value. Our verification discovered \NumRulesFixed new soundness bugs and \NumPredicatesRelaxed instances of rules whose predicates were overly restrictive. The former bugs eluded the fuzzer; the latter are deemed too hard so the fuzzer does not look for them. Furthermore, because the verification infrastructure was in place, it was possible to verify a change of semantics without much additional effort, identifying 44 rules that were incorrect under the new semantics.
 
-The first use of verification took place when the TRS had not yet been merged into the Halide master branch. We ran the verification pipeline and discovered three incorrect rewrite rules, listed in Table~\ref{tab:verfirstround}. The rules that could not be checked with Z3 were proved true using the Coq proof assistant (none of the manually proved rules were found to be incorrect). While these bugs were found automatically the fixes were performed by hand, as the synthesis pipeline did not yet exist. 
+The first use of verification took place when the TRS had not yet been merged into the Halide master branch. We ran the verification pipeline and discovered \NumRulesFixed incorrect rewrite rules, listed in Table~\ref{tab:verfirstround}. The rules that could not be checked with Z3 were proved true using the Coq proof assistant (none of the manually proved rules were found to be incorrect). While these bugs were found automatically the fixes were performed by hand, as the synthesis pipeline did not yet exist. 
 
-\jln{check that the body of this footnote doesn't occur on a page before the number does}
 Case $\mathbb{H}$
 \footnote{
 \label{footnote:casesfi}
 $\mathbb{F}$: \url{https://github.com/halide/Halide/pull/4721}
 $\mathbb{G}$: \url{https://github.com/halide/Halide/pull/4772}
-$\mathbb{H}$: \url{https://github.com/halide/Halide/pull/4439}
+$\mathbb{H}$: \url{https://github.com/halide/Halide/pull/4439} % these are the div by 0 semantics change fixes
 $\mathbb{I}$: \url{https://github.com/halide/Halide/pull/4850}
 }
-is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by Alex Reinking~\cite{reinkingthesis}. Existing tests and real uses of Halide were useless as a test of this change, as \emph{they were all carefully written to never divide by zero}. Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now it was necessary to either show that the rule was still correct in the case where a denominator was zero, or constrain the rule to only trigger when the denominator was known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 141 rules were reverified with a human in the loop by revisiting and modifying existing Coq proofs. The mechanical re-verification was all but push-button; the manual effort for updating the Coq proofs was non-trivial, but about half of the effort of writing the original proofs from scratch. In this process, 44 existing rules were found to be incorrect in the new semantics and fixed. (Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case $\mathbb{D}$ above.) The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of now-incorrect rules were:
+is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by Alex Reinking~\cite{reinkingthesis}. Existing tests and real uses of Halide were useless as a test of this change, as \emph{they were all carefully written to never divide by zero}. Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now it was necessary to either show that the rule was still correct in the case where a denominator was zero, or constrain the rule to only trigger when the denominator was known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 
+\NumZdivCoqProvedRules rules were reverified with a human in the loop by revisiting and modifying existing Coq proofs. The mechanical re-verification was all but push-button; the manual effort for updating the Coq proofs was non-trivial, but about half of the effort of writing the original proofs from scratch. In this process, \NumZdivFalseRules existing rules were found to be incorrect in the new semantics and fixed. (Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case $\mathbb{D}$ above.) The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of now-incorrect rules were:
 
 \begin{align*}
 (x/y)*y + x\%y \rewrites & x \\
