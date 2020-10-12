@@ -1080,7 +1080,7 @@ In constructing the reduction order, we found \NumOrderingProblems rules that co
               \tiny{$\ldots$} \\
               \color{darkgray}
               \tiny{$(x_1 + 2) < x_2 + (x_1 + 2)$} \\
-              $x_1 < \hsel(b_2, -3, 4) + x_1$ \\
+              $x_1 < \hsel(x_2, -3, 4) + x_1$ \\
               \color{darkgray}
               \tiny{$\hsel(x_1 < x_2, -3, 4)$} \\
               \color{darkgray}
@@ -1088,9 +1088,9 @@ In constructing the reduction order, we found \NumOrderingProblems rules that co
     \node (e3) [example] [right of=s3,node distance=19em]
           {\shortstack{No reassociated/commuted variants \\ match an existing rule.}};
     \node (e4) [example] [right of=s4,node distance=19em]
-          {$x_1 < \hsel(b_2, -3, 4) + x_1 \rightarrow \boxed{\neg x_2}$};
+          {$x_1 < \hsel(x_2, -3, 4) + x_1 \rightarrow \boxed{\neg x_2}$};
     \node (e5) [example] [right of=s5,node distance=19em]
-          {$x_1 < \hsel(b_2, c_0, c_1) + x_1 \rewrites \neg x_2$};
+          {$x_1 < \hsel(x_2, c_0, c_1) + x_1 \rewrites \neg x_2$};
     \node (e6) [example] [right of=s6,node distance=19em]
           {\shortstack{
               $0 < \hsel(\textit{false}, c_0, c_1) + 0 = \neg \textit{false} ~ \wedge$ \\
@@ -1101,16 +1101,16 @@ In constructing the reduction order, we found \NumOrderingProblems rules that co
         {$0 < c_1 \wedge c_0 \le 0 $};
     \node (e8) [example] [right of=s8,node distance=19em]
         {\shortstack{
-            $\exists~ x_1, b_2, c_0, c_1 \;.\; (0 < c_1 \wedge c_0 \le 0) ~\wedge$ \\
-            $(x_1 < \hsel(b_2, c_0, c_1) + x_1 \neq \neg b_2)$ ? \\
+            $\exists~ x_1, x_2, c_0, c_1 \;.\; (0 < c_1 \wedge c_0 \le 0) ~\wedge$ \\
+            $(x_1 < \hsel(x_2, c_0, c_1) + x_1 \neq \neg x_2)$ ? \\
             No solutions. Predicate is sufficient.
         }};
     \node (e9) [example] [right of=s9,node distance=19em]
-          {$x_1 < \hsel(b_2, c_0, c_1) + x_1 \rewrites \neg b_2 \pred 0 < c_1 \wedge c_0 \le 0 $};
+          {$x_1 < \hsel(x_2, c_0, c_1) + x_1 \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $};
     \node (e10) [example] [right of=s10,node distance=19em]
           {\shortstack{
-              $x_1 < \hsel(b_2, c_0, c_1) + x_1 \rewrites \neg b_2 \pred 0 < c_1 \wedge c_0 \le 0 $ \\
-              $x_1 < x_1 + \hsel(b_2, c_0, c_1) \rewrites \neg b_2 \pred 0 < c_1 \wedge c_0 \le 0 $
+              $x_1 < \hsel(x_2, c_0, c_1) + x_1 \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $ \\
+              $x_1 < x_1 + \hsel(x_2, c_0, c_1) \rewrites \neg x_2 \pred 0 < c_1 \wedge c_0 \le 0 $
           }};
 
 
