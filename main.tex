@@ -387,7 +387,7 @@ undesired behavior. The TRS is not complete enough to address all compiler queri
 Finally, although the overarching goal of the TRS is to simplify 
 expressions, ``simplify'' is an imprecise notion. If developers are not familiar with 
 the entire ruleset, or the full variety of applications of the simplifier, they may inadvertently 
-add a rule that makes the simplifier worse for some of its use-cases. }
+add a rule that makes the simplifier worse for some of its usecases. }
 
 \modified{ In this work, we show how techniques based on formal methods can help developers
  maintain a complex term rewriting system, first by providing formal guarantees 
@@ -401,7 +401,7 @@ add a rule that makes the simplifier worse for some of its use-cases. }
 ruleset, demonstrating that proofs of soundness are possible despite the lack of a 
 decision procedure for our theory. We model the Halide expression language and verify 
 the ruleset via an SMT solver that can prove about 88\% of the existing ruleset;
-we prove the remaining rules by hand via the proof assistant Coq~\cite{Coq19}. We find three unsound rules, 
+we prove the remaining rules by hand via the proof assistant Coq~\cite{Coq19}. We find four unsound rules, 
 as well as several rules which could be made more general by relaxing their predicate guards. 
 The Halide developers changed the language's semantics for division during this work; we reran our verification 
 process to find 44 rules which were incorrect under the new semantics, demonstrating 
@@ -419,7 +419,7 @@ defined priority: we may want to remove as many vector operations as possible,
 then reduce the overall size of the expression, and so on. Usefully, this order also provides a termination guarantee: 
 if every rewrite leaves the rewritten expression strictly less in terms of our order, 
 then it is impossible for any sequence of rewrites to form cycles, so the rewrite 
-algorithm must terminate. This is not a hypothetical issue; Halide developers have previously
+algorithm must terminate. This is not a hypothetical issue: Halide developers have previously
 observed non-termination when adding rules.  We devise an ordering that fits as many of the existing rules as 
 possible, and then remove the few rules that do not obey this ordering, proving
 that the TRS will now always terminate. Maintaining this order as 
@@ -766,9 +766,9 @@ Halide TRS & 2s & 885 & 3419
 \end{table}
 
 
-Given that we make use of the Z3 solver as an oracle for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide term rewriting system has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
+Given that we make use of the Z3 solver~\cite{de2008z3} as an oracle for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide term rewriting system has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
 
-As discussed above, Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may complete on a more powerful server while timing out on a different machine.
+As discussed above, the Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may complete on a more powerful server while timing out on a different machine.
 
 \modified{While the Halide algorithm is less powerful than Z3, its deterministic, greedy rule application strategy
 gives it a smooth performance curve, whether it succeeds or fails in simplifying an input expression. }
@@ -828,7 +828,7 @@ holds in our theory (of course, the solver itself is also incomplete; we only ma
 soundness of the solver and cannot derive any information in the case where the solver cannot
 show that an identity holds). If the identity holds and can be oriented using our reduction order, 
 it is added as a rule. It is possible that the newly-synthesized rule may be a consequence 
-of the existing ruleset and thus could have been found by running completion on $E_R$, 
+of the existing ruleset and thus could have been found by running completion, 
 but we know that many synthesized rules contain information that is previously 
 unknown to the TRS.}
 
@@ -859,7 +859,7 @@ applied to at least one expression observed by the compiler under realistic usec
   we must perform a post-hoc verification of a large body of existing rules;
   proving a subset of rules correct or that a subset of rules do not result in infinite
   rewriting loops is insufficient to guarantee robust behavior.  Secondly,
-  these rewrites operated in an undecidable theory, making automated verification
+  these rewrites operate in an undecidable theory, making automated verification
   difficult.  Finally, because of this undecidability, we cannot necessarily
   rely on traditional automated techniques to discover new rules.}
 %\sak{Should we say something about how this applies to things other than Halide?}
@@ -878,8 +878,8 @@ rule applications, on any input expression, can form a cycle.
 We verify each individual rule is correct by modeling Halide
 expressions in SMT2 and using the SMT solver Z3~\cite{de2008z3} to
 prove that the rule's left- and right-hand sides are equivalent. Most Halide expression
-semantics map cleanly to SMT2 formulas. The functions \hmax and
-\hmin are defined in the usual way, and \hsel in
+semantics map cleanly to SMT2 formulas. The functions \hmax{} and
+\hmin{} are defined in the usual way, and \hsel{} in
 Halide is equivalent to the SMT2 operator \texttt{ite}. Division and
 modulo are given the Euclidean definitions in both Halide and
 SMT2~\cite{boute1992euclidean}, though division and modulo by zero is handled
@@ -1147,7 +1147,6 @@ that check the validity of the rule on the values matched by the symbolic consta
 find such a rule, we know that adding it to the TRS will enable it to simplify the input
 expression as well as any similar expressions it may encounter.}
 
-\paragraph{Gathering input expressions}
 The set of input expressions may come from a bug report, or may be gathered from compiler logs. With logging enabled, the compiler records two
 kinds of problematic expression for which new TRS rules may be helpful:
 \modified{non-monotonic expressions, which can result in over-conservative
@@ -1216,7 +1215,7 @@ be matched with the input term.
 If we perform this inverse matching for all sets of subterms, we find \emph{all possible LHSs} that could match the
 input expression. 
 When a subterm occurs more than once in the input expression, we construct a LHS that 
-use the same variable to replace it in multiple places and LHSs that replace its
+uses the same variable to replace it in multiple places and LHSs that replace its
 occurrences with different variables.
 We repeat the procedure on all \emph{subterms} of the input expression.  The result is the set of all 
 LHSs that match any part of the input expression. See Figure~\ref{fig:lhspatterns} for a worked example. }
@@ -1487,10 +1486,10 @@ In evaluating the benefits of the verifier and synthesizer, we answer the follow
 
 \begin{itemize}
   \item \textbf{Does the synthesizer produce better rules than a human expert?} The TRS has been manually extended five times in response to bug reports pointing out limitations of the compiler. We synthesized these five rulesets automatically and found that the human-authored rules were less general and in one case were incorrect. (Section~\ref{sub:bugfixes})
-  \item \textbf{Can verification contribute to the Halide TRS, or is testing alone sufficient?} Although handwritten rules have been extensively fuzz-tested and new rules are peer-reviewed before inclusion, we were still able to discover \NumRulesFixed unsound rules through verification. In addition, verification was able to identify 47 rules that needed to be changed after a significant semantics redefinition, which would have been challenging to discover through testing. (Section~\ref{sec:eval-correctness})
+  \item \textbf{Can verification contribute to the Halide TRS, or is testing alone sufficient?} Although handwritten rules have been extensively fuzz-tested and new rules are peer-reviewed before inclusion, we were still able to discover \NumRulesFixed unsound rules through verification. In addition, verification was able to identify \NumZdivFalseRules rules that needed to be changed after a significant semantics redefinition, which would have been challenging to discover through testing. (Section~\ref{sec:eval-correctness})
   \item \textbf{What is the best way to use synthesis and verification in development?} We survey several cases from recent Halide development where human experts used the synthesis machinery as an assistant, finding that this hybrid model is more powerful than either the human developer or the synthesizer alone. (Section~\ref{sub:synthassistant})
   \item \textbf{Can synthesis be used for large-scale improvements of the TRS?} We gather a corpus of over 100,000 expressions on which the TRS can make no progress and iteratively synthesize rules using the corpus as input. We synthesize \NumRulesSynthesized  rules and add them to the TRS ruleset without a human audit. We find that the enhanced ruleset reduces peak memory usage in compiled code, sometimes dramatically, in 197 of our benchmarks. We also find no significant compile-time slowdown even with this 4.5-fold increase in ruleset size. (Section~\ref{sub:endtoendexperiment})
-  \item \textbf{Could the entire TRS have been synthesized?} Encouraged by the large-scale experiment, we ask how far we are from being able to bootstrap the entire TRS automatically---something that we considered too ambitious originally. First, we find that \PercentPossibleToSynth~of the existing ruleset are accessible to our current synthesizer in principle; the remaining rules contain operators not yet supported by the tool. % or cannot be reasoned about automatically by our solver. 
+  \item \textbf{Could the entire TRS have been synthesized?} Encouraged by the large-scale experiment, we ask how far we are from being able to bootstrap the entire TRS automatically---something that we considered too ambitious originally. First, we find that \PercentPossibleToSynth~of the existing ruleset is accessible to our current synthesizer in principle; the remaining rules contain operators not yet supported by the tool. % or cannot be reasoned about automatically by our solver. 
   We test the synthesizer's power by removing \NumRulesInCorrectnessExperiment{} accessible rules from the original ruleset one by one and attempting to synthesize a replacement, successfully finding a replacement rule \PercentRulesResynthesized{} of the time.  We find this encouraging for future applications of the synthesizer. (Section~\ref{sub:replacementexperiment})
 \end{itemize}
 
@@ -1582,7 +1581,7 @@ With this one exception, across these five code changes the synthesizer generate
 \label{sub:replacementexperiment}
 To bootstrap a TRS, we could start with a TRS equipped with a basic set of rules and synthesize the remaining rules as the TRS encounters expressions needing those rules.  How far is the synthesizer from supporting this ambitious vision?
 
-Given the space of possible rewrites explored by the synthesizer, we believe that it can currently produce at most \PercentPossibleToSynth{} of rules that exist in the current TRS. The obstacles to synthesizing all human-written rules include (i)~the inability to automatically verify some rules or preconditions (see Question 3 above); (ii)~lack of support for some operators in our synthesizer. 
+Given the space of possible rewrites explored by the synthesizer, we believe that it can currently produce at most \PercentPossibleToSynth{} of rules that exist in the current TRS. The obstacles to synthesizing all human-written rules include (i)~the inability to automatically verify some rules or preconditions (see Question 3 above); and (ii)~lack of support for some operators in our synthesizer. 
 
 We tested the synthesizer's ability to recreate the original ruleset in the following experiment. We instrumented the ruleset to associate expressions from compilations of Halide's correctness test suite with individual rules invoked when those expressions are rewritten. We gathered a set of rules for which we had at least three expressions that matched the rule, and filtered out those rules that are out of scope for the current synthesizer, because their right-hand sides contain operators we do not support. This gave us a set of \NumRulesInCorrectnessExperiment{} rules. For each of these rules, we disabled the rule in the TRS, then used its matching expressions as input to the synthesizer. The synthesizer was able to find rules in 186 cases, or about \PercentRulesResynthesized{} of the rules. Of the other 135 cases, in 43 of them other rules in the existing TRS happened to combine to rewrite the specific input expression even without the target rule; for example, this often occurred when the matching expression contained combinations of constants that could be exploited by other rules. 10 of the 92 failure cases were due to timeouts in the synthesis process, while 15 specifically failed to synthesize a predicate. Given that it was difficult to target the desired rule precisely, we find these results to be a promising state of the technology.
 
