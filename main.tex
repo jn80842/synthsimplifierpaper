@@ -1,5 +1,5 @@
 %% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
-\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+%\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For double-blind review submission, w/ CCS and ACM Reference
 %\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true}
 %% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
@@ -7,7 +7,7 @@
 %% For single-blind review submission, w/ CCS and ACM Reference
 %\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true}
 %% For final camera-ready submission, w/ required CCS and ACM Reference
-%\documentclass[acmsmall]{acmart}\settopmatter{}
+\documentclass[acmsmall]{acmart}\settopmatter{}
 
 
 \usepackage{amsmath}
@@ -88,9 +88,9 @@
 %% use defaults for review submission.
 \acmJournal{PACMPL}
 \acmVolume{1}
-\acmNumber{CONF} % CONF = POPL or ICFP or OOPSLA
+\acmNumber{OOPSLA} % CONF = POPL or ICFP or OOPSLA
 \acmArticle{1}
-\acmYear{2018}
+\acmYear{2020}
 \acmMonth{1}
 \acmDOI{} % \acmDOI{10.1145/nnnnnnn.nnnnnnn}
 \startPage{1}
@@ -269,8 +269,8 @@
   while operating over the undecidable theory of integers.
   In this work, we apply formal techniques to prove the correctness of existing
   rewrite rules and provide a guarantee of termination. Then,
-  we build an automatic program synthesis system that operates over the undecidable theory
-  of integers in order to craft new, provably correct rules from failure cases
+  we build an automatic program synthesis system 
+  in order to craft new, provably correct rules from failure cases
   where the compiler was unable to prove properties. We identify and fix
   \NumRulesFixed incorrect rules as well as \NumOrderingProblems rules which
   could give rise to infinite rewriting loops.
@@ -374,7 +374,7 @@ so the simplifier must be deterministic. This is a hard requirement.}
 that greedily applies rules in a fixed order and keeps only the expression being currently 
 rewritten as state, the term rewriting system (TRS) provides the performance and determinism 
 that the compiler requires. This algorithm scales well in terms of the number of rules
-in the TRS, so Halide developers have continued to improve and increase its
+in the TRS, so Halide developers continue to improve and increase its
 power by refining the ruleset and adding new rules by hand.}
 
 \modified{However, maintaining a TRS by hand presents significant challenges. Rules are 
@@ -581,8 +581,8 @@ the full Halide expression grammar}.  \modified{The language of Halide expressio
 operates over vectors and scalars of integers, booleans, and real values.  However, in
 this work we concentrate on the TRS as it applies to integer and boolean values, for
 both vectors and scalars, because the most important uses of the TRS within the compiler
-apply to these types.  In this section, we give some background on term rewriting systems,
-describe how the Halide compiler uses the TRS
+apply to these types.  In this section, we give some background on term rewriting systems.
+We then describe how the Halide compiler uses the TRS
 and the design decisions that motivate the custom rewriting engine, as well as the scope
 of our work.}
 
@@ -620,10 +620,10 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
   In many parts of the compiler, the TRS is used to rewrite expressions into simpler forms,
   which are easier for the compiler to reason about, and result in less code being generated for
   LLVM to consume at the backend.  Most importantly, the compiler uses the TRS to simplify expressions
-  into constants or expressions monotonic with respect to loop bounds; these simplifications are core to Halide's
+  into constants or expressions that are monotonic with respect to loop bounds; these simplifications are core to Halide's
   ability to generate drastically different loop nests for different schedules.}
 
-\modified{For example, consider the simple two-stage imaging pipeline $(g(x) = f(x - 1) + f(x) + f(x + 1)$.
+\modified{For example, consider the simple two-stage imaging pipeline $g(x) = f(x - 1) + f(x) + f(x + 1)$.
   Halide enables programmers to fuse the computation of $f$ into $g$ at an arbitrary granularity
   using the \texttt{compute\_at} scheduling directive.  This requires Halide to automatically reason
   about which region of $f$ is required for a specific sub-region (or tile) of $g$, using interval
@@ -636,7 +636,7 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
   completely unrolled; the loop can be vectorized; or $f$ can be mapped to GPU threads (since a single
   threadblock must have a compile-time-known size).  More generally, this kind of region analysis
   operates most effectively when the expressions are monotonic in the loop bounds; otherwise, interval
-  arithmetic can result in vast overestimates of required regions.  These kinds of simplifications are essential
+  arithmetic can result in vast overestimates of required regions.  These simplifications are essential
   for the compiler to work, and are usually not as simple as this example.}
 
 \modified{The rules for simplifying to perform cancellations and
@@ -675,9 +675,9 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
   instruction altogether.  For example, for an expression \texttt{x / max(y, 1)} the compiler
   will try to prove $0 < \hmax(y, 1)$.  The TRS first invokes a rule to transform this to
   $0 < y\; ||\; 0 < 1$, which then is transformed to true (since the second clause is always true).
-  Thus, the compiler replaces the Euclidean division with machine division.}
+  Thus, the compiler is able to replace Euclidean division with machine division.}
 
-\modified{TRS failures have adverse results on the compiler, making it flaky and
+\modified{TRS failures have adverse results on the compiler, making it unpredictable and
   difficult for programmers to use.  When the TRS fails to properly simplify an expression or
   prove a property, the consequences include: }
 \begin{itemize}
@@ -709,7 +709,7 @@ the results in equivalence classes, as in an egraph. The Halide term rewriting a
 keeps only one expression in state and applies rules greedily, in a fixed priority.
 This is very fast and requires very little memory; the tradeoff is that the algorithm 
 may pick the ``wrong'' rule and have no way of undoing that decision. 
-Since the rewriter is invoked many thousands of times with each call of the compiler, 
+Since the rewriter is invoked thousands of times with each call of the compiler, 
 it chooses to sacrifice some solving power in exchange for performance.}
 
 \subsubsection{\modified{Halide's Custom TRS Algorithm}}
@@ -755,7 +755,7 @@ expressions having a quasi-canonical form.}
 
 \subsubsection{Why Not Z3?}
 \begin{table}
-\caption{We compare the performance of Z3 and the Halide TRS in proving a set of 4304 expressions gathered from realistic compiler output.}
+\caption{We compare the performance of Z3 and the Halide TRS in proving a set of 4304 expressions gathered from realistic compiler output. Note that expressions in the ``not proven'' column include expressions that are true but not found to be so by the solvers as well as expressions that are not true. }
 \begin{tabular}{l|r|r|r}
 Tool & Runtime & Proven expressions & Not proven \\
 \hline
@@ -766,13 +766,13 @@ Halide TRS & 2s & 885 & 3419
 \end{table}
 
 
-Given that we make use of the Z3 solver~\cite{de2008z3} as an oracle for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide term rewriting system has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
+Given that we make use of the Z3 solver~\cite{de2008z3} for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide term rewriting system has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
 
 As discussed above, the Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may complete on a more powerful server while timing out on a different machine.
 
 \modified{While the Halide algorithm is less powerful than Z3, its deterministic, greedy rule application strategy
 gives it a smooth performance curve, whether it succeeds or fails in simplifying an input expression. }
-A solver like Z3 tends to give very good performance most of the time but gets bogged down in difficult cases, requiring the use of timeouts. The Halide algorithm ``fails fast'': on an input expression which does not match by any rule,  the Halide algorithm will complete in time linear to the size of the expression, taking on the order of one CPU cycle per term in the expression per rule in the TRS. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including provably true expressions and expressions not provably true. Z3 could prove more expressions true (within a 60 second timeout), but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over 7 minutes to check the set of expressions while the Halide TRS took just 2 seconds. The set of expressions is much smaller than the number of calls the compiler makes to the rewriter in compiling a single pipeline.
+A solver like Z3 tends to give very good performance most of the time but gets bogged down in difficult cases, requiring the use of timeouts. The Halide algorithm ``fails fast'': on an input expression which does not match any rule,  the Halide algorithm will complete in time linear to the size of the expression, taking on the order of one CPU cycle per term in the expression per rule in the TRS. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including provably true expressions and expressions that are not provably true. Z3 could prove more expressions true (within a 60 second timeout), but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over 7 minutes to check the set of expressions while the Halide TRS took just 2 seconds. This set of expressions is much smaller than the number of calls the compiler makes to the rewriter in compiling a single pipeline.
 
 Because the Halide algorithm at every step chooses one rule to apply to the single expression it is working on, it scales well in terms of the number of rules in the TRS. See Section~\ref{ssec:compilationspeed} for an evaluation of the effects of adding newly synthesized rules on the performance of the compiler. 
 
@@ -980,7 +980,7 @@ The lexicographic product of two terminating relations is again terminating.
 
 Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rewrites r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rewrites r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.  Our final ordering consists of 13 component orders.
 
-Many of our component orders are defined using a measure function that counts the number of particular operations or other features in a term. We say that $s > t$ when $s$ has more vector operations than $t$, then when $s$ has more division, modulo and multiplications operations, and so on. As a sample proof sketch of this flavor of order, consider an order $s_1 >_* s_2$ that holds when the number of multiplication operations is greater in $s_1$ than in $s_2$. We represent this through a measure function $|s_1|_*$ that returns the count of multiplication operations in $s_1$; since this function maps a term to a natural number, the order is clearly well-founded. The order is also compatible with $\Sigma$-operations; we compute our measure function as follows:
+Many of our component orders are defined using measure functions that count the number of particular operations or other features in a term. We say that $s > t$ when $s$ has more vector operations than $t$, then when $s$ has more division, modulo and multiplications operations, and so on. As a sample proof sketch of this flavor of order, consider an order $s_1 >_* s_2$ that holds when the number of multiplication operations is greater in $s_1$ than in $s_2$. We represent this through a measure function $|s_1|_*$ that returns the count of multiplication operations in $s_1$; since this function maps a term to a natural number, the order is clearly well-founded. The order is also compatible with $\Sigma$-operations; we compute our measure function as follows:
 
 
 \[
@@ -1126,7 +1126,7 @@ In constructing the reduction order, we found \NumOrderingProblems rules that co
     \path[->] (e9) edge node {} (e10);
 
   \end{tikzpicture}
-  \caption{Overall flow of the synthesis pipeline (in blue) with worked example (in orange). (a) We harvest expressions from real compilations on which the TRS could make no further progress. (b) We enumerate all sub-trees of these to generate left-hand sides that would match each expression. Our example will focus on one such pattern. (c) We obtain a right-hand side by first checking if any reassociated or commuted variants of it match an existing TRS rule. (d) If not, we superoptimize the pattern using CEGIS. (e) This rule is specific to the particular values of any constants that appear. We then replace any constants with new variables $c_0, c_1, etc.$ to obtain a more general version of the rule. We must now synthesize a sufficient condition on these new variables under which the rule still holds. (f) To do this, we treat the rewrite as an equality and take the conjunction over a set $S$ of different values for the non-constant variables $x_0, x_1, etc.$. (g) Simplifying the result gives a candidate predicate. This is a \emph{necessary} condition. (h) We then check if it is also \emph{sufficient} condition using Z3. (i) If a counterexample is found, we add these new values of $x$ to $S$ to obtain a new candidate predicate and repeat until we have a sufficient condition to serve as our predicate. (j) Finally, we construct variants of the rule in which the LHS has been commuted.}
+  \caption{Overall flow of the synthesis pipeline (in blue) with worked example (in orange). (a) We harvest expressions from real compilations on which the TRS could make no further progress. (b) We enumerate all subtrees of these to generate left-hand sides that would match each expression. Our example will focus on one such pattern. (c) We obtain a right-hand side by first checking if any reassociated or commuted variants of it match an existing TRS rule. (d) If not, we superoptimize the pattern using CEGIS. (e) This rule is specific to the particular values of any constants that appear. We then replace any constants with new variables $c_0, c_1, etc.$, to obtain a more general version of the rule. We must now synthesize a sufficient condition on these new variables under which the rule still holds. (f) To do this, we treat the rewrite as an equality and take the conjunction over a set $S$ of different values for the non-constant variables $x_0, x_1, etc.$ (g) Simplifying the result gives a candidate predicate. This is a \emph{necessary} condition. (h) We then check if it is also \emph{sufficient} condition using Z3. (i) If a counterexample is found, we add these new values of $x$ to $S$ to obtain a new candidate predicate and repeat until we have a sufficient condition to serve as our predicate. (j) Finally, we construct variants of the rule in which the LHS has been commuted.}
 \label{fig:synthesis-flow}
 \end{figure*}
 
@@ -1203,7 +1203,6 @@ each individual subterm. This process yields the list of candidate LHS terms on 
 
 \subsection{Generating LHS Patterns}
 
-\modified{
   Our first step is to find LHS terms that could match the input expression, or any portion of it. 
 We can enumerate all such terms through a kind of inverse matching.
 When we rewrite an expression with a rule, 
@@ -1218,16 +1217,16 @@ When a subterm occurs more than once in the input expression, we construct a LHS
 uses the same variable to replace it in multiple places and LHSs that replace its
 occurrences with different variables.
 We repeat the procedure on all \emph{subterms} of the input expression.  The result is the set of all 
-LHSs that match any part of the input expression. See Figure~\ref{fig:lhspatterns} for a worked example. }
+LHSs that match any part of the input expression. See Figure~\ref{fig:lhspatterns} for a worked example.
 
-\modified{This number of LHSs is exponential in the size of the input expression, so we use a few heuristics to narrow 
+This number of LHSs is exponential in the size of the input expression, so we use a few heuristics to narrow 
 our search. We bound the size of candidate LHSs to have seven or fewer leaves, since longer terms are less likely to 
 result in rules general enough to justify inclusion in the ruleset. 
 Additionally, since we process input expressions in batches, we remove 
 duplicate LHSs as well as LHSs that differ only in the values of their constants. 
 Finally, we have found it helpful to keep a blacklist of LHSs for which we previously
 failed synthesize rules; for example, $v_1 + v_3$ 
-cannot form a rule, so we filter it out as a candidate.}
+cannot form a rule, so we filter it out as a candidate.
 
 \subsection{Synthesizing Right-Hand Sides} 
 \label{sec:synthesizing-candidate-rules}
@@ -1241,24 +1240,24 @@ the RHS followed by synthesis of the rule predicate guard.}
 
 \subsubsection{Finding Right-Hand Sides through AC matching}
 \label{sec:rhsacmatching}
-\modified{The first strategy reflects the Halide design decision not to perform any AC matching in the TRS, for efficiency reasons. 
+The first strategy reflects the Halide design decision not to perform any AC matching in the TRS, for efficiency reasons. 
 Instead, AC matching is effectively performed during rule synthesis, by checking whether the LHS could be 
 rewritten by the existing TRS after a suitable application of associativity and commutativity laws to the LHS. 
 To this end, we generate all possible reassociations and commutations of the candidate LHS term and pass them to the existing TRS. 
 If any of them can be simplified, we create a new rule that rewrites 
-the original, untransformed LHS term to the result of the simplification.  Note that this result may include applications of more than one rewriting step, so the new rule is not merely an AC-variant of an existing rule. }
+the original, untransformed LHS term to the result of the simplification.  Note that this result may include applications of more than one rewriting step, so the new rule is not merely an AC-variant of an existing rule.
 
-\modified{For example, assume our TRS includes the rule $(x + y) - x \rewrites y$, 
-and let $((u + 2) + v) - u$ be a candidate LHS term. The rule does not match the candidate but it matches its variant $(u + (v + 2)) - u$, rewriting it to the result $v + 2$. The candidate and the result give us the rule $((u + 2) + v) - u \rewrites v + 2$. }
+For example, assume our TRS includes the rule $(x + y) - x \rewrites y$, 
+and let $((u + 2) + v) - u$ be a candidate LHS term. The rule does not match the candidate but it matches its variant $(u + (v + 2)) - u$, rewriting it to the result $v + 2$. The candidate and the result give us the rule $((u + 2) + v) - u \rewrites v + 2$.
 
-\modified{We can consider this procedure a kind of lazy, offline AC matching, because if the Halide TRS 
+We can consider this procedure a kind of lazy offline AC matching, because if the Halide TRS 
 performed full AC matching while rewriting expressions, it would be able to apply the rule $(x + y) - x \rewrites  y$ to the candidate expression $((u + 2) + v) - u$ after reassociating it to $(u + (v + 2)) - u$, obtaining the result $v + 2$.  Delaying AC matching to synthesis has the effect of restricting the system to a single, offline round of AC and memoizing the result in the form of a new TRS rule if we are successful. 
 Note that the synthesis procedure below could have found this rule, but checking for AC
-variants of existing rules is far cheaper. About three quarters of our synthesized rules are generated by this method.}
+variants of existing rules is far cheaper. About three-quarters of our synthesized rules are generated by this method.
 
 \subsubsection{Finding Right-Hand Sides through CEGIS}
 \label{sec:rhssynthesis}
-\modified{If the first method fails, we apply counter-example guided inductive synthesis (CEGIS)~\cite{DBLP:conf/aplas/Solar-Lezama09} to superoptimize the left-hand side pattern.
+\modified{If the first method fails, we apply counterexample guided inductive synthesis (CEGIS)~\cite{DBLP:conf/aplas/Solar-Lezama09} to superoptimize the left-hand side pattern.
 In superoptimization~\cite{massalin1987superoptimizer}, we take a program and search 
 for an equivalent program within some grammar that is preferable according 
 to some cost function. Here our grammar is that of the Halide expression language, 
@@ -1493,7 +1492,7 @@ In evaluating the benefits of the verifier and synthesizer, we answer the follow
   We test the synthesizer's power by removing \NumRulesInCorrectnessExperiment{} accessible rules from the original ruleset one by one and attempting to synthesize a replacement, successfully finding a replacement rule \PercentRulesResynthesized{} of the time.  We find this encouraging for future applications of the synthesizer. (Section~\ref{sub:replacementexperiment})
 \end{itemize}
 
-We discuss these findings in more detail below, grouping them into three sections. First we examine bug reports from Halide’s past and evaluate whether the machinery presented in this paper could have fixed them automatically. Second, we examine cases where beta versions of our verifier and synthesizer assisted humans in both fixing bugs and also correctly making larger changes to the compiler. Third, we fuzz the compiler to mine for issues that could be fixed with new simplifier rules, and automatically fix them before they ever appear as a bug in a real program. In this way we demonstrate that this machinery would have been useful in the past, is useful in the present, and will help avoid entire classes of bugs in the future.
+We discuss these findings in more detail below, grouping them into three sections. First we examine bug reports from Halide’s past and evaluate whether the machinery presented in this paper could have fixed them automatically. Second, we examine cases where beta versions of our verifier and synthesizer assisted humans both in fixing bugs and in correctly making larger changes to the compiler. Third, we fuzz the compiler to mine for issues that could be fixed with new simplifier rules, and automatically fix them before they ever appear as a bug in a real program. In this way we demonstrate that this machinery would have been useful in the past, is useful in the present, and will help avoid entire classes of bugs in the future.
 
 %\jln{don't forget to do this!}
 %Note for reviewers: For the purposes of this anonymous submission, we will refer to code changes by letter, with corresponding diffs found in supplemental material. In this final version of the paper these will be replaced with GitHub issue and pull request IDs with links to Halide’s GitHub page.
@@ -1544,7 +1543,7 @@ The synthesizer produced effectively the same rule, along with a variant:
 & \hmax(x, (\hmax(x, y) + c_0)) \rewrites \hmax(x, (y + c_0)) \pred c_0 \leq 0
 \end{align*}
 
-Case $\mathbb{D}$ is the most interesting. It contains four rules involving comparisons of min and max operations. What happened for each was identical, so we will only discuss the min rules. The first rule is:
+Case $\mathbb{D}$ is the most interesting. It contains four rules involving comparisons of $\hmin$ and $\hmax$ operations. What happened for each was identical, so we will only discuss the $\hmin$ rules. The first rule is:
 
 \[
 \hmin(x, c_0) < \hmin(x, c_1) + c_2 \rewrites \hfalse \pred c_0 \geq c_1 + c_2)
@@ -1566,11 +1565,11 @@ The synthesizer found a more general rule, along with three other commuted varia
 \[
 \hmin(x, y) < \hmin(x, z) \rewrites y < \hmin(x, z)
 \]
-Any expression which matches the human-written rule would also match the synthesized one. The synthesized version does not simplify to the constant “false” in a single step. However, after applying this rule to the case considered by the human, we get $c_0 < \hmin(x, c_1)$ where $c_0 \geq c_1$. The simplifier then reduces this to “false” in a second step, so the human-written rule becomes unnecessary. The synthesizer considered the human-written rule, but discarded it as less general than the one above.
+Any expression which matches the human-written rule would also match the synthesized one. The synthesized version does not simplify to the constant false in a single step. However, after applying this rule to the case considered by the human, we get $c_0 < \hmin(x, c_1)$ where $c_0 \geq c_1$. The simplifier then reduces this to false in a second step, so the human-written rule becomes unnecessary. The synthesizer considered the human-written rule, but discarded it as less general than the one above.
 
 Case $\mathbb{D}$ also included the rewrite rule: 
 \[
-x \% x \rewrites 0
+x\; \%\; x \rewrites 0
 \]
 which was the sole rule the synthesizer could not generate, as we did not include modulo by non-constants in our CEGIS interpreter.
 
@@ -1607,14 +1606,14 @@ is a change to the semantics of Halide that may not have even been attempted wit
 \NumZdivCoqProvedRules rules were reverified with a human in the loop by revisiting and modifying existing Coq proofs. The mechanical re-verification was all but push-button; the manual effort for updating the Coq proofs was non-trivial, but about half of the effort of writing the original proofs from scratch. In this process, \NumZdivFalseRules existing rules were found to be incorrect in the new semantics and fixed. (Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case $\mathbb{D}$ above.) The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of now-incorrect rules were:
 
 \begin{align*}
-(x/y)*y + x\%y \rewrites & x \\
+(x/y)*y + (x\;\%\;y) \rewrites & x \\
   -1 / x \rewrites & \hsel(x < 0, 1, -1) \\
 (x + y)/x \rewrites & y/x + 1
 \end{align*}
 
 The first was modified to:
 \[
-(x/c_0)*c_0 + x\%c_0 \rewrites x \pred c_0 \neq 0
+(x/c_0)*c_0 + (x\;\%\;c_0) \rewrites x \pred c_0 \neq 0
 \]
 and the other two were constrained to only trigger when the denominator is known to be non-zero via other means.
 
@@ -1626,14 +1625,14 @@ The cases discussed in Section~\ref{sub:bugfixes} all concern fixing existing pr
 \begin{tabular}{r|l|l}
 & Rule & Counterexample \\
 \hhline{=|=|=}
-Wrong &  $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \% c_0 = 0 \wedge c_1 > 0$ & $c_0 = -1, c_1 = 2, x = 1$\\
-Fixed & $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \% c_0 = 0 \wedge c_0 > 0 \wedge \frac{c_1}{c_0} \neq 0$ & \\
+Wrong &  $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \;\%\; c_0 = 0 \wedge c_1 > 0$ & $c_0 = -1, c_1 = 2, x = 1$\\
+Fixed & $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \;\%\; c_0 = 0 \wedge c_0 > 0 \wedge \frac{c_1}{c_0} \neq 0$ & \\
 \hhline{=|=|=}
-Wrong & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites x \% c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
-Fixed & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites (-x) \% c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
+Wrong & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites x \;\%\; c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites (-x) \;\%\; c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
 \hhline{=|=|=}
-Wrong & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites -(x \% c_1) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
-Fixed & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites ((x + c_0) \% c_1) + (-c_0) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
+Wrong & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites -(x \;\%\; c_1) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites ((x + c_0) \;\%\; c_1) + (-c_0) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
 
 \end{tabular}
 }
@@ -1667,7 +1666,7 @@ Generalizing from these four cases, we have found that having the verifier and s
 \subsection{Using the Synthesizer to Prevent Future Issues}
 \label{ssec:compilationspeed}
 
-\subsubsection{Can synthesis be used for large-scale improvements of the TRS?}
+\subsubsection{Can synthesis be used for large-scale improvements of the TRS?\nopunct}
 \label{sub:endtoendexperiment}
 %What improvements are possible when we allow the synthesizer to learn rules from a large body of input, without human supervision? In this experiment, rather than synthesizing a repair to just one incorrect rule, we attempted to synthesize rules for over 100,000 expressions that failed to simplify over thousands of instrumented compilations. We synthesized 4127 rules and added them to the TRS. In evaluating the effects of these improvements, we found 197 benchmarks that were over-allocating memory, sometimes dramatically, due to imprecise bounds reasoning caused by missing rules. Those benchmarks were fixed by the improved TRS. Synthesis allowed us to make this dramatic change to the ruleset without fear of introducing non-terminating behavior, since synthesized rules must satisfy the reduction order (see Section~\ref{sub:termination}). Satisfying this additional restriction would further complicate manual rule development. 
 
@@ -1677,7 +1676,7 @@ Although we now have a guarantee of soundness, we have no such guarantee of comp
 
 We attempted to probe for such opportunities for improvement using fuzzing. We selected the 12 most complex example applications in the open source repository, and generated 64 random schedules for each using the autoscheduler~\cite{Adams2019}, which can be configured to generate random likely-good schedules. This produced 768 separate compilations. We also instrumented most of the Halide code at Google for an additional 5032 compilations, this time using the original human-written schedules. Note that this is qualitatively different to randomly-generated schedules: we do not expect Halide users at Google would check in code that behaves poorly due to an issue with the compiler.
 
-We instrumented these compilations to log expressions that might represent a TRS failure of some kind. From each compilation we log all integer expressions found that are non-monotonic with respect to a containing loop, and all failed proof attempts made during compilation. That is, we log all boolean expressions passed to the TRS in the hope that they will reduce to the constant ``true'' so that some optimization can correctly be performed. This resulted in a corpus of roughly one hundred thousand unique expressions.
+We instrumented these compilations to log expressions that might represent a TRS failure of some kind. From each compilation we log all integer expressions found that are non-monotonic with respect to a containing loop, and all failed proof attempts made during compilation. That is, we log all boolean expressions passed to the TRS in the hope that they will reduce to the constant true so that some optimization can correctly be performed. This resulted in a corpus of roughly one hundred thousand unique expressions.
 
 Using this corpus as input, we synthesize new rewrite rules, add all rules found back to the ruleset, and rerun all compilations to gather new expressions, repeating this process until convergence. In total we created 4127 new rewrite rules in this way, more than quadrupling the number of rules in the TRS. For some examples, refer to Table \ref{tab:samplerules}.
 
@@ -1759,8 +1758,8 @@ fixed-bitwidth integers.  As a result, we do not consider cases where the TRS
 must also reason about whether overflow can occur.  Extending our improvements
 and automation to such rules could be done in future work.
 
-One major limitation of the synthesis process we use is that our oracle
-for rules, Z3, often cannot reason about expressions with divisions or modulo
+One major limitation of the synthesis process we use is that our solver,
+Z3, often cannot reason about expressions with divisions or modulo
 where the right operand is a variable.  Though we work around this to
 synthesize rules with generalized predicates on right hand side constants,
 the overall synthesis machinery cannot generalize these to non-constants.
@@ -1820,9 +1819,9 @@ Herbie~\cite{panchekha2015automatically}, a tool for improving the accuracy of f
 
 Besides the closely-related projects described above, program synthesis has been applied to term rewriting systems in several domains. Swapper~\cite{singh2016swapper} synthesizes a set of rewrite rules to transform SMT formulas into forms that can be more easily solved by theory solvers, similar to the use of the Halide TRS as a simplifier, using the SKETCH tool. \citet{butler2017synthesizing} learns human-interpretable strategies (essentially rewrite rules) for puzzle games such as Sudoku or Nonograms and \citet{butler2018framework} finds tactics for solving K-12 algebra problems, both using a CEGIS loop similar to our synthesis process. None of these address termination, although Swapper likely screens out non-terminating rulesets through its autotuning step. The Butler works both focus on synthesizing small, highly general rulesets that are similar to human rewriting strategies, unlike the Halide TRS which tolerates very large rulesets. The \textbf{$\lambda^2$} tool~\cite{feser2015lambda} for example-guided synthesis performs inductive synthesis from examples, using a combination of inductive and deductive reasoning combined with enumerative search.  While our rewrite rules do not have the benefit of examples, it may be possible to apply this technique to obtain more sophisticated predicate synthesis for our rewrites.
 
-Superoptimization, a process of finding a shorter or more desirable program that is semantically equivalent to a larger one, is similar to our work synthesizing right-hand side terms for candidate LHSs. STOKE~\cite{schkufza2013stochastic} uses Monte Carlo Markov Chain sampling to explore the space of x86 assembly programs, while \citet{phothilimthana2016scaling} describes a cooperative superoptimizer that searches for better programs using multiple techniques in a way that allows them to learn from each other.  Souper~\cite{sasnauskas2017souper} is a recent synthesis-based superoptimizer for LLVM, which was used as the basis for evaluating the effectiveness of Alive-Infer's{} precondition synthesis.
+Superoptimization, a process of finding a shorter or more desirable program that is semantically equivalent to a larger one, is similar to our work synthesizing right-hand side terms for candidate LHSs. STOKE~\cite{schkufza2013stochastic} uses Monte Carlo Markov Chain sampling to explore the space of x86 assembly programs, while \citet{phothilimthana2016scaling} describes a cooperative superoptimizer that searches for better programs using multiple techniques in a way that allows them to learn from each other.  Souper~\cite{sasnauskas2017souper} is a recent synthesis-based superoptimizer for LLVM, which was used in evaluating the effectiveness of Alive-Infer's{} precondition synthesis.
 
-PSyCO~\cite{lopes2014weakest} synthesizes preconditions that guarantee a compiler optimization is semantics-preserving, using a counterexample-driven algorithm similar to our rule CEGIS loop (although not like our predicate synthesis algorithm). PSyCO finds the weakest precondition from a finite language of constraints, while the space of our predicate search is theoretically inifinite but in practice bounded by our iteration limit. PSyCO must reason about side effects by tracking read and write behavior in optimization templates, while our expression language is side effect-free. More recently, Proviso~\cite{astorga2019learning} finds preconditions for C\# programs using an active learning framework composed of a machine learning algorithm for decision trees as a black-box learner and a test generator that acts as a teacher providing counterexamples. Like this work, the logic of preconditions they synthesize is in an undecidable domain.
+PSyCO~\cite{lopes2014weakest} synthesizes preconditions that guarantee a compiler optimization is semantics-preserving, using a counterexample-driven algorithm similar to our rule CEGIS loop (although not like our predicate synthesis algorithm). PSyCO finds the weakest precondition from a finite language of constraints, while the space of our predicate search is theoretically inifinite but in practice bounded by our iteration limit. PSyCO must reason about side effects by tracking read and write behavior in optimization templates, while our expression language is side effect--free. More recently, Proviso~\cite{astorga2019learning} finds preconditions for C\# programs using an active learning framework composed of a machine learning algorithm for decision trees as a black-box learner and a test generator that acts as a teacher providing counterexamples. Like this work, the logic of preconditions they synthesize is in an undecidable domain.
 
 SMT solvers seek to achieve practical results in theoretically challenging problems, such as the theory of non-linear integer arithmetic. For example, \citet{jovanovic2017solving} describes a satisfiability procedure for NLIA that is effective in practice and implements it in the Yices2 solver. In this work we leverage Z3's NLIA solving abilities and extend synthesis to include certain types of non-linear expressions by using constants as operands and later generalizing.
 
