@@ -83,16 +83,23 @@
 \newcommand{\htrue}[0]{\texttt{true}}
 \newcommand{\hsel}[0]{\texttt{select}}
 \usepackage{syntax}
-%% Journal information
-%% Supplied to authors by publisher for camera-ready submission;
-%% use defaults for review submission.
-\acmJournal{PACMPL}
-\acmVolume{1}
-\acmNumber{OOPSLA} % CONF = POPL or ICFP or OOPSLA
-\acmArticle{1}
+
+%%% The following is specific to OOPSLA '20 and the paper
+%%% 'Verifying and Improving Halide’s Term Rewriting System with Program Synthesis'
+%%% by Julie Newcomb, Andrew Adams, Steven Johnson, Rastislav Bodik, and Shoaib Kamil.
+%%%
+\setcopyright{rightsretained}
+\acmPrice{}
+\acmDOI{10.1145/3428234}
 \acmYear{2020}
-\acmMonth{1}
-\acmDOI{} % \acmDOI{10.1145/nnnnnnn.nnnnnnn}
+\copyrightyear{2020}
+\acmSubmissionID{oopsla20main-p148-p}
+\acmJournal{PACMPL}
+\acmVolume{4}
+\acmNumber{OOPSLA}
+\acmArticle{166}
+\acmMonth{11}
+
 \startPage{1}
 
 %% Macros for quantities
@@ -110,16 +117,6 @@
 \newcommand{\NumZdivFalseRules}{{\color{black} 44}\xspace}
 \newcommand{\NumZdivRelaxedPredicates}{{\color{black} 37}\xspace}
 
-
-%% Copyright information
-%% Supplied to authors (based on authors' rights management selection;
-%% see authors.acm.org) by publisher for camera-ready submission;
-%% use 'none' for review submission.
-\setcopyright{none}
-%\setcopyright{acmcopyright}
-%\setcopyright{acmlicensed}
-%\setcopyright{rightsretained}
-%\copyrightyear{2018}           %% If different from \acmYear
 
 %% Bibliography style
 \bibliographystyle{ACM-Reference-Format}
@@ -310,7 +307,7 @@
 
 %% Keywords
 %% comma separated list
-%\keywords{keyword1, keyword2, keyword3}  %% \keywords are mandatory in final camera-ready submission
+\keywords{term rewriting system, verification, synthesis}  %% \keywords are mandatory in final camera-ready submission
 
 
 %% \maketitle
@@ -355,7 +352,7 @@
 It must work in 
 the theory of integers, which is undecidable, and make use of operations such as 
 Euclidean division and maximum/minimum which can be especially difficult for 
-automated reasoning. Any solver in this theory is necessarily incomplete, but in general, 
+automated reasoning. Although any solver in this theory is necessarily incomplete, but in general, 
 the compiler can generate higher-performing code as the simplifier becomes more powerful.}
   \item \modified{\textbf{High performance:} However, the simplifier is called many thousands of 
 times over the course of a single compilation, and so requires high performance and low memory usage. }
@@ -592,7 +589,7 @@ used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{
 
 Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. (Constants are considered zero-arity functions.) We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
 
-A \emph{rewrite rule} is a directed binary relation $l \rewrites r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is a \emph{term rewriting system}.
+A \emph{rewrite rule} is a directed binary relation $l \rewrites r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is called a \emph{term rewriting system}.
 
 Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\clubsuit, \diamondsuit\}$ and $V$ is an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
 
@@ -916,7 +913,7 @@ with a guard requiring some constant to be positive would be equally valid
 if the constant was non-zero.
 
 
-\subsubsection{Evolving semantics}
+\paragraph{Evolving Semantics}
 \label{sub:evolvingsemantics}
 
 This mostly-automated approach to verification assists with changing
@@ -1238,7 +1235,7 @@ We employ two strategies for synthesizing right-hand sides:
 delayed AC matching, and counter-example guided inductive synthesis (CEGIS) of 
 the RHS followed by synthesis of the rule predicate guard.} 
 
-\subsubsection{Finding Right-Hand Sides through AC matching}
+\subsubsection{Finding Right-Hand Sides through AC Matching}
 \label{sec:rhsacmatching}
 The first strategy reflects the Halide design decision not to perform any AC matching in the TRS, for efficiency reasons. 
 Instead, AC matching is effectively performed during rule synthesis, by checking whether the LHS could be 
@@ -1394,7 +1391,7 @@ the current (unsound) candidate $\phi_S$ to disjunctive normal form and tests
 each clause in turn to check if it is a sufficient guard.
 If it is, that clause becomes the guard.  If no clause is sound, we discard the rule.
 If the loop terminates with Z3 timing out or returning ``unknown'', we return
-the current $\phi_S$, flagging it for human attention as requiring a manual proof. 
+the current $\phi_S$, flagging it as requiring a manual proof. 
 We exclude all such cases from our experiments.}
 
 
@@ -1419,6 +1416,8 @@ We exclude all such cases from our experiments.}
 %
 \[  \phi_S(\vec{c}) \iff 0 < c_1 \wedge c_0 \le 0
 \]
+
+\newpage 
 Next we check whether $\phi_S$ is sound for all $\vec{x}$.  It is, so we have a completed rule:
 
 \[ x_0 < \hsel(x_1, c_0, c_1) + x_0) \rewrites \neg x_1 \;\pred \;0 < c_1 \wedge c_0 \le 0
@@ -1499,7 +1498,7 @@ We discuss these findings in more detail below, grouping them into three section
 
 \subsection{Comparing the Synthesizer to Human-Authored Rules}
 
-\subsubsection{Does the synthesizer produce better rules than a human expert?}
+\subsubsection{Does the Synthesizer Produce Better Rules than a Human Expert?}
 \label{sub:bugfixes}
 
 %We expect a human expert to create rules that are as general as possible while also including rules that take advantage of less general situations, such as when special cases allow stronger rewrites.  Can a synthesizer produce rules that are both general and expressive? 
@@ -1530,7 +1529,9 @@ $\mathbb{E}$: \url{https://github.com/halide/Halide/pull/3780}
 }.}
 Creating these rewrite rules as a human is an amount of work disproportionate to the size of the change. The author of the rules must prove them correct on paper, and a second reviewer must check their work. As we will see, bugs can slip through despite this review. 
 
-In each case we take the test expressions committed as part of the change and feed them to our synthesizer to see if it would have produced the same rewrite rules as the humans did. In cases where humans did not check in tests for their new rules, we wrote our own. In total, across these five cases humans added 24 new rules. The synthesizer generated 42, covering all but one of the human rules, while correcting and generalizing others. In cases $\mathbb{A}$, $\mathbb{C}$, and $\mathbb{E}$, the rules generated by the synthesizer are an exact match to the human-generated rules. In case $\mathbb{B}$ the synthesizer matched the human but also crafted 8 commuted variants of the human rules, making them more widely applicable. As an example, for the human-written rule:
+In each case we take the test expressions committed as part of the change and feed them to our synthesizer to see if it would have produced the same rewrite rules as the humans did. In cases where humans did not check in tests for their new rules, we wrote our own. In total, across these five cases humans added 24 new rules. The synthesizer generated 42, covering all but one of the human rules, while correcting and generalizing others. In cases $\mathbb{A}$, $\mathbb{C}$, and $\mathbb{E}$, the rules generated by the synthesizer are an exact match to the human-generated rules. In case $\mathbb{B}$ the synthesizer matched the human but also crafted 8 commuted variants of the human rules, making them more widely applicable. 
+\newpage
+As an example, for the human-written rule:
 
 \[
 \hmax(\hmax(x, y) + c_0, x) \rewrites \hmax(x, y + c_0) \pred c_0 < 0
@@ -1576,7 +1577,7 @@ which was the sole rule the synthesizer could not generate, as we did not includ
 With this one exception, across these five code changes the synthesizer generated more general, more correct rules than the humans, and would clearly have been a useful assistant to the Halide developers if they had had it at the time.
 
 
-\subsubsection{What fraction of the Halide rules could have been synthesized?}
+\subsubsection{What Fraction of the Halide Rules Could Have Been Synthesized?}
 \label{sub:replacementexperiment}
 To bootstrap a TRS, we could start with a TRS equipped with a basic set of rules and synthesize the remaining rules as the TRS encounters expressions needing those rules.  How far is the synthesizer from supporting this ambitious vision?
 
@@ -1587,7 +1588,7 @@ We tested the synthesizer's ability to recreate the original ruleset in the foll
 
 \subsection{Practical Uses of the Synthesizer and Verifier}
 
-\subsubsection{Can verification contribute to the Halide TRS, or is testing alone sufficient?}
+\subsubsection{Can Verification Contribute to the Halide TRS, or is Testing Alone Sufficient?}
 \label{sec:eval-correctness}
 
 The Halide TRS has a stringent development process: new rules are peer reviewed after they are proven on paper, and fuzzing has been discovering bugs for months. It is thus reasonable to ask whether mechanized verification can add any value. Our verification discovered \NumRulesFixed new soundness bugs and \NumPredicatesRelaxed instances of rules whose predicates were overly restrictive. The former bugs eluded the fuzzer; the latter are deemed too hard so the fuzzer does not look for them. Furthermore, because the verification infrastructure was in place, it was possible to verify a change of semantics without much additional effort, identifying 44 rules that were incorrect under the new semantics.
@@ -1629,17 +1630,17 @@ Wrong &  $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \;\%\; c
 Fixed & $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \;\%\; c_0 = 0 \wedge c_0 > 0 \wedge \frac{c_1}{c_0} \neq 0$ & \\
 \hhline{=|=|=}
 Wrong & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites x \;\%\; c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
-Fixed & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites (-x) \;\%\; c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
+Fixed & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites {-x} \;\%\; c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
 \hhline{=|=|=}
 Wrong & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites -(x \;\%\; c_1) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
-Fixed & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites ((x + c_0) \;\%\; c_1) + (-c_0) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
+Fixed & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites ((x + c_0) \;\%\; c_1) + {-c_0} \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
 
 \end{tabular}
 }
 \label{tab:verfirstround}
 \end{table*}
 
-\subsubsection{What is the best way to use synthesis and verification in development?}
+\subsubsection{What is the Best Way to Use Synthesis and Verification in Development?}
 \label{sub:synthassistant}
 
 % Is the expert equipped with the synthesizer better at developing rules than either the expert alone or the synthesizer alone? The synthesizer can accelerate rule development because it is correct by construction and also faster than a human expert. On average, the expert needed about 30 minutes to develop a rule, including a paper proof and the code review. Our synthesizer typically produces a batch of ten (verified) rules in about 5 minutes.
@@ -1666,7 +1667,7 @@ Generalizing from these four cases, we have found that having the verifier and s
 \subsection{Using the Synthesizer to Prevent Future Issues}
 \label{ssec:compilationspeed}
 
-\subsubsection{Can synthesis be used for large-scale improvements of the TRS?\nopunct}
+\subsubsection{Can Synthesis be Used for Large-scale Improvements of the TRS?\nopunct}
 \label{sub:endtoendexperiment}
 %What improvements are possible when we allow the synthesizer to learn rules from a large body of input, without human supervision? In this experiment, rather than synthesizing a repair to just one incorrect rule, we attempted to synthesize rules for over 100,000 expressions that failed to simplify over thousands of instrumented compilations. We synthesized 4127 rules and added them to the TRS. In evaluating the effects of these improvements, we found 197 benchmarks that were over-allocating memory, sometimes dramatically, due to imprecise bounds reasoning caused by missing rules. Those benchmarks were fixed by the improved TRS. Synthesis allowed us to make this dramatic change to the ruleset without fear of introducing non-terminating behavior, since synthesized rules must satisfy the reduction order (see Section~\ref{sub:termination}). Satisfying this additional restriction would further complicate manual rule development. 
 
@@ -1844,7 +1845,7 @@ in five historical bug fixes. We further described four case studies in which th
 synthesizer has served as an assistant to a human compiler engineer. Finally,
 we showed that applying the synthesizer can proactively improve weaknesses
 in the Halide compiler by bulk-synthesizing a large number of rules automatically
-and demonstrating this ruleset lowers peak memory usage of compiled code with nearly
+and showing this ruleset lowers peak memory usage of compiled code with nearly
 no increase in compilation time.
 %from
 %proof failures, augmenting the compiler with \NumRulesSynthesized synthesized
